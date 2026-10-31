@@ -129,6 +129,7 @@ public sealed partial class MainWindow : Window
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         _closed = true;
+        CloseItemMenu();
         CloseAddressMenu();
         GalleryState.Dispose();
         ViewerState.Close();
@@ -294,14 +295,21 @@ public sealed partial class MainWindow : Window
     {
         if (_closed || _closing) return;
         _navigationVersion++;
+        int version = _navigationVersion;
+        int previewIndex = ViewerState.CurrentIndex;
+        CloseItemMenu();
         if (_addressRequest != _navigationVersion && AddressEditor.Visibility == Visibility.Visible)
             EndAddressEdit(cancelRequest: false);
         CloseAddressMenu();
         CancelGesture();
         if (refresh || GalleryState.IsScanning || !string.Equals(NormalizeFolderPath(folder), GalleryState.CurrentFolder, StringComparison.OrdinalIgnoreCase))
             CloseViewer();
-        if (!await GalleryState.NavigateAsync(folder, pushHistory, refresh, forward) && !_closed && !GalleryState.IsScanning)
+        if (!await GalleryState.NavigateAsync(folder, pushHistory, refresh, forward)
+            && !_closed && !_closing && version == _navigationVersion && !GalleryState.IsScanning)
+        {
             FolderTree.SelectedNode = _currentFolderNode;
+            if (IsFilmstrip && !ViewerState.IsOpen && previewIndex >= 0) await ShowInViewerAsync(previewIndex);
+        }
     }
 
     private async void Back_Click(object sender, RoutedEventArgs e) => await GoBackAsync();
@@ -330,9 +338,9 @@ public sealed partial class MainWindow : Window
     {
         // 扫描期间不展示旧目录卡片，避免把仍在等待的数据误认为新目录内容。
         Gallery.Visibility = GalleryState.IsScanning ? Visibility.Collapsed : Visibility.Visible;
-        EmptyText.Visibility = GalleryState.IsScanning || GalleryState.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        EmptyText.Visibility = GalleryState.IsScanning || (IsFilmstrip ? GalleryState.MediaItems.Count : GalleryState.Items.Count) == 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyText.Text = GalleryState.IsScanning ? "正在读取目录…" : GalleryState.CurrentFolder is null
-            ? "在左侧选择目录，或点击“打开文件夹”" : "此目录没有可显示的文件夹、图片或视频";
+            ? "在左侧选择目录，或点击“打开文件夹”" : IsFilmstrip ? "此目录没有图片或视频，可从下方或左侧进入子文件夹" : "此目录没有可显示的文件夹、图片或视频";
     }
 
     private uint ThumbnailDecodeSize
@@ -348,7 +356,7 @@ public sealed partial class MainWindow : Window
     {
         if (args.Index < 0 || args.Index >= GalleryState.Items.Count) return;
         var item = GalleryState.Items[args.Index];
-        if (args.Element is MediaTile tile) tile.Bind(item);
+        if (args.Element is MediaTile tile) { tile.Bind(item); ConfigureTile(tile); }
         _realizedItems[args.Element] = item;
         _ = item.EnsureThumbnailAsync(ThumbnailDecodeSize);
     }
@@ -401,7 +409,7 @@ public sealed partial class MainWindow : Window
         StopVideo();
         ClearViewerImage();
         ImageScroller.Visibility = item.IsVideo ? Visibility.Collapsed : Visibility.Visible;
-        CloseViewerButton.Focus(FocusState.Programmatic);
+        if (!IsFilmstrip) CloseViewerButton.Focus(FocusState.Programmatic);
 
         try
         {
@@ -529,6 +537,8 @@ public sealed partial class MainWindow : Window
         }
         ViewerFullScreenIcon.Glyph = fullScreen ? "\uE73F" : "\uE740";
         FullScreenExitButton.Visibility = fullScreen ? Visibility.Visible : Visibility.Collapsed;
+        PlaceViewer();
+        FilmstripFullScreenButton.Visibility = IsFilmstrip && !fullScreen ? Visibility.Visible : Visibility.Collapsed;
         string label = fullScreen ? "退出全屏" : "全屏";
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ViewerFullScreenButton, label);
         ToolTipService.SetToolTip(ViewerFullScreenButton, $"{label} (F11)");
@@ -571,7 +581,8 @@ public sealed partial class MainWindow : Window
     private void ImageScroller_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        CloseViewer();
+        if (IsFilmstrip) SetViewerFullScreen(_presenterBeforeFullScreen is null);
+        else CloseViewer();
     }
     private void CloseViewer_Click(object sender, RoutedEventArgs e) => CloseViewer();
     private async void Prev_Click(object sender, RoutedEventArgs e) => await ShowInViewerAsync(ViewerState.CurrentIndex - 1);
@@ -585,7 +596,7 @@ public sealed partial class MainWindow : Window
             & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
         bool alt = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu)
             & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
-        if (!ViewerState.IsOpen)
+        if (!ViewerState.IsOpen || IsFilmstrip)
         {
             if ((control && e.Key == VirtualKey.L) || (alt && e.Key == VirtualKey.D)
                 || (!control && !alt && e.Key == VirtualKey.F4))
@@ -607,7 +618,7 @@ public sealed partial class MainWindow : Window
             && ((Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
                 | Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu))
                 & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0) return;
-        if (_addressFlyout is not null) return;
+        if (_addressFlyout is not null || _itemMenu is not null) return;
         // 不抢占输入框、主题下拉框及播放进度/音量滑块的按键。
         for (var element = e.OriginalSource as DependencyObject; element is not null;
              element = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element))
@@ -623,7 +634,9 @@ public sealed partial class MainWindow : Window
                     break;
                 case VirtualKey.Escape:
                     e.Handled = true;
-                    CloseViewer();
+                    if (IsFilmstrip && _presenterBeforeFullScreen is not null) SetViewerFullScreen(false);
+                    else if (IsFilmstrip) await SetDisplayModeAsync(GalleryDisplayMode.Masonry);
+                    else CloseViewer();
                     break;
                 case VirtualKey.Left:
                 case VirtualKey.PageUp:
@@ -636,7 +649,7 @@ public sealed partial class MainWindow : Window
                     await ShowInViewerAsync(ViewerState.CurrentIndex + 1);
                     break;
             }
-            return;
+            if (e.Handled || !IsFilmstrip) return;
         }
 
         switch (e.Key)

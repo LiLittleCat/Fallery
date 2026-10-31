@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Models/GalleryDisplayMode.cs" Link="Models/GalleryDisplayMode.cs" />
     <Compile Include="../../Models/MediaFile.cs" Link="MediaFile.cs" />
     <Compile Include="../../Models/FolderEntry.cs" Link="FolderEntry.cs" />
     <Compile Include="../../Services/FolderScanner.cs" Link="FolderScanner.cs" />

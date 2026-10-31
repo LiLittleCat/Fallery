@@ -1,0 +1,116 @@
+using Fallery.Controls;
+using Fallery.Models;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+
+namespace Fallery;
+
+public sealed partial class MainWindow
+{
+    private readonly StackLayout _filmstripLayout = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+    private bool IsFilmstrip => GalleryState.DisplayMode == GalleryDisplayMode.Filmstrip;
+
+    public Visibility GalleryChromeVisibility(bool open, GalleryDisplayMode mode) =>
+        ToVisibility(!open || mode == GalleryDisplayMode.Filmstrip);
+    public Visibility ViewerChromeVisibility(bool open, GalleryDisplayMode mode) =>
+        ToVisibility(open && mode != GalleryDisplayMode.Filmstrip);
+    public Visibility FilmstripVisibility(GalleryDisplayMode mode) => ToVisibility(mode == GalleryDisplayMode.Filmstrip);
+
+    private async void DisplayMode_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is RadioMenuFlyoutItem { Tag: string text } && Enum.TryParse<GalleryDisplayMode>(text, out var mode))
+            await SetDisplayModeAsync(mode);
+    }
+
+    private async Task SetDisplayModeAsync(GalleryDisplayMode mode)
+    {
+        if (_closed || _closing || !Enum.IsDefined(mode)) return;
+        int selected = Math.Max(0, ViewerState.CurrentIndex);
+        CloseItemMenu();
+        CloseViewer();
+        GalleryState.DisplayMode = mode;
+        ApplyDisplayOptions();
+        QueueSettingsSave();
+        if (IsFilmstrip) await ShowInViewerAsync(selected);
+    }
+
+    private void ShowFileNames_Click(object sender, RoutedEventArgs e)
+    {
+        GalleryState.ShowFileNames = ShowFileNamesItem.IsChecked;
+        ApplyDisplayOptions();
+        QueueSettingsSave();
+    }
+
+    private void PlaceViewer()
+    {
+        bool embedded = IsFilmstrip && _presenterBeforeFullScreen is null;
+        var target = embedded ? GalleryContent : Root;
+        if (Viewer.Parent is Panel parent && parent != target)
+        {
+            parent.Children.Remove(Viewer);
+            target.Children.Add(Viewer);
+        }
+        Grid.SetRow(Viewer, embedded || _presenterBeforeFullScreen is not null ? 0 : 1);
+        Grid.SetRowSpan(Viewer, embedded ? 1 : _presenterBeforeFullScreen is not null ? 3 : 2);
+    }
+
+    private void ApplyDisplayOptions()
+    {
+        // 换布局时先回收原控件，避免横排固定尺寸残留到瀑布流复用的卡片上。
+        ReleaseGalleryThumbnails();
+        Gallery.ItemsSource = null;
+        Masonry.UniformTiles = GalleryState.DisplayMode == GalleryDisplayMode.LargeIcons;
+        Masonry.ShowFileNames = GalleryState.ShowFileNames;
+        Masonry.Refresh();
+        Gallery.Layout = IsFilmstrip ? _filmstripLayout : Masonry;
+        Grid.SetRow(GalleryScroller, IsFilmstrip ? 1 : 0);
+        GalleryScroller.Height = IsFilmstrip ? GalleryState.ShowFileNames ? 154 : 132 : double.NaN;
+        GalleryScroller.HorizontalScrollMode = IsFilmstrip ? ScrollMode.Enabled : ScrollMode.Disabled;
+        GalleryScroller.HorizontalScrollBarVisibility = IsFilmstrip ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
+        GalleryScroller.VerticalScrollMode = IsFilmstrip ? ScrollMode.Disabled : ScrollMode.Enabled;
+        GalleryScroller.VerticalScrollBarVisibility = IsFilmstrip ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
+        PlaceViewer();
+        Gallery.ItemsSource = GalleryState.Items;
+        GalleryScroller.ChangeView(0, 0, null, true);
+        MasonryModeItem.IsChecked = GalleryState.DisplayMode == GalleryDisplayMode.Masonry;
+        LargeIconsModeItem.IsChecked = GalleryState.DisplayMode == GalleryDisplayMode.LargeIcons;
+        FilmstripModeItem.IsChecked = IsFilmstrip;
+        ShowFileNamesItem.IsChecked = GalleryState.ShowFileNames;
+        ThumbSize.IsEnabled = !IsFilmstrip;
+        UpdateGalleryVisibility();
+        UpdateFilmstripSelection();
+    }
+
+    private void ConfigureTile(MediaTile tile)
+    {
+        tile.Width = IsFilmstrip ? 120 : double.NaN;
+        tile.Height = IsFilmstrip ? GalleryState.ShowFileNames ? 132 : 110 : double.NaN;
+        tile.SetPresentation(GalleryState.ShowFileNames, GalleryState.DisplayMode != GalleryDisplayMode.Masonry,
+            IsFilmstrip && ReferenceEquals(tile.Item, ViewerState.CurrentItem));
+    }
+
+    private void UpdateFilmstripSelection()
+    {
+        if (!IsFilmstrip || _closed) return;
+        foreach (var tile in _realizedItems.Keys.OfType<MediaTile>()) ConfigureTile(tile);
+        if (ViewerState.CurrentItem is not { } item) return;
+        int index = GalleryState.Items.IndexOf(item);
+        if (index < 0) return;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_closed || !IsFilmstrip || !ReferenceEquals(item, ViewerState.CurrentItem)) return;
+            GalleryScroller.UpdateLayout();
+            double left = index * 128;
+            if (left < GalleryScroller.HorizontalOffset || left + 120 > GalleryScroller.HorizontalOffset + GalleryScroller.ViewportWidth)
+                GalleryScroller.ChangeView(Math.Max(0, left - (GalleryScroller.ViewportWidth - 120) / 2), null, null, true);
+        });
+    }
+
+    private async void Tile_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (!IsFilmstrip || sender is not MediaTile { Item: { IsFolder: false } item }) return;
+        e.Handled = true;
+        await ShowInViewerAsync(GalleryState.MediaItems.IndexOf(item));
+    }
+}

@@ -73,7 +73,7 @@ public sealed partial class MainWindow
 
     private void BeginAddressEdit()
     {
-        if (_closing || _closed || ViewerState.IsOpen) return;
+        if (_closing || _closed || (ViewerState.IsOpen && !IsFilmstrip)) return;
         CloseAddressMenu();
         if (AddressEditor.Visibility != Visibility.Visible) AddressEditor.Text = GalleryState.CurrentFolder ?? "";
         ToolTipService.SetToolTip(AddressEditor, "输入文件夹路径，Enter 跳转，Esc 取消");

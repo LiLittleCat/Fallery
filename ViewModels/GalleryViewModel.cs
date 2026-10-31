@@ -33,6 +33,10 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     public partial MediaSortField SortField { get; set; }
     [ObservableProperty]
     public partial bool Descending { get; set; }
+    [ObservableProperty]
+    public partial GalleryDisplayMode DisplayMode { get; set; }
+    [ObservableProperty]
+    public partial bool ShowFileNames { get; set; } = true;
     public bool CanGoBack => !IsScanning && _history.Count > 0;
     public string? PreviousFolder => _history.TryPeek(out var folder) ? folder : null;
     public bool CanGoForward => !IsScanning && _forwardHistory.Count > 0;

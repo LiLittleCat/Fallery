@@ -21,6 +21,8 @@ public sealed class MasonryLayout : VirtualizingLayout
         new PropertyMetadata(6.0, OnLayoutPropertyChanged));
 
     private int _version;
+    public bool UniformTiles { get; set; }
+    public bool ShowFileNames { get; set; } = true;
 
     public double DesiredColumnWidth
     {
@@ -122,7 +124,8 @@ public sealed class MasonryLayout : VirtualizingLayout
     private void ComputeBounds(VirtualizingLayoutContext context, State state, double width)
     {
         state.Geometry = new MasonryGeometry(context.ItemCount, width, DesiredColumnWidth, Spacing,
-            i => (context.GetItemAt(i) as MediaItem)?.AspectRatio ?? 1.0, imageInset: 6, captionHeight: 22);
+            i => UniformTiles ? 1.0 : (context.GetItemAt(i) as MediaItem)?.AspectRatio ?? 1.0,
+            imageInset: 6, captionHeight: ShowFileNames ? 22 : 0);
         state.Width = width;
         state.Version = _version;
     }

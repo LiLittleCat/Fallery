@@ -51,11 +51,15 @@ public partial class App : Application
                 if (previous is not null)
                 {
                     previous.Thumbnail = new BitmapImage();
+                    previous.FolderThumbnails = [new BitmapImage(), new BitmapImage()];
                     previous.ThumbnailFailed = true;
-                    Check(image.Source is null && failure.Visibility == Visibility.Collapsed, "旧对象异步回调污染新卡片");
+                    Check(image.Source is null && ((Image)tile.FindName("FrontCoverImage")).Source is null
+                        && failure.Visibility == Visibility.Collapsed, "旧对象异步回调污染新卡片");
                 }
                 item.Thumbnail = new BitmapImage();
-                Check(ReferenceEquals(image.Source, item.Thumbnail), "新对象封面更新未订阅");
+                if (item.IsFolder) item.FolderThumbnails = [item.Thumbnail];
+                Check(ReferenceEquals(item.IsFolder ? ((Image)tile.FindName("FrontCoverImage")).Source : image.Source, item.Thumbnail),
+                    "新对象封面更新未订阅");
                 item.ThumbnailFailed = true;
                 Check(failure.Visibility == Visibility.Visible, "新对象失败状态未订阅");
                 tile.Bind(null);
@@ -109,6 +113,31 @@ public partial class App : Application
             folder.ReleaseThumbnail();
             await folder.EnsureThumbnailAsync(128);
             Check(folder.Thumbnail is null && !folder.ThumbnailFailed, "删除封面后空文件夹不能残留旧图");
+            var nestedAlbum = Directory.CreateDirectory(Path.Combine(fixture, "nested", "album")).FullName;
+            foreach (var mediaNameForCover in new[] { "image1.jpg", "image2.jpg", "motion.gif" })
+                File.Copy(Path.Combine(workspace, "work/validation/media", mediaNameForCover), Path.Combine(nestedAlbum, mediaNameForCover));
+            await folder.EnsureThumbnailAsync(128);
+            Check(folder.FolderThumbnails.Count == 3 && ReferenceEquals(folder.Thumbnail, folder.FolderThumbnails[0]),
+                "嵌套目录应加载三张不同文件的封面，并保留首图缓存接口");
+            tile.Bind(folder);
+            Check(((Grid)tile.FindName("FolderStack")).Visibility == Visibility.Visible
+                && ((Border)tile.FindName("BackCover")).Visibility == Visibility.Visible
+                && ReferenceEquals(((Image)tile.FindName("FrontCoverImage")).Source, folder.FolderThumbnails[0])
+                && ReferenceEquals(((Image)tile.FindName("MiddleCoverImage")).Source, folder.FolderThumbnails[1])
+                && ReferenceEquals(((Image)tile.FindName("BackCoverImage")).Source, folder.FolderThumbnails[2]),
+                "叠放预览必须绑定三张真实封面");
+            tile.SetPresentation(false, true, false);
+            Check(((Border)tile.FindName("FolderBadge")).Visibility == Visibility.Visible
+                && ((Border)tile.FindName("FolderFooter")).Visibility == Visibility.Collapsed,
+                "隐藏文件名时仍应保留文件夹标识");
+            folder.ReleaseThumbnail();
+            Check(folder.FolderThumbnails.Count == 0 && ((Image)tile.FindName("FrontCoverImage")).Source is null
+                && ((Image)tile.FindName("MiddleCoverImage")).Source is null && ((Image)tile.FindName("BackCoverImage")).Source is null,
+                "回收必须释放所有叠放图片引用");
+            tile.Bind(returned);
+            Check(((Grid)tile.FindName("FolderStack")).Visibility == Visibility.Collapsed
+                && ((Border)tile.FindName("FolderBadge")).Visibility == Visibility.Collapsed,
+                "复用为媒体卡片时不能残留文件夹叠层和角标");
             MediaCache.Clear();
             var canceled = new MediaItem(source, MediaKind.Image, FileVersion.Read(source));
             var pending = canceled.EnsureThumbnailAsync(512);

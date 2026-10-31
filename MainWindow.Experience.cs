@@ -80,6 +80,9 @@ public sealed partial class MainWindow
         _sidebarWidth = settings.SidebarWidth;
         GalleryState.SortField = settings.SortField;
         GalleryState.Descending = settings.Descending;
+        GalleryState.ShowFileNames = settings.ShowFileNames;
+        GalleryState.DisplayMode = settings.DisplayMode;
+        ApplyDisplayOptions();
         SortNameItem.IsChecked = GalleryState.SortField == MediaSortField.Name;
         SortModifiedItem.IsChecked = GalleryState.SortField == MediaSortField.Modified;
         SortSizeItem.IsChecked = GalleryState.SortField == MediaSortField.Size;
@@ -99,6 +102,8 @@ public sealed partial class MainWindow
         SidebarWidth = _sidebarVisible ? SidebarColumn.ActualWidth : _sidebarWidth,
         SortField = GalleryState.SortField,
         Descending = GalleryState.Descending,
+        DisplayMode = GalleryState.DisplayMode,
+        ShowFileNames = GalleryState.ShowFileNames,
     };
 
     private void QueueSettingsSave()
@@ -174,15 +179,16 @@ public sealed partial class MainWindow
 
     private void Gallery_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        if (_closed || _closing || GalleryState.IsScanning || Viewer.Visibility == Visibility.Visible
+        if (_closed || _closing || GalleryState.IsScanning || (Viewer.Visibility == Visibility.Visible && !IsFilmstrip)
             || e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Mouse) return;
         var point = e.GetCurrentPoint(GallerySurface);
         if (!point.Properties.IsRightButtonPressed || point.Properties.IsLeftButtonPressed || point.Properties.IsMiddleButtonPressed) return;
         for (var source = e.OriginalSource as DependencyObject; source is not null;
              source = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(source))
-            if (source is ScrollBar) return;
+            if (source is ScrollBar || source == Viewer) return;
         if (!GallerySurface.CapturePointer(e.Pointer)) return;
         _gesturePointer = e.Pointer;
+        _gestureItem = FindMediaItem(e.OriginalSource as DependencyObject);
         _gestureOrigin = point.Position;
         _statusBeforeGesture = GalleryState.Status;
         e.Handled = true;
@@ -214,6 +220,11 @@ public sealed partial class MainWindow
         if (_gesturePointer?.PointerId != e.Pointer.PointerId) return;
         if (e.GetCurrentPoint(GallerySurface).Properties.IsRightButtonPressed) return;
         var action = GetGesture(e);
+        var item = _gestureItem;
+        var origin = _gestureOrigin;
+        var end = e.GetCurrentPoint(GallerySurface).Position;
+        bool click = Math.Abs(end.X - origin.X) < 8 && Math.Abs(end.Y - origin.Y) < 8;
+        _lastRightRelease = Environment.TickCount64;
         CancelGesture();
         e.Handled = true;
         switch (action)
@@ -222,6 +233,10 @@ public sealed partial class MainWindow
             case NavigationAction.Back: await GoBackAsync(); break;
             case NavigationAction.Previous: await GoAdjacentFolderAsync(false); break;
             case NavigationAction.Next: await GoAdjacentFolderAsync(true); break;
+            case NavigationAction.None when click:
+                if (item is not null) ShowItemMenu(GallerySurface, origin, item.Path, item.IsFolder);
+                else if (GalleryState.CurrentFolder is { } path) ShowItemMenu(GallerySurface, origin, path, true);
+                break;
         }
     }
 
@@ -234,6 +249,7 @@ public sealed partial class MainWindow
     {
         var pointer = _gesturePointer;
         _gesturePointer = null;
+        _gestureItem = null;
         if (pointer is null) return;
         GalleryState.Status = _statusBeforeGesture;
         GallerySurface.ReleasePointerCapture(pointer);

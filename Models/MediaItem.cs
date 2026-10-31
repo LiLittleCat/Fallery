@@ -46,6 +46,9 @@ public sealed partial class MediaItem : ObservableObject
     public partial BitmapImage? Thumbnail { get; set; }
 
     [ObservableProperty]
+    public partial IReadOnlyList<BitmapImage> FolderThumbnails { get; set; } = [];
+
+    [ObservableProperty]
     public partial bool ThumbnailFailed { get; set; }
 
     /// <summary>在 UI 线程调用。元素被回收后再完成的加载会被丢弃。</summary>
@@ -78,6 +81,7 @@ public sealed partial class MediaItem : ObservableObject
                 candidates = await Task.Run(() => FolderScanner.FindFolderPreviews(Path, ct), ct);
                 ct.ThrowIfCancellationRequested();
             }
+            var covers = new List<BitmapImage>(3);
             foreach (var candidate in candidates)
             {
                 try
@@ -97,11 +101,17 @@ public sealed partial class MediaItem : ObservableObject
                     }
                     ct.ThrowIfCancellationRequested();
                     if (bitmap is null) continue;
-                    Thumbnail = bitmap;
+                    if (IsFolder)
+                    {
+                        covers.Add(bitmap);
+                        FolderThumbnails = covers.ToArray();
+                    }
+                    Thumbnail = IsFolder ? covers[0] : bitmap;
                     _thumbnailSize = size;
                     ThumbnailFailed = false;
-                    return;
+                    if (!IsFolder || covers.Count == 3) return;
                 }
+                catch (OperationCanceledException) when (IsFolder && !ct.IsCancellationRequested) { }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception) when (IsFolder) { }
             }
@@ -168,6 +178,7 @@ public sealed partial class MediaItem : ObservableObject
         _thumbnailCts?.Cancel();
         _thumbnailCts = null;
         Thumbnail = null;
+        FolderThumbnails = [];
         _thumbnailSize = 0;
         ThumbnailFailed = false;
     }

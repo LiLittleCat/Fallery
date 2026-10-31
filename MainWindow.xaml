@@ -42,7 +42,7 @@
         </Grid.RowDefinitions>
 
         <TitleBar x:Name="AppTitleBar" Title="Fallery" Height="48"
-                  RequestedTheme="{x:Bind ViewerChromeTheme(ViewerState.IsOpen), Mode=OneWay}"
+                  RequestedTheme="{x:Bind ViewerChromeTheme(ViewerState.IsOpen, GalleryState.DisplayMode), Mode=OneWay}"
                   Background="{ThemeResource ChromeBrush}" Foreground="{ThemeResource TextFillColorPrimaryBrush}">
             <TitleBar.Resources>
                 <HorizontalAlignment x:Key="TitleBarContentHorizontalAlignment">Stretch</HorizontalAlignment>
@@ -53,7 +53,7 @@
             <TitleBar.IconSource><ImageIconSource ImageSource="ms-appx:///Assets/FalleryTitleBar.png" /></TitleBar.IconSource>
             <TitleBar.Content>
                 <Grid Margin="4,0,8,0">
-                    <Grid x:Name="GalleryToolbar" Visibility="{x:Bind ToCollapsedVisibility(ViewerState.IsOpen), Mode=OneWay}" ColumnSpacing="4">
+                    <Grid x:Name="GalleryToolbar" Visibility="{x:Bind GalleryChromeVisibility(ViewerState.IsOpen, GalleryState.DisplayMode), Mode=OneWay}" ColumnSpacing="4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
@@ -107,7 +107,7 @@
                             </Grid>
                         </Border>
                     </Grid>
-                    <Grid x:Name="ViewerToolbar" Visibility="{x:Bind ToVisibility(ViewerState.IsOpen), Mode=OneWay}" ColumnSpacing="12">
+                    <Grid x:Name="ViewerToolbar" Visibility="{x:Bind ViewerChromeVisibility(ViewerState.IsOpen, GalleryState.DisplayMode), Mode=OneWay}" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
@@ -124,7 +124,7 @@
             </TitleBar.Content>
             <TitleBar.RightHeader>
                 <Grid>
-                    <StackPanel Orientation="Horizontal" Spacing="4" Visibility="{x:Bind ToCollapsedVisibility(ViewerState.IsOpen), Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="4" Visibility="{x:Bind GalleryChromeVisibility(ViewerState.IsOpen, GalleryState.DisplayMode), Mode=OneWay}">
                         <Button x:Name="OpenFolderButton" Style="{StaticResource IconButtonStyle}" Click="OpenFolder_Click"
                                 ToolTipService.ToolTip="打开文件夹 (Ctrl+O)" AutomationProperties.Name="打开文件夹">
                             <Button.KeyboardAccelerators><KeyboardAccelerator Key="O" Modifiers="Control" /></Button.KeyboardAccelerators>
@@ -144,7 +144,7 @@
                             </DropDownButton.Flyout>
                         </DropDownButton>
                     </StackPanel>
-                    <Button x:Name="ViewerFullScreenButton" Visibility="{x:Bind ToVisibility(ViewerState.IsOpen), Mode=OneWay}"
+                    <Button x:Name="ViewerFullScreenButton" Visibility="{x:Bind ViewerChromeVisibility(ViewerState.IsOpen, GalleryState.DisplayMode), Mode=OneWay}"
                             Style="{StaticResource IconButtonStyle}" Click="ViewerFullScreen_Click" ToolTipService.ToolTip="全屏 (F11)" AutomationProperties.Name="全屏">
                         <FontIcon x:Name="ViewerFullScreenIcon" Glyph="&#xE740;" FontSize="14" />
                     </Button>
@@ -159,7 +159,7 @@
             </Grid.ColumnDefinitions>
             <Grid x:Name="SidebarPanel" Background="{ThemeResource SidebarBrush}" Padding="4,8,0,4">
                 <TreeView x:Name="FolderTree" SelectionMode="Single" SizeChanged="FolderTree_SizeChanged"
-                          Expanding="FolderTree_Expanding" ItemInvoked="FolderTree_ItemInvoked">
+                          ContextRequested="FolderTree_ContextRequested" Expanding="FolderTree_Expanding" ItemInvoked="FolderTree_ItemInvoked">
                     <TreeView.Resources>
                         <x:Double x:Key="TreeViewItemMinHeight">28</x:Double>
                     </TreeView.Resources>
@@ -178,13 +178,14 @@
                                   HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
                                   AutomationProperties.Name="调整文件树宽度" ToolTipService.ToolTip="拖动调整文件树宽度" />
             <Border x:Name="GallerySurface" Grid.Column="2" Background="{ThemeResource GalleryBrush}">
-                <Grid>
+                <Grid x:Name="GalleryContent">
+                    <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                     <ScrollViewer x:Name="GalleryScroller" Padding="10">
-                        <ItemsRepeater x:Name="Gallery" VerticalCacheLength="2" ElementPrepared="Gallery_ElementPrepared" ElementClearing="Gallery_ElementClearing">
+                        <ItemsRepeater x:Name="Gallery" VerticalCacheLength="2" HorizontalCacheLength="2" ElementPrepared="Gallery_ElementPrepared" ElementClearing="Gallery_ElementClearing">
                             <ItemsRepeater.Layout>
                                 <layouts:MasonryLayout x:Name="Masonry" Spacing="8" DesiredColumnWidth="{x:Bind ThumbSize.Value, Mode=OneWay}" />
                             </ItemsRepeater.Layout>
-                            <ItemsRepeater.ItemTemplate><DataTemplate><controls:MediaTile DoubleTapped="Tile_DoubleTapped" /></DataTemplate></ItemsRepeater.ItemTemplate>
+                            <ItemsRepeater.ItemTemplate><DataTemplate><controls:MediaTile DoubleTapped="Tile_DoubleTapped" Tapped="Tile_Tapped" ContextRequested="Tile_ContextRequested" /></DataTemplate></ItemsRepeater.ItemTemplate>
                         </ItemsRepeater>
                     </ScrollViewer>
                     <TextBlock x:Name="EmptyText" Text="在左侧选择目录，或点击顶部的打开文件夹按钮" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -194,16 +195,28 @@
         </Grid>
 
         <Grid Grid.Row="2" Padding="12,2,10,2" ColumnSpacing="12" Background="{ThemeResource ChromeBrush}" BorderBrush="{ThemeResource DividerBrush}" BorderThickness="0,1,0,0">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <TextBlock x:Name="StatusText" Text="{x:Bind GalleryState.Status, Mode=OneWay}" FontSize="12" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <DropDownButton x:Name="ViewMenuButton" Grid.Column="1" Content="视图" MinHeight="28" Padding="8,3" FontSize="12"
+                            AutomationProperties.Name="视图模式与文件名">
+                <DropDownButton.Flyout>
+                    <MenuFlyout>
+                        <RadioMenuFlyoutItem x:Name="MasonryModeItem" Text="瀑布流" Tag="Masonry" GroupName="DisplayMode" IsChecked="True" Click="DisplayMode_Click" />
+                        <RadioMenuFlyoutItem x:Name="LargeIconsModeItem" Text="大图列表" Tag="LargeIcons" GroupName="DisplayMode" Click="DisplayMode_Click" />
+                        <RadioMenuFlyoutItem x:Name="FilmstripModeItem" Text="大图 + 底部缩略图" Tag="Filmstrip" GroupName="DisplayMode" Click="DisplayMode_Click" />
+                        <MenuFlyoutSeparator />
+                        <ToggleMenuFlyoutItem x:Name="ShowFileNamesItem" Text="显示文件名" IsChecked="True" Click="ShowFileNames_Click" />
+                    </MenuFlyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <FontIcon Glyph="&#xE91B;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <Slider x:Name="ThumbSize" Width="116" Minimum="120" Maximum="480" StepFrequency="20" Value="240"
                         ToolTipService.ToolTip="缩略图大小" AutomationProperties.Name="缩略图大小" ValueChanged="ThumbSize_ValueChanged" />
                 <FontIcon Glyph="&#xE91B;" FontSize="17" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </StackPanel>
-            <ComboBox x:Name="ThemeSelector" Grid.Column="2" Width="112" MinHeight="28" Padding="8,3" FontSize="12" Background="Transparent" BorderThickness="0"
+            <ComboBox x:Name="ThemeSelector" Grid.Column="3" Width="112" MinHeight="28" Padding="8,3" FontSize="12" Background="Transparent" BorderThickness="0"
                       VerticalAlignment="Center" AutomationProperties.Name="外观主题" ToolTipService.ToolTip="外观主题" SelectionChanged="ThemeSelector_SelectionChanged">
                 <ComboBoxItem Content="跟随系统" Tag="Default" /><ComboBoxItem Content="亮色" Tag="Light" /><ComboBoxItem Content="暗色" Tag="Dark" />
             </ComboBox>
@@ -219,7 +232,7 @@
                 <Viewbox Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"
                          MaxWidth="{x:Bind ImageScroller.ViewportWidth, Mode=OneWay}"
                          MaxHeight="{x:Bind ImageScroller.ViewportHeight, Mode=OneWay}">
-                    <Image x:Name="ViewerImage" Stretch="Uniform"
+                    <Image x:Name="ViewerImage" Stretch="Uniform" ContextRequested="Viewer_ContextRequested"
                            PointerPressed="ViewerImage_PointerPressed" PointerMoved="ViewerImage_PointerMoved"
                            PointerReleased="ViewerImage_PointerReleased" PointerCaptureLost="ViewerImage_PointerReleased" />
                 </Viewbox>
@@ -234,6 +247,11 @@
                     Style="{StaticResource IconButtonStyle}" Background="#99000000" Click="ViewerFullScreen_Click"
                     ToolTipService.ToolTip="退出全屏 (F11)" AutomationProperties.Name="退出全屏">
                 <FontIcon Glyph="&#xE73F;" FontSize="16" Foreground="White" />
+            </Button>
+            <Button x:Name="FilmstripFullScreenButton" Visibility="{x:Bind FilmstripVisibility(GalleryState.DisplayMode), Mode=OneWay}"
+                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12" Style="{StaticResource IconButtonStyle}"
+                    Background="#99000000" Click="ViewerFullScreen_Click" ToolTipService.ToolTip="全屏 (F11)" AutomationProperties.Name="预览全屏">
+                <FontIcon Glyph="&#xE740;" FontSize="16" Foreground="White" />
             </Button>
 
             <Button x:Name="PrevButton" Margin="12" HorizontalAlignment="Left" VerticalAlignment="Center"

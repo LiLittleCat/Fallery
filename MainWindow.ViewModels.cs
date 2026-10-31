@@ -12,10 +12,15 @@ public sealed partial class MainWindow
 
     public Visibility ToVisibility(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ToCollapsedVisibility(bool visible) => visible ? Visibility.Collapsed : Visibility.Visible;
-    public ElementTheme ViewerChromeTheme(bool open) => open ? ElementTheme.Dark : ElementTheme.Default;
+    public ElementTheme ViewerChromeTheme(bool open, Fallery.Models.GalleryDisplayMode mode) =>
+        open && mode != Fallery.Models.GalleryDisplayMode.Filmstrip ? ElementTheme.Dark : ElementTheme.Default;
 
     private void InitializeViewModels()
     {
+        ViewerState.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(ViewerState.CurrentItem)) UpdateFilmstripSelection();
+        };
         GalleryState.ItemsChanging += () =>
         {
             ReleaseGalleryThumbnails();
@@ -37,6 +42,7 @@ public sealed partial class MainWindow
             FolderTree.SelectedNode = null;
             _currentFolderNode = null;
             _ = SynchronizeTreeAsync(folder, ct);
+            if (IsFilmstrip) _ = ShowInViewerAsync(0);
         };
         GalleryState.PropertyChanged += (_, args) =>
         {

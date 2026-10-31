@@ -42,6 +42,7 @@ public static class FolderScanner
     {
         var files = Scan(folder, ct);
         var entries = GetChildFolders(folder, ct)
+            .Where(child => ContainsMediaRecursive(child.Path, ct))
             .Select(child => new MediaFile(child.Path, MediaKind.Folder)
             {
                 FolderModifiedTicks = GetFolderModifiedTicks(child.Path),
@@ -52,21 +53,56 @@ public static class FolderScanner
     }
 
     public static List<MediaFile> FindFolderPreviews(string folder, CancellationToken ct = default)
+        => FindFolderPreviews(folder, 4, ct);
+
+    public static bool ContainsMediaRecursive(string folder, CancellationToken ct = default)
+        => FindFolderPreviews(folder, 1, ct).Count > 0;
+
+    private static List<MediaFile> FindFolderPreviews(string folder, int limit, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         var previews = new List<MediaFile>();
         try
         {
-            // 只为可见卡片找少量候选，避免一张损坏图片让整个文件夹失去封面。
-            foreach (var file in new DirectoryInfo(folder).EnumerateFiles("*", TopLevelOnly))
-            {
-                ct.ThrowIfCancellationRequested();
-                if (GetMediaKind(file.FullName) is { } kind)
-                    previews.Add(new(file.FullName, kind) { Version = FileVersion.FromInfo(file) });
-                if (previews.Count == 4) break;
-            }
+            if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0) return previews;
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { return previews; }
+        var pending = new Stack<string>();
+        pending.Push(folder);
+        while (pending.TryPop(out var current))
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                // 先取当前层，再按子目录自然顺序查找；找到足够候选就停止，不解码整棵树。
+                foreach (var file in new DirectoryInfo(current).EnumerateFiles("*", TopLevelOnly))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (GetMediaKind(file.FullName) is { } kind)
+                        previews.Add(new(file.FullName, kind) { Version = FileVersion.FromInfo(file) });
+                    if (previews.Count == limit) { ct.ThrowIfCancellationRequested(); return previews; }
+                }
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
+            try
+            {
+                // 跳过联接和符号链接，避免回到祖先目录或跨到其他磁盘无限遍历。
+                var directories = new List<string>();
+                var options = new EnumerationOptions
+                {
+                    IgnoreInaccessible = true,
+                    AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReparsePoint,
+                };
+                foreach (var directory in Directory.EnumerateDirectories(current, "*", options))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    directories.Add(directory);
+                }
+                directories.Sort((a, b) => CompareNames(Path.GetFileName(a), Path.GetFileName(b)));
+                for (int i = directories.Count - 1; i >= 0; i--) pending.Push(directories[i]);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
+        }
         ct.ThrowIfCancellationRequested();
         return previews;
     }

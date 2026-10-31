@@ -14,6 +14,8 @@ public sealed record AppSettings
     public double SidebarWidth { get; init; } = 260;
     public MediaSortField SortField { get; init; }
     public bool Descending { get; init; }
+    public GalleryDisplayMode DisplayMode { get; init; }
+    public bool ShowFileNames { get; init; } = true;
 
     public AppSettings Normalize() => this with
     {
@@ -24,6 +26,7 @@ public sealed record AppSettings
         ThumbnailSize = double.IsFinite(ThumbnailSize) ? Math.Clamp(ThumbnailSize, 120, 480) : 240,
         SidebarWidth = double.IsFinite(SidebarWidth) ? Math.Clamp(SidebarWidth, 160, 480) : 260,
         SortField = Enum.IsDefined(SortField) ? SortField : MediaSortField.Name,
+        DisplayMode = Enum.IsDefined(DisplayMode) ? DisplayMode : GalleryDisplayMode.Masonry,
     };
 
     private static string? NormalizeFolder(string? path)

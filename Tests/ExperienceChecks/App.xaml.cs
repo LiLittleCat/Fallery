@@ -102,6 +102,60 @@ public partial class App : Application
             Check(address.Text == folder && address.Visibility == Visibility.Collapsed && window.GalleryState.CanGoForward,
                 "取消地址编辑不能改变目录或破坏前进历史");
             var original = items.ToHashSet();
+            var galleryControl = (ItemsRepeater)root.FindName("Gallery");
+            await Invoke("SetDisplayModeAsync", GalleryDisplayMode.LargeIcons);
+            root.UpdateLayout();
+            var firstLarge = (Fallery.Controls.MediaTile)galleryControl.TryGetElement(0);
+            Check(firstLarge is not null && Math.Abs(firstLarge.ActualHeight - firstLarge.ActualWidth - 22) < 0.01,
+                "大图列表应使用方形预览和独立标题行，不能继续沿用照片宽高比");
+            var namesToggle = (ToggleMenuFlyoutItem)root.FindName("ShowFileNamesItem");
+            namesToggle.IsChecked = false;
+            typeof(MainWindow).GetMethod("ShowFileNames_Click", flags)!.Invoke(window, new object[] { namesToggle, new RoutedEventArgs() });
+            root.UpdateLayout();
+            var nameless = (Fallery.Controls.MediaTile)galleryControl.TryGetElement(0);
+            Check(((TextBlock)nameless.FindName("MediaName")).Visibility == Visibility.Collapsed
+                && ((RowDefinition)nameless.FindName("CaptionRow")).Height.Value == 0,
+                "隐藏文件名必须同时移除标题占位高度");
+            await Invoke("SetDisplayModeAsync", GalleryDisplayMode.Filmstrip);
+            root.UpdateLayout();
+            Check(ReferenceEquals(((Grid)root.FindName("Viewer")).Parent, root.FindName("GalleryContent"))
+                && ((Grid)root.FindName("GalleryToolbar")).Visibility == Visibility.Visible
+                && galleryControl.Layout is StackLayout { Orientation: Orientation.Horizontal },
+                "横排模式应在文件树旁嵌入大图并保留目录导航");
+            Check(((Image)root.FindName("ViewerImage")).Source is not null && window.ViewerState.CurrentIndex == 0,
+                "切入横排模式后应打开第一张大图");
+            await Invoke("ShowInViewerAsync", 1);
+            root.UpdateLayout();
+            var selectedTile = (Fallery.Controls.MediaTile)galleryControl.TryGetElement(1);
+            Check(window.ViewerState.CurrentIndex == 1
+                && ((Border)selectedTile.FindName("SelectionOutline")).Visibility == Visibility.Visible,
+                "切换大图后底部缩略图必须同步选中状态");
+            var capturedViewSettings = (AppSettings)typeof(MainWindow).GetMethod("CaptureSettings", flags)!.Invoke(window, null)!;
+            Check(capturedViewSettings.DisplayMode == GalleryDisplayMode.Filmstrip && !capturedViewSettings.ShowFileNames,
+                "窗口保存入口必须读取最新视图与文件名设置");
+            await Invoke("NavigateAsync", Path.Combine(folder, "missing-preview-directory"), true, false);
+            Check(window.ViewerState.CurrentIndex == 1 && ((Image)root.FindName("ViewerImage")).Source is not null,
+                "横排模式跳转失败后必须恢复原目录的大图");
+            await Invoke("NavigateAsync", Path.Combine(workspace, "work", "validation", "experience", "02-空目录"), true, false);
+            Check(!window.ViewerState.IsOpen && ((Image)root.FindName("ViewerImage")).Source is null
+                && ((TextBlock)root.FindName("EmptyText")).Visibility == Visibility.Visible,
+                "进入空目录不能残留上一目录的大图");
+            await Invoke("GoBackAsync");
+            Check(window.ViewerState.CurrentIndex == 0, "横排模式返回目录后应自动打开首项");
+            var imageMenu = (MenuFlyout)typeof(MainWindow).GetMethod("BuildItemMenu", flags)!.Invoke(window, new object?[] { items[0].Path, false, null })!;
+            Check(imageMenu.Items.OfType<MenuFlyoutItem>().Select(i => i.Tag).SequenceEqual(new[] { "open", "reveal", "copy-path", "copy-file" }),
+                "媒体菜单应提供打开、定位和复制操作");
+            var treeMenu = (MenuFlyout)typeof(MainWindow).GetMethod("BuildItemMenu", flags)!.Invoke(window, new object?[] { folder, true, firstNode })!;
+            Check(treeMenu.Items.OfType<MenuFlyoutItem>().Any(i => Equals(i.Tag, "expand"))
+                && treeMenu.Items.OfType<MenuFlyoutItem>().Any(i => Equals(i.Tag, "refresh")), "文件树菜单缺少展开或刷新入口");
+            await Invoke("SetDisplayModeAsync", GalleryDisplayMode.Masonry);
+            namesToggle.IsChecked = true;
+            typeof(MainWindow).GetMethod("ShowFileNames_Click", flags)!.Invoke(window, new object[] { namesToggle, new RoutedEventArgs() });
+            root.UpdateLayout();
+            Check(((Grid)root.FindName("Viewer")).Parent == root && !window.ViewerState.IsOpen
+                && galleryControl.Layout is Fallery.Layouts.MasonryLayout,
+                "返回瀑布流必须归还查看器覆盖层并恢复原虚拟化布局");
+            Check(window.GalleryState.Items.All(original.Contains), "切换视图不能重扫目录或重建媒体模型");
             window.GalleryState.SortField = MediaSortField.Name;
             window.GalleryState.Descending = false;
             await Invoke("ApplySortAsync");

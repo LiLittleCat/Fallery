@@ -85,10 +85,10 @@ Check(children.Select(c => c.HasChildren).SequenceEqual(new[] { false, true, fal
 Check(FolderScanner.GetChildFolders(Path.Combine(fixture, "missing")).Count == 0, "失效目录的展开应安全返回");
 Expect<DirectoryNotFoundException>(() => FolderScanner.Scan(Path.Combine(fixture, "missing")), "扫描失败不能伪装成空目录");
 var entries = FolderScanner.ScanEntries(fixture);
-Check(entries.Take(3).Select(e => (e.Name, e.Kind)).SequenceEqual(new[]
+Check(entries.Where(e => e.Kind == MediaKind.Folder).Select(e => e.Name).SequenceEqual(new[]
 {
-    ("empty", MediaKind.Folder), ("folder2", MediaKind.Folder), ("folder10", MediaKind.Folder),
-}), "文件夹卡片必须排在媒体前面并自然排序，空目录也应显示");
+    "folder2",
+}), "文件夹卡片必须过滤无媒体目录，并保留含媒体的子目录");
 Check(entries.Where(e => e.Kind != MediaKind.Folder).SequenceEqual(media), "混排不能改变媒体播放列表或递归展开子目录文件");
 var previews = FolderScanner.FindFolderPreviews(fixture);
 Check(previews.Count == 4 && previews.All(media.Contains), "封面候选应限量且跳过隐藏、系统及非媒体文件");
@@ -101,7 +101,20 @@ var parentOnly = Path.Combine(fixture, "parent-only");
 Directory.CreateDirectory(Path.Combine(parentOnly, "album"));
 File.WriteAllText(Path.Combine(parentOnly, "album", "photo.jpg"), "fixture");
 Check(FolderScanner.ScanEntries(parentOnly).Single().Kind == MediaKind.Folder, "只有子文件夹的上级目录不能显示为空");
-Check(FolderScanner.FindFolderPreviews(parentOnly).Count == 0, "封面查询不能递归扫描后代目录");
+Check(FolderScanner.FindFolderPreviews(parentOnly).Single().Name == "photo.jpg", "只有文件夹的目录应从后代媒体生成封面");
+Check(FolderScanner.ContainsMediaRecursive(parentOnly), "存在后代媒体时必须保留上级入口");
+File.Delete(Path.Combine(parentOnly, "album", "photo.jpg"));
+Check(!FolderScanner.ContainsMediaRecursive(parentOnly) && FolderScanner.ScanEntries(parentOnly).Count == 0,
+    "删除最后一个后代媒体后应立即隐藏空分支，不能保留旧判断");
+File.WriteAllText(Path.Combine(parentOnly, "album", "new.mp4"), "fixture");
+Check(FolderScanner.ScanEntries(parentOnly).Count == 1 && FolderScanner.FindFolderPreviews(parentOnly).Single().Kind == MediaKind.Video,
+    "新增后代视频后应重新显示目录并提供视频封面");
+var deepFolder = Directory.CreateDirectory(Path.Combine(parentOnly, "album", "deep", "deeper")).FullName;
+File.WriteAllText(Path.Combine(deepFolder, "deep.jpg"), "fixture");
+Check(FolderScanner.FindFolderPreviews(parentOnly).Count == 2, "封面必须跨多层查找，不能只检查一级子目录");
+var textOnly = Directory.CreateDirectory(Path.Combine(parentOnly, "text-only", "nested")).FullName;
+File.WriteAllText(Path.Combine(textOnly, "notes.txt"), "fixture");
+Check(FolderScanner.ScanEntries(parentOnly).All(f => f.Name != "text-only"), "只有非媒体文件的后代分支应隐藏");
 Check(await MediaProbe.TryGetAspectRatioAsync(parentOnly, MediaKind.Folder) is null, "文件夹不能当作媒体探测");
 Expect<DirectoryNotFoundException>(() => FolderScanner.ScanEntries(Path.Combine(fixture, "missing")), "目录卡片扫描也必须保留失败语义");
 using (var canceled = new CancellationTokenSource())
@@ -113,6 +126,7 @@ using (var canceled = new CancellationTokenSource())
     Expect<OperationCanceledException>(() => FolderScanner.GetRoots(canceled.Token), "磁盘枚举应响应取消");
     Expect<OperationCanceledException>(() => FolderScanner.ScanEntries(fixture, canceled.Token), "卡片扫描应响应取消");
     Expect<OperationCanceledException>(() => FolderScanner.FindFolderPreviews(fixture, canceled.Token), "封面候选查询应响应取消");
+    Expect<OperationCanceledException>(() => FolderScanner.ContainsMediaRecursive(parentOnly, canceled.Token), "后代媒体判断应响应取消");
 }
 
 var navRoot = Path.Combine(fixture, "navigation");
@@ -188,6 +202,11 @@ var sanitized = new AppSettings { Width = -1, Height = 99999, Theme = 99, Thumbn
 Check(sanitized.Width == 800 && sanitized.Height == 4320 && sanitized.Theme == 0 && sanitized.ThumbnailSize == 240
     && sanitized.SidebarWidth == 260 && sanitized.LastFolder is null && sanitized.SortField == MediaSortField.Name, "非法设置应被校正");
 Check(new AppSettings { LastFolder = "E:\\invalid\0path" }.Normalize().LastFolder is null, "非法绝对路径不能进入启动导航");
+Check(new AppSettings { DisplayMode = (GalleryDisplayMode)99 }.Normalize().DisplayMode == GalleryDisplayMode.Masonry,
+    "非法视图模式应回退瀑布流");
+var viewSettings = savedSettings with { DisplayMode = GalleryDisplayMode.Filmstrip, ShowFileNames = false };
+Check(await settingsStore.SaveAsync(viewSettings) && await settingsStore.LoadAsync() == viewSettings,
+    "视图模式和文件名开关必须跨启动保存");
 Check((await Task.WhenAll(Enumerable.Range(0, 10).Select(i => settingsStore.SaveAsync(savedSettings with { Width = 1000 + i })))).All(ok => ok), "并发保存不能互相覆盖临时文件或写出半份 JSON");
 Check(await settingsStore.SaveAsync(savedSettings) && await settingsStore.LoadAsync() == savedSettings, "退出时最后保存必须生效");
 Check(!Directory.EnumerateFiles(Path.GetDirectoryName(settingsPath)!, "*.tmp").Any(), "原子保存不应遗留临时文件");
