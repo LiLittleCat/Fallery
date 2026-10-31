@@ -1,0 +1,80 @@
+# ── .NET / WinUI 构建产物 ──
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+AppPackages/
+BundleArtifacts/
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+*.appxupload
+*.msixupload
+Package.StoreAssociation.xml
+_pkginfo.txt
+
+# 发布输出
+publish/
+
+# 本地验证素材、备份和导入压缩包
+/work/
+/Fallery.zip
+[Pp]ublish[Pp]rofiles/*.pubxml.user
+*.pubxml.user
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+# ── IDE ──
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+.idea/
+*.sln.iml
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+
+# 测试和覆盖率
+TestResults/
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+*.coverage
+
+# ── 证书和密钥（MSIX 签名证书不能提交） ──
+*.pfx
+*.snk
+*.p12
+
+# ── 图标中间产物 ──
+# logo/out/ 可由 logo/fallery_logo.py + fluent.py 重新生成；
+# 交付物 logo/final/ 和 Assets/Fallery.ico 要提交
+logo/out/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# ── 系统文件 ──
+.DS_Store
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ── Claude Code 本地设置 ──
+.claude/settings.local.json
