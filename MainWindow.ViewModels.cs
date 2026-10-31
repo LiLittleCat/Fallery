@@ -12,18 +12,12 @@ public sealed partial class MainWindow
 
     public Visibility ToVisibility(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ToCollapsedVisibility(bool visible) => visible ? Visibility.Collapsed : Visibility.Visible;
-    // 浏览时标题栏透出 Mica；查看器打开时与深色查看器背景连成一片。
-    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush _viewerChromeBrush = new(Microsoft.UI.ColorHelper.FromArgb(255, 22, 23, 25));
-    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush _transparentBrush = new(Microsoft.UI.Colors.Transparent);
-    public Microsoft.UI.Xaml.Media.Brush ViewerChromeBackground(bool open, Fallery.Models.GalleryDisplayMode mode) =>
-        open && mode != Fallery.Models.GalleryDisplayMode.Filmstrip ? _viewerChromeBrush : _transparentBrush;
-    public ElementTheme ViewerChromeTheme(bool open, Fallery.Models.GalleryDisplayMode mode) =>
-        open && mode != Fallery.Models.GalleryDisplayMode.Filmstrip ? ElementTheme.Dark : ElementTheme.Default;
 
     private void InitializeViewModels()
     {
         ViewerState.PropertyChanged += (_, args) =>
         {
+            if (args.PropertyName == nameof(ViewerState.IsOpen)) UpdateViewerBackdrop();
             if (args.PropertyName == nameof(ViewerState.CurrentItem)) UpdateFilmstripSelection();
         };
         GalleryState.ItemsChanging += () =>
@@ -34,10 +28,26 @@ public sealed partial class MainWindow
         };
         GalleryState.ItemsChanged += () =>
         {
+            bool live = IsLiveFolderRefresh;
+            bool wasViewing = ViewerState.IsOpen;
             if (_selectedItem is not null && !GalleryState.Items.Contains(_selectedItem)) _selectedItem = null;
+            if (live && _liveRefreshSelection is { } selectedPath)
+                _selectedItem = GalleryState.Items.FirstOrDefault(item => string.Equals(item.Path, selectedPath, StringComparison.OrdinalIgnoreCase));
             Gallery.ItemsSource = GalleryState.Items;
             if (!AdoptLaunchPlaylist()) ViewerState.SetPlaylist(GalleryState.MediaItems);
-            GalleryScroller.ChangeView(null, 0, null, disableAnimation: true);
+            if (live)
+            {
+                if (wasViewing && !ViewerState.IsOpen) CloseViewer();
+                int version = _navigationVersion;
+                double vertical = _liveRefreshOffset, horizontal = _liveRefreshHorizontalOffset;
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    if (_closed || version != _navigationVersion) return;
+                    GalleryScroller.UpdateLayout();
+                    GalleryScroller.ChangeView(horizontal, vertical, null, disableAnimation: true);
+                });
+            }
+            else GalleryScroller.ChangeView(null, 0, null, disableAnimation: true);
             UpdateGalleryVisibility();
         };
         GalleryState.LayoutInvalidated += () => Masonry.Refresh();
@@ -45,6 +55,7 @@ public sealed partial class MainWindow
         {
             RefreshAddressBar();
             QueueSettingsSave();
+            if (IsLiveFolderRefresh) return;
             FolderTree.SelectedNode = null;
             _currentFolderNode = null;
             _ = SynchronizeTreeAsync(folder, ct);

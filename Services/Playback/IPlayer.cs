@@ -14,6 +14,10 @@ public interface IPlayer : IDisposable
 
     TimeSpan Position { get; set; }
     TimeSpan Duration { get; }
+    /// <summary>包含当前旋转方向的显示尺寸，避免窗口适配时重复交换宽高。</summary>
+    uint VideoWidth { get; }
+    uint VideoHeight { get; }
+    int Rotation { get; set; }
     bool IsPlaying { get; }
     /// <summary>0–100。</summary>
     double Volume { get; set; }

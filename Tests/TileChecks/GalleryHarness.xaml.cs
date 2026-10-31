@@ -63,6 +63,27 @@ public sealed partial class GalleryHarness : UserControl
                 }
             }
             check(_prepared > 0 && _cleared > 0, $"真实列表必须经过准备和清理: prepared={_prepared}, cleared={_cleared}");
+            Gallery.ItemsSource = null;
+            _items = [new MediaItem(@"E:\harness\folder", MediaKind.Folder), new MediaItem(@"E:\harness\image.jpg", MediaKind.Image)];
+            Gallery.ItemsSource = _items;
+            foreach (var mode in new[] { "masonry", "grid", "justified" })
+            {
+                Masonry.UniformTiles = mode == "grid";
+                Masonry.JustifiedRows = mode == "justified";
+                Masonry.Refresh();
+                Measure(new Size(800, 600));
+                Arrange(new Rect(0, 0, 800, 600));
+                Scroller.ChangeView(null, 0, null, true);
+                UpdateLayout();
+                await Task.Delay(30);
+                UpdateLayout();
+                var folderTile = (MediaTile)Gallery.GetOrCreateElement(0);
+                var photoTile = (MediaTile)Gallery.GetOrCreateElement(1);
+                check(Math.Abs((folderTile.ActualWidth - 12) / (folderTile.ActualHeight - 34) - 1.25) < 0.02,
+                    $"{mode}: 目录预览区域应按 5:4 紧凑布局");
+                check(Math.Abs((photoTile.ActualWidth - 12) / (photoTile.ActualHeight - 34) - 1) < 0.02,
+                    $"{mode}: 目录比例调整不能改变图片比例");
+            }
         }
         finally { window.Close(); }
     }

@@ -36,9 +36,9 @@
     <x:String x:Key="IconHiddenItems">&#xE5F2;</x:String>
     <x:String x:Key="IconView">&#xF462;</x:String>
     <x:String x:Key="IconJustified">&#xF04AE;</x:String>
-    <x:String x:Key="IconMasonry">&#xE3CE;</x:String>
+    <x:String x:Key="IconMasonry">&#xE156;</x:String>
     <x:String x:Key="IconLargeIcons">&#xF0487;</x:String>
-    <x:String x:Key="IconFilmstrip">&#xEB1C;</x:String>
+    <x:String x:Key="IconFilmstrip">&#xE000;</x:String>
     <x:String x:Key="IconFileNames">&#xECED;</x:String>
     <x:String x:Key="IconCards">&#xF0169;</x:String>
     <x:String x:Key="IconFullScreen">&#xE684;</x:String>
@@ -59,6 +59,7 @@
     <x:String x:Key="IconPanelRight">&#xE8BD;</x:String>
     <x:String x:Key="IconDelete">&#xF34C;</x:String>
     <x:String x:Key="IconHistory">&#xF47E;</x:String>
+    <x:String x:Key="IconBookmark">&#xF1F5;</x:String>
     <x:String x:Key="IconMore">&#xE824;</x:String>
     <x:String x:Key="IconScreenshot">&#xF68D;</x:String>
     <x:String x:Key="IconLoop">&#xF171;</x:String>
@@ -66,6 +67,7 @@
     <x:String x:Key="IconZoomIn">&#xF8C4;</x:String>
     <x:String x:Key="IconZoomOut">&#xF8C6;</x:String>
     <x:String x:Key="IconFit">&#xF689;</x:String>
+    <x:String x:Key="IconRotate">&#xEA39;</x:String>
     <x:String x:Key="IconResolution">&#xEA14;</x:String>
     <x:String x:Key="IconFileSize">&#xF378;</x:String>
     <x:String x:Key="IconFolderFilled">&#xF41C;</x:String>
@@ -74,4 +76,5 @@
     <x:String x:Key="IconPauseMedia">&#xF5AB;</x:String>
     <x:String x:Key="IconPreviousMedia">&#xF632;</x:String>
     <x:String x:Key="IconNextMedia">&#xF573;</x:String>
+    <x:String x:Key="IconBookmarkFilled">&#xF1F5;</x:String>
 </ResourceDictionary>

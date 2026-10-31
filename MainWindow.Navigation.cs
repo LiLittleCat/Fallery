@@ -18,6 +18,7 @@ public sealed partial class MainWindow
 
     private void RefreshAddressBar()
     {
+        UpdateFavoriteState();
         CloseAddressMenu();
         EndAddressEdit(cancelRequest: false);
         AddressSegments.Children.Clear();
@@ -174,7 +175,13 @@ public sealed partial class MainWindow
         var content = new Grid { Width = 260 };
         content.Children.Add(status);
         content.Children.Add(list);
-        var flyout = new Flyout { Content = content, FlyoutPresenterStyle = (Style)Root.Resources["AddressMenuPresenterStyle"] };
+        var flyout = new Flyout
+        {
+            Content = content,
+            Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft,
+            ShouldConstrainToRootBounds = true,
+            FlyoutPresenterStyle = (Style)Root.Resources["AddressMenuPresenterStyle"]
+        };
         _addressFlyout = flyout;
         flyout.Closed += (_, _) =>
         {
@@ -212,7 +219,12 @@ public sealed partial class MainWindow
         if (_closed || _closing) return;
         CloseAddressMenu();
         EndAddressEdit(cancelRequest: false);
-        var menu = new MenuFlyout { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight };
+        var menu = new MenuFlyout
+        {
+            Placement = FlyoutPlacementMode.BottomEdgeAlignedRight,
+            ShouldConstrainToRootBounds = true,
+            MenuFlyoutPresenterStyle = (Style)Root.Resources["NavigationMenuPresenterStyle"]
+        };
         foreach (var folder in GalleryState.RecentFolders)
         {
             string name = System.IO.Path.GetFileName(folder) is { Length: > 0 } leaf ? leaf : folder;

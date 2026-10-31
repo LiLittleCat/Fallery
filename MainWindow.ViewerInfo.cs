@@ -11,7 +11,6 @@ namespace Fallery;
 
 public sealed partial class MainWindow
 {
-    private const double DetailsWidth = 300;
     private static readonly int[] ZoomPresets = [25, 50, 100, 200, 400];
     private CancellationTokenSource? _detailsCts;
     private MediaDetails? _viewerDetails;
@@ -80,16 +79,12 @@ public sealed partial class MainWindow
     private void SetDetailsOpen(bool open)
     {
         _detailsOpen = open;
-        ApplyDetailsLayout();
+        if (open) _playlistOpen = false;
+        ApplyViewerSidePanel(resizeWindow: true);
         QueueSettingsSave();
     }
 
-    private void ApplyDetailsLayout()
-    {
-        DetailsColumn.Width = new GridLength(_detailsOpen ? DetailsWidth : 0);
-        DetailsPanel.Visibility = _detailsOpen ? Visibility.Visible : Visibility.Collapsed;
-        DetailsToggle.IsChecked = _detailsOpen;
-    }
+    private void ApplyDetailsLayout() => ApplyViewerSidePanel();
 
     private void DetailsCopyPath_Click(object sender, RoutedEventArgs e)
     {
@@ -120,6 +115,7 @@ public sealed partial class MainWindow
             height = (uint)bitmap.PixelHeight;
         }
         double viewportWidth = ImageScroller.ViewportWidth, viewportHeight = ImageScroller.ViewportHeight;
+        if (_viewerQuarterTurns % 2 != 0) (width, height) = (height, width);
         if (width == 0 || height == 0 || viewportWidth <= 0 || viewportHeight <= 0) return 0;
         double fitWidth = Math.Min(viewportWidth, viewportHeight * width / height);
         return fitWidth * (ImageScroller.XamlRoot?.RasterizationScale ?? 1) / width;

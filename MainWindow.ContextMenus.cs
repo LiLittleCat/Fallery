@@ -65,6 +65,7 @@ public sealed partial class MainWindow
 
     private void ShowItemMenu(FrameworkElement target, Point? point, string path, bool folder, TreeViewNode? node = null, bool allowDelete = true)
     {
+        StopHoverPreview();
         CloseItemMenu();
         var menu = BuildItemMenu(path, folder, node, allowDelete);
         _itemMenu = menu;

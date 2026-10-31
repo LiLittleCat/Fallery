@@ -14,7 +14,6 @@ namespace Fallery;
 
 public sealed partial class MainWindow
 {
-    private const double PlaylistWidth = 300;
     private static readonly double[] PlaybackRates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
     private readonly ResumeStore _resumeStore = new(ResumeStore.DefaultPath);
     private DispatcherQueueTimer? _videoTimer;
@@ -24,12 +23,15 @@ public sealed partial class MainWindow
     private double _volume = 100;
     private bool _muted;
     private bool _playlistOpen;
+    private bool _playlistShowThumbnails = true;
+    private DataTemplate? _playlistThumbnailTemplate;
     private double _rate = 1;
     private TimeSpan? _loopStart;
     private TimeSpan? _loopEnd;
 
     private void InitializePlayback()
     {
+        _playlistThumbnailTemplate = PlaylistView.ItemTemplate;
         _videoTimer = DispatcherQueue.CreateTimer();
         _videoTimer.Interval = TimeSpan.FromMilliseconds(250);
         _videoTimer.Tick += (_, _) => UpdateVideoProgress();
@@ -45,7 +47,11 @@ public sealed partial class MainWindow
         };
         foreach (var rate in PlaybackRates)
         {
-            var entry = new RadioMenuFlyoutItem { Text = $"{rate:0.##}×", Tag = rate, GroupName = "PlaybackRate" };
+            var entry = new RadioMenuFlyoutItem
+            {
+                Text = $"{rate:0.##}×", Tag = rate, GroupName = "PlaybackRate",
+                FontSize = 13, MinHeight = 30, Padding = new Thickness(8, 4, 8, 4)
+            };
             entry.Click += VideoRate_Click;
             VideoRateMenu.Items.Add(entry);
         }
@@ -53,7 +59,7 @@ public sealed partial class MainWindow
     }
 
     /// <summary>创建播放内核并接好界面；以后更换内核只替换这里的实现类。</summary>
-    private IPlayer CreatePlayer(MediaItem item)
+    private IPlayer CreatePlayer(MediaItem item, CancellationToken ct)
     {
         IPlayer player = new WindowsMediaPlayer(ViewerVideo);
         _videoItem = item;
@@ -61,19 +67,7 @@ public sealed partial class MainWindow
         player.Volume = _volume;
         player.IsMuted = _muted;
         player.Rate = _rate;
-        player.Opened += (_, _) => DispatcherQueue.TryEnqueue(async () =>
-        {
-            if (_closed || !ReferenceEquals(_videoPlayer, player)) return;
-            ViewerState.Message = "";
-            player.Rate = _rate;
-            UpdateTrackMenu();
-            if (item.Version is { } version && await _resumeStore.GetAsync(version) is { } resume
-                && ReferenceEquals(_videoPlayer, player) && resume < player.Duration)
-            {
-                player.Position = resume;
-                GalleryState.Status = $"从 {FormatTime(resume)} 继续播放";
-            }
-        });
+        player.Opened += (_, _) => DispatcherQueue.TryEnqueue(() => _ = PrepareVideoPlaybackAsync(player, item, ct));
         player.Failed += (_, message) => DispatcherQueue.TryEnqueue(() =>
         {
             if (_closed || !ReferenceEquals(_videoPlayer, player)) return;
@@ -108,6 +102,55 @@ public sealed partial class MainWindow
         UpdateTrackMenu();
         _videoTimer?.Start();
         return player;
+    }
+
+    private async Task PrepareVideoPlaybackAsync(IPlayer player, MediaItem item, CancellationToken ct)
+    {
+        try
+        {
+            if (_closed || ct.IsCancellationRequested || !ReferenceEquals(_videoPlayer, player)) return;
+            FitVideoWindowButton.IsEnabled = player.VideoWidth > 0 && player.VideoHeight > 0;
+            if (player.VideoWidth > 0 && player.VideoHeight > 0)
+                VideoSurface.AspectRatio = (double)player.VideoWidth / player.VideoHeight;
+            player.Rate = _rate;
+            UpdateTrackMenu();
+            if (item.Version is { } version && await _resumeStore.GetAsync(version) is { } resume
+                && !ct.IsCancellationRequested && ReferenceEquals(_videoPlayer, player) && resume < player.Duration)
+            {
+                player.Position = resume;
+                GalleryState.Status = $"从 {FormatTime(resume)} 继续播放";
+            }
+            ct.ThrowIfCancellationRequested();
+            // 控制栏和画面区域先完成布局，再露出视频；保持进入前的窗口尺寸。
+            Root.UpdateLayout();
+            await WaitForVideoLayoutFrameAsync(ct);
+            Root.UpdateLayout();
+            await WaitForVideoLayoutFrameAsync(ct);
+            if (_closed || !ReferenceEquals(_videoPlayer, player)) return;
+            ViewerState.Message = "";
+            ViewerVideo.Opacity = 1;
+            ViewerVideo.IsHitTestVisible = true;
+            RotateMediaButton.IsEnabled = player.VideoWidth > 0 && player.VideoHeight > 0;
+            player.Play();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            if (!_closed && ReferenceEquals(_videoPlayer, player))
+            {
+                ViewerState.Message = $"无法准备视频画面：{ex.Message}";
+                StopVideo();
+            }
+        }
+    }
+
+    private static async Task WaitForVideoLayoutFrameAsync(CancellationToken ct)
+    {
+        var frame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnRendering(object? sender, object args) => frame.TrySetResult();
+        Microsoft.UI.Xaml.Media.CompositionTarget.Rendering += OnRendering;
+        try { await frame.Task.WaitAsync(ct); }
+        finally { Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= OnRendering; }
     }
 
     /// <summary>停止前记下进度，下次打开同一文件从这里继续。</summary>
@@ -172,7 +215,7 @@ public sealed partial class MainWindow
 
     private void ToggleVideoPlayback()
     {
-        if (_videoPlayer is not { } player) return;
+        if (ViewerVideo.Opacity < 1 || _videoPlayer is not { } player) return;
         if (player.IsPlaying) player.Pause();
         else
         {
@@ -344,27 +387,44 @@ public sealed partial class MainWindow
     private void SetPlaylistOpen(bool open)
     {
         _playlistOpen = open;
-        ApplyPlaylistLayout();
+        if (open) _detailsOpen = false;
+        ApplyViewerSidePanel(resizeWindow: true);
         QueueSettingsSave();
     }
 
-    // 横排模式下底部缩略图已经是播放列表，不再额外占一列。
-    private void ApplyPlaylistLayout()
-    {
-        bool visible = _playlistOpen && !IsFilmstrip;
-        PlaylistColumn.Width = new GridLength(visible ? PlaylistWidth : 0);
-        PlaylistPanel.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        PlaylistToggle.IsChecked = visible;
-        PlaylistToggle.Visibility = IsFilmstrip ? Visibility.Collapsed : Visibility.Visible;
-        if (visible) SyncPlaylistSelection();
-    }
+    private void ApplyPlaylistLayout() => ApplyViewerSidePanel();
 
     private void SyncPlaylistSelection()
     {
         if (PlaylistPanel.Visibility != Visibility.Visible) return;
         if (!ReferenceEquals(PlaylistView.ItemsSource, ViewerState.Playlist)) PlaylistView.ItemsSource = ViewerState.Playlist;
         PlaylistView.SelectedIndex = ViewerState.CurrentIndex;
-        if (ViewerState.CurrentItem is { } item) PlaylistView.ScrollIntoView(item, ScrollIntoViewAlignment.Default);
+        if (ViewerState.CurrentItem is not { } item) return;
+        // 面板展开或切换行高后再定位，列表末尾不足一屏时由 ScrollViewer 限制偏移。
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            if (_closed || PlaylistPanel.Visibility != Visibility.Visible || !ReferenceEquals(ViewerState.CurrentItem, item)) return;
+            PlaylistView.UpdateLayout();
+            PlaylistView.ScrollIntoView(item, ScrollIntoViewAlignment.Leading);
+        });
+    }
+
+    private void PlaylistThumbnails_Click(object sender, RoutedEventArgs e)
+    {
+        SetPlaylistThumbnails(PlaylistThumbnailsToggle.IsChecked == true);
+        QueueSettingsSave();
+    }
+
+    private void SetPlaylistThumbnails(bool show)
+    {
+        _playlistShowThumbnails = show;
+        PlaylistThumbnailsToggle.IsChecked = show;
+        string label = show ? "隐藏缩略图" : "显示缩略图";
+        ToolTipService.SetToolTip(PlaylistThumbnailsToggle, label);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(PlaylistThumbnailsToggle, label);
+        var template = show ? _playlistThumbnailTemplate : (DataTemplate)Root.Resources["PlaylistTextTemplate"];
+        if (template is not null && !ReferenceEquals(PlaylistView.ItemTemplate, template)) PlaylistView.ItemTemplate = template;
+        SyncPlaylistSelection();
     }
 
     private async void PlaylistView_ItemClick(object sender, ItemClickEventArgs e)
@@ -380,7 +440,7 @@ public sealed partial class MainWindow
     private void PlaylistView_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         // 缩略图与浏览区共用模型和内存缓存；列表只请求小尺寸，已有更大的图会直接复用。
-        if (!args.InRecycleQueue && args.Item is MediaItem item) _ = item.EnsureThumbnailAsync(160);
+        if (_playlistShowThumbnails && !args.InRecycleQueue && args.Item is MediaItem item) _ = item.EnsureThumbnailAsync(160);
     }
 
     /// <summary>视频的全部控制都在画面下方；画面两侧的切换箭头只给图片使用。</summary>
@@ -393,6 +453,8 @@ public sealed partial class MainWindow
         VideoControls.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
         VideoAudioPanel.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
         ImageZoomPanel.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
+        FitVideoWindowButton.IsEnabled = video && _videoPlayer is { VideoWidth: > 0, VideoHeight: > 0 };
         ViewerFullScreenIcon.Glyph = FluentIcons.Glyph(fullScreen ? "IconExitFullScreen" : "IconFullScreen");
+        ApplyFullScreenControls();
     }
 }

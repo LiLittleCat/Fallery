@@ -107,6 +107,17 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
                 cts.Token.ThrowIfCancellationRequested();
                 if (field == SortField && descending == Descending) break;
             }
+            _directories.TryGet(folder.ToUpperInvariant(), out var previous);
+            var reusable = (previous ?? []).Where(i => !i.IsFolder && i.Version is not null)
+                .ToDictionary(i => i.Path, StringComparer.Ordinal);
+            var next = files.Select(f => f.Version is not null
+                && reusable.TryGetValue(f.Path, out var old) && old.Version == f.Version
+                && old.Kind == f.Kind && old.File.CreatedTicks == f.CreatedTicks ? old : new MediaItem(f)).ToList();
+            // 比例影响行高，先准备首批尺寸再发布列表，避免首屏从方形占位跳到真实比例。
+            // 只等待最多 200 个条目；其余仍后台分批探测，不能让万图目录等待全部文件。
+            if (DisplayMode is GalleryDisplayMode.Justified or GalleryDisplayMode.Masonry)
+                await ProbeAspectRatiosAsync(next.Take(200).Where(item => !item.IsFolder).ToList(), cts.Token, invalidateLayout: false);
+            cts.Token.ThrowIfCancellationRequested();
             // 扫描成功才移动历史游标；失败或取消不能吞掉后退/前进记录。
             if (forward && string.Equals(NextFolder, folder, StringComparison.OrdinalIgnoreCase))
             {
@@ -130,12 +141,6 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
                 segments.Insert(0, new(directory.FullName, directory.Parent is null ? directory.FullName.TrimEnd('\\') : directory.Name));
             Breadcrumbs = segments;
             OnPropertyChanged(nameof(Breadcrumbs));
-            _directories.TryGet(folder.ToUpperInvariant(), out var previous);
-            var reusable = (previous ?? []).Where(i => !i.IsFolder && i.Version is not null)
-                .ToDictionary(i => i.Path, StringComparer.Ordinal);
-            var next = files.Select(f => f.Version is not null
-                && reusable.TryGetValue(f.Path, out var old) && old.Version == f.Version
-                && old.Kind == f.Kind && old.File.CreatedTicks == f.CreatedTicks ? old : new MediaItem(f)).ToList();
             ReplaceItems(next);
             _directories.Set(folder.ToUpperInvariant(), next, Math.Max(1, next.Count));
             IsScanning = false;
@@ -158,7 +163,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task ProbeAspectRatiosAsync(List<MediaItem> items, CancellationToken ct)
+    private async Task ProbeAspectRatiosAsync(List<MediaItem> items, CancellationToken ct, bool invalidateLayout = true)
     {
         foreach (var batch in items.Where(i => !i.HasAspectRatio).Chunk(200))
         {
@@ -185,7 +190,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
                     MediaCache.AspectRatios.Set(key, ratio);
                 }
             }
-            LayoutInvalidated?.Invoke();
+            if (invalidateLayout) LayoutInvalidated?.Invoke();
         }
     }
     private static readonly SemaphoreSlim ProbeSlots = new(4);
@@ -247,8 +252,14 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     private void UpdateStatus()
     {
         int videos = MediaItems.Count(item => item.IsVideo);
+        int photos = MediaItems.Count - videos;
+        int folders = Items.Count - MediaItems.Count;
+        List<string> counts = [];
+        if (folders > 0) counts.Add($"{folders} 个文件夹");
+        if (photos > 0) counts.Add($"{photos} 张图片");
+        if (videos > 0) counts.Add($"{videos} 个视频");
         string filter = Filter switch { MediaFilter.Photos => "仅图片 · ", MediaFilter.Videos => "仅视频 · ", _ => "" };
-        Status = $"{filter}{Items.Count - MediaItems.Count} 个文件夹 · {MediaItems.Count - videos} 张图片 · {videos} 个视频";
+        Status = filter + (counts.Count > 0 ? string.Join(" · ", counts) : "没有可显示的项目");
     }
 
     public async Task<string?> FindAdjacentAsync(bool forward)

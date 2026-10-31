@@ -20,6 +20,12 @@ public sealed partial class MainWindow
     {
         for (var element = source; element is not null; element = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element))
         {
+            if (element == FavoritesTree)
+            {
+                if (FavoritesTree.SelectedNode is { Content: Models.FolderEntry favorite } && !string.IsNullOrEmpty(favorite.Path))
+                    RemoveFavorite(favorite.Path);
+                return Task.CompletedTask;
+            }
             if (element != FolderTree) continue;
             // 树根是磁盘和图片库入口，不能从这里删除。
             if (FolderTree.SelectedNode is not { Content: Models.FolderEntry entry } node || FolderTree.RootNodes.Contains(node))

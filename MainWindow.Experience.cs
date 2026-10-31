@@ -18,6 +18,7 @@ public sealed partial class MainWindow
     private bool _allowClose;
     private int _normalWidth = 1400;
     private int _normalHeight = 900;
+    private bool _videoWindowDefaultsApplied;
     private bool _maximized;
     private string? _lastFolderToRestore;
     private int _navigationVersion;
@@ -56,6 +57,7 @@ public sealed partial class MainWindow
         AppWindow.Changed += AppWindow_Changed;
         AppWindow.Closing += AppWindow_Closing;
         _settingsTimer.Tick += SettingsTimer_Tick;
+        Root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(Root_MouseNavigationPressed), true);
         GallerySurface.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(Gallery_PointerPressed), true);
         GallerySurface.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(Gallery_PointerMoved), true);
         GallerySurface.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(Gallery_PointerReleased), true);
@@ -72,7 +74,8 @@ public sealed partial class MainWindow
         _normalWidth = Math.Min(settings.Width, workArea.Width);
         _normalHeight = Math.Min(settings.Height, workArea.Height);
         AppWindow.Resize(new Windows.Graphics.SizeInt32(_normalWidth, _normalHeight));
-        _maximized = settings.Maximized;
+        _videoWindowDefaultsApplied = settings.VideoWindowDefaultsApplied;
+        _maximized = settings.Maximized && _videoWindowDefaultsApplied;
         if (_maximized && AppWindow.Presenter is OverlappedPresenter presenter) presenter.Maximize();
         ApplyTheme(settings.Theme);
         ThumbSize.Value = settings.ThumbnailSize;
@@ -90,20 +93,25 @@ public sealed partial class MainWindow
         _muted = settings.Muted;
         VideoVolume.Value = _volume;
         _playlistOpen = settings.PlaylistOpen;
+        SetPlaylistThumbnails(settings.PlaylistShowThumbnails);
         _detailsOpen = settings.DetailsOpen;
         ApplyDetailsLayout();
         GalleryState.RestoreRecentFolders(settings.RecentFolders);
+        RestoreFavoriteFolders(settings.FavoriteFolders);
         ApplyDisplayOptions();
         UpdateBrowseMenus();
         _lastFolderToRestore = settings.LastFolder;
+        if (!_videoWindowDefaultsApplied) _videoWindowDefaultsApplied = ApplyDefaultVideoWindowSize();
         _settingsReady = true;
+        if (_videoWindowDefaultsApplied && !settings.VideoWindowDefaultsApplied) QueueSettingsSave();
     }
 
     private AppSettings CaptureSettings() => new()
     {
-        Width = _normalWidth,
-        Height = _normalHeight,
-        Maximized = _maximized,
+        Width = _browseWindowPlacement is { } placement ? placement.NormalPosition.Right - placement.NormalPosition.Left : _normalWidth,
+        Height = _browseWindowPlacement is { } bounds ? bounds.NormalPosition.Bottom - bounds.NormalPosition.Top : _normalHeight,
+        Maximized = _browseWindowPlacement is { } saved ? saved.ShowCommand == 3 : _maximized,
+        VideoWindowDefaultsApplied = _videoWindowDefaultsApplied,
         LastFolder = GalleryState.CurrentFolder ?? _lastFolderToRestore,
         Theme = _themeIndex,
         ThumbnailSize = ThumbSize.Value,
@@ -119,8 +127,10 @@ public sealed partial class MainWindow
         Volume = _volume,
         Muted = _muted,
         PlaylistOpen = _playlistOpen,
+        PlaylistShowThumbnails = _playlistShowThumbnails,
         DetailsOpen = _detailsOpen,
         RecentFolders = [.. GalleryState.RecentFolders],
+        FavoriteFolders = [.. _favoriteFolders],
     };
 
     private void QueueSettingsSave()
@@ -142,6 +152,7 @@ public sealed partial class MainWindow
 
     private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
     {
+        if (args.DidPresenterChange || args.DidSizeChange) ApplyViewerSidePanel();
         if (!_settingsReady || sender.Presenter is not OverlappedPresenter presenter
             || presenter.State == OverlappedPresenterState.Minimized) return;
         _maximized = presenter.State == OverlappedPresenterState.Maximized;
@@ -159,6 +170,7 @@ public sealed partial class MainWindow
         args.Cancel = true;
         if (_closing) return;
         _closing = true;
+        StopHoverPreview();
         _settingsDialog?.Hide();
         _settingsTimer.Stop();
         GalleryState.Cancel();

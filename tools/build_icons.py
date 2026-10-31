@@ -49,9 +49,9 @@ ICONS = [
     ("IconHiddenItems", "eye_20", "regular"),
     ("IconView", "grid_20", "regular"),
     ("IconJustified", "layout_row_two_split_top_20", "regular"),
-    ("IconMasonry", "column_triple_20", "regular"),
+    ("IconMasonry", "board_20", "regular"),
     ("IconLargeIcons", "layout_cell_four_20", "regular"),
-    ("IconFilmstrip", "slide_multiple_20", "regular"),
+    ("IconFilmstrip", "fallery_gallery_20", "regular"),
     ("IconFileNames", "text_case_title_20", "regular"),
     ("IconCards", "card_ui_20", "regular"),
     ("IconFullScreen", "full_screen_maximize_20", "regular"),
@@ -77,6 +77,8 @@ ICONS = [
     ("IconPanelRight", "panel_right_20", "regular"),
     ("IconDelete", "delete_20", "regular"),
     ("IconHistory", "history_20", "regular"),
+    ("IconBookmark", "bookmark_20", "regular"),
+    ("IconBookmarkFilled", "bookmark_20", "filled"),
     ("IconMore", "more_horizontal_20", "regular"),
     ("IconScreenshot", "screenshot_20", "regular"),
     ("IconLoop", "arrow_repeat_all_20", "regular"),
@@ -84,6 +86,7 @@ ICONS = [
     ("IconZoomIn", "zoom_in_20", "regular"),
     ("IconZoomOut", "zoom_out_20", "regular"),
     ("IconFit", "scale_fit_20", "regular"),
+    ("IconRotate", "rotate_right_20", "regular"),
     ("IconResolution", "resize_image_20", "regular"),
     ("IconFileSize", "document_20", "regular"),
 ]
@@ -95,6 +98,28 @@ def fetch(name: str, url: str | None = None) -> pathlib.Path:
     if not target.exists():
         urllib.request.urlretrieve(url or BASE + name, target)
     return target
+
+
+def add_gallery_glyph(font: TTFont, codes: dict[str, int]) -> None:
+    """上方大图与下方缩略图没有完全匹配的上游字形，组合两个 Fluent 图标保持视觉一致。"""
+    glyph_set = font.getGlyphSet()
+    cmap = font.getBestCmap()
+    pen = TTGlyphPen(glyph_set)
+    for source, transform in (
+        ("rectangle_landscape", (1, 0, 0, 0.9, 0, 90)),
+        ("more_horizontal", (0.8, 0, 0, 0.8, 50, -125)),
+    ):
+        glyph = cmap[codes[f"ic_fluent_{source}_20_regular"]]
+        glyph_set[glyph].draw(TransformPen(pen, transform))
+    name, code = "fallery_gallery", 0xE000
+    font["glyf"][name] = pen.glyph()
+    font["hmtx"][name] = (500, 50)
+    if name not in font.getGlyphOrder():
+        font.setGlyphOrder([*font.getGlyphOrder(), name])
+    for table in font["cmap"].tables:
+        if table.isUnicode():
+            table.cmap[code] = name
+    codes["ic_fluent_fallery_gallery_20_regular"] = code
 
 
 def center_glyphs(font: TTFont) -> None:
@@ -129,6 +154,9 @@ def main() -> None:
         title = style.capitalize()
         source = fetch(f"FluentSystemIcons-{title}.ttf")
         codes = json.loads(fetch(f"FluentSystemIcons-{title}.json").read_text(encoding="utf-8"))
+        font = TTFont(source)
+        if style == "regular":
+            add_gallery_glyph(font, codes)
         picked = []
         for key, name, icon_style in ICONS:
             if icon_style != style:
@@ -141,7 +169,6 @@ def main() -> None:
         options.layout_features = []
         options.name_IDs = ["*"]
         options.notdef_outline = True
-        font = TTFont(source)
         subsetter = subset.Subsetter(options)
         subsetter.populate(unicodes=sorted(set(picked)))
         subsetter.subset(font)

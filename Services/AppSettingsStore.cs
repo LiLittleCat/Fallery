@@ -8,6 +8,7 @@ public sealed record AppSettings
     public int Width { get; init; } = 1400;
     public int Height { get; init; } = 900;
     public bool Maximized { get; init; }
+    public bool VideoWindowDefaultsApplied { get; init; }
     public string? LastFolder { get; init; }
     public int Theme { get; init; }
     public double ThumbnailSize { get; init; } = 240;
@@ -23,13 +24,15 @@ public sealed record AppSettings
     public double Volume { get; init; } = 100;
     public bool Muted { get; init; }
     public bool PlaylistOpen { get; init; }
+    public bool PlaylistShowThumbnails { get; init; } = true;
     public bool DetailsOpen { get; init; }
     public string[] RecentFolders { get; init; } = [];
+    public string[] FavoriteFolders { get; init; } = [];
 
     public AppSettings Normalize() => this with
     {
-        Width = Math.Clamp(Width, 800, 7680),
-        Height = Math.Clamp(Height, 500, 4320),
+        Width = Math.Clamp(Width, 320, 7680),
+        Height = Math.Clamp(Height, 240, 4320),
         LastFolder = NormalizeFolder(LastFolder),
         Theme = Theme is >= 0 and <= 2 ? Theme : 0,
         ThumbnailSize = double.IsFinite(ThumbnailSize) ? Math.Clamp(ThumbnailSize, 120, 480) : 240,
@@ -40,6 +43,8 @@ public sealed record AppSettings
         Volume = double.IsFinite(Volume) ? Math.Clamp(Volume, 0, 100) : 100,
         RecentFolders = (RecentFolders ?? []).Select(NormalizeFolder).OfType<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToArray(),
+        FavoriteFolders = (FavoriteFolders ?? []).Select(NormalizeFolder).OfType<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
     };
 
     private static string? NormalizeFolder(string? path)

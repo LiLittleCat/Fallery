@@ -197,6 +197,7 @@ public sealed partial class MainWindow
     private async void Settings_Click(object sender, RoutedEventArgs e)
     {
         if (_settingsDialog is not null || _closed || _closing) return;
+        StopHoverPreview();
         CloseAddressMenu();
         CloseItemMenu();
         var dialog = BuildSettingsDialog();

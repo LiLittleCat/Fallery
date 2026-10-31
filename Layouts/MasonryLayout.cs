@@ -130,7 +130,10 @@ public sealed class MasonryLayout : VirtualizingLayout
 
     private void ComputeBounds(VirtualizingLayoutContext context, State state, double width)
     {
-        Func<int, double> ratioAt = i => UniformTiles ? 1.0 : (context.GetItemAt(i) as MediaItem)?.AspectRatio ?? 1.0;
+        // 文件夹封面是固定横向构图，方形占位会在叠图和名称之间留下大块空白。
+        Func<int, double> ratioAt = i => context.GetItemAt(i) is MediaItem item
+            ? item.IsFolder ? 1.25 : UniformTiles ? 1.0 : item.AspectRatio
+            : 1.0;
         double caption = ShowFileNames ? 22 : 0;
         // 卡片内边距 5 + 描边 1；不显示卡片背景时图片贴满格子。
         double inset = ShowCards ? 6 : 0;

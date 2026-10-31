@@ -35,7 +35,7 @@ public sealed partial class MainWindow : Window
     private double _panHorizontalOffset;
     private double _panVerticalOffset;
 
-    public MainWindow(AppSettingsStore? settingsStore = null, string? startupPath = null)
+    public MainWindow(AppSettingsStore? settingsStore = null, string? startupPath = null, bool monitorFolderChanges = true)
     {
         if (settingsStore is not null) _settingsStore = settingsStore;
         _startupPath = startupPath;
@@ -47,6 +47,7 @@ public sealed partial class MainWindow : Window
         AppWindow.SetIcon(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "Fallery.ico"));
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        AppTitleBar.LayoutUpdated += TitleBar_LayoutUpdated;
         Root.ActualThemeChanged += Root_ActualThemeChanged;
         AppTitleBar.ActualThemeChanged += Root_ActualThemeChanged;
         Root.Loaded += Root_Loaded;
@@ -54,9 +55,13 @@ public sealed partial class MainWindow : Window
         Closed += MainWindow_Closed;
         InitializeExperience();
         InitializeViewModels();
+        InitializeFavorites();
         InitializePlayback();
+        InitializeHoverPreview();
+        InitializeFullScreenControls();
         InitializeViewerInfo();
         RefreshAddressBar();
+        if (monitorFolderChanges) InitializeFolderMonitoring();
     }
 
     // 0 跟随系统、1 亮色、2 暗色，与 ElementTheme 取值一致。系统标题栏不属于 XAML 树，需要和页面主题分别同步。
@@ -139,6 +144,11 @@ public sealed partial class MainWindow : Window
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         _closed = true;
+        StopHoverPreview();
+        _fullScreenControlsTimer.Stop();
+        _folderChangeTimer?.Stop();
+        _folderMonitor?.Dispose();
+        AppTitleBar.LayoutUpdated -= TitleBar_LayoutUpdated;
         _settingsDialog?.Hide();
         CloseItemMenu();
         CloseAddressMenu();
@@ -246,6 +256,9 @@ public sealed partial class MainWindow : Window
                 }
             }
             ct.ThrowIfCancellationRequested();
+            await EnsureChildrenLoadedAsync(node).WaitAsync(ct);
+            ct.ThrowIfCancellationRequested();
+            node.IsExpanded = node.Children.Count > 0;
             _currentFolderNode = node;
             FolderTree.SelectedNode = node;
             FolderTree.UpdateLayout();
@@ -274,7 +287,29 @@ public sealed partial class MainWindow : Window
 
     private async void FolderTree_ItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
     {
-        if (args.InvokedItem is TreeViewNode { Content: FolderEntry entry }) await NavigateAsync(entry.Path);
+        if (args.InvokedItem is TreeViewNode node) await NavigateTreeNodeAsync(node);
+    }
+
+    private async Task NavigateTreeNodeAsync(TreeViewNode node)
+    {
+        if (_closed || _closing || node.Content is not FolderEntry entry) return;
+        var navigation = NavigateAsync(entry.Path);
+        int version = _navigationVersion;
+        await navigation;
+        try
+        {
+            // 重复点击当前目录不会重新扫描，但仍应展开被用户收起的节点。
+            if (_closed || _closing || version != _navigationVersion
+                || !string.Equals(GalleryState.CurrentFolder, NormalizeFolderPath(entry.Path), StringComparison.OrdinalIgnoreCase)) return;
+            await EnsureChildrenLoadedAsync(node);
+            if (!_closed && !_closing && version == _navigationVersion)
+                node.IsExpanded = node.Children.Count > 0;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            if (!_closed && version == _navigationVersion) GalleryState.Status += $" · 无法展开文件夹：{ex.Message}";
+        }
     }
 
     // ───────────── 导航 ─────────────
@@ -375,7 +410,13 @@ public sealed partial class MainWindow : Window
     {
         if (args.Index < 0 || args.Index >= GalleryState.Items.Count) return;
         var item = GalleryState.Items[args.Index];
-        if (args.Element is MediaTile tile) { tile.Bind(item); ConfigureTile(tile); }
+        if (args.Element is MediaTile tile)
+        {
+            tile.PreviewHoverChanged -= GalleryTile_PreviewHoverChanged;
+            tile.PreviewHoverChanged += GalleryTile_PreviewHoverChanged;
+            tile.Bind(item);
+            ConfigureTile(tile);
+        }
         _realizedItems[args.Element] = item;
         _ = item.EnsureThumbnailAsync(ThumbnailDecodeSize);
     }
@@ -418,6 +459,8 @@ public sealed partial class MainWindow : Window
     private async Task ShowInViewerAsync(int index, bool allowWhileScanning = false)
     {
         if ((GalleryState.IsScanning && !allowWhileScanning) || index < 0 || index >= ViewerState.Playlist.Count || _closed || _closing) return;
+        StopHoverPreview();
+        CaptureBrowseWindowPlacement();
         var request = ViewerState.BeginOpen(index);
         if (request is null) return;
         var ct = request.Token;
@@ -436,8 +479,10 @@ public sealed partial class MainWindow : Window
         {
             if (item.IsVideo)
             {
-                var player = CreatePlayer(item);
+                var player = CreatePlayer(item, ct);
                 _videoPlayer = player;
+                ViewerVideo.Opacity = 0;
+                ViewerVideo.IsHitTestVisible = false;
                 ViewerVideo.Visibility = Visibility.Visible;
                 await player.OpenAsync(item.Path, ct);
             }
@@ -464,6 +509,7 @@ public sealed partial class MainWindow : Window
                 ct.ThrowIfCancellationRequested();
 
                 ViewerImage.Source = bitmap;
+                RotateMediaButton.IsEnabled = true;
                 ImageScroller.Visibility = Visibility.Visible;
                 ViewerState.Message = "";
                 FitImageToViewport();
@@ -482,12 +528,16 @@ public sealed partial class MainWindow : Window
 
     private void StopVideo()
     {
+        FitVideoWindowButton.IsEnabled = false;
+        RotateMediaButton.IsEnabled = false;
         var player = _videoPlayer;
         _videoPlayer = null;
         DetachVideoControls(player);
         player?.Dispose();
         ViewerVideo.IsFullWindow = false;
         ViewerVideo.Visibility = Visibility.Collapsed;
+        ViewerVideo.Opacity = 0;
+        ViewerVideo.IsHitTestVisible = false;
     }
 
     private void CloseViewer()
@@ -505,6 +555,7 @@ public sealed partial class MainWindow : Window
         ViewerState.Close();
         StopVideo();
         ClearViewerImage();
+        RestoreBrowseWindowPlacement();
         if (wasVisible && !_closed)
         {
             if (_sidebarVisible) FolderTree.Focus(FocusState.Programmatic);
@@ -517,6 +568,7 @@ public sealed partial class MainWindow : Window
         // GIF 自带播放时钟，切换后立即停止，避免等待对象回收才释放动画资源。
         if (ViewerImage.Source is BitmapImage bitmap) bitmap.Stop();
         ViewerImage.Source = null;
+        ResetViewerRotation();
     }
 
     private void ViewerFullScreen_Click(object sender, RoutedEventArgs e) =>
@@ -543,6 +595,7 @@ public sealed partial class MainWindow : Window
             Grid.SetRowSpan(Viewer, 2);
         }
         ViewerFullScreenIcon.Glyph = FluentIcons.Glyph(fullScreen ? "IconExitFullScreen" : "IconFullScreen");
+        ResetFullScreenControls();
         PlaceViewer();
         UpdateViewerOverlays();
         string label = fullScreen ? "退出全屏" : "全屏";

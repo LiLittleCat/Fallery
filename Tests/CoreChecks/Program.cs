@@ -339,7 +339,7 @@ File.WriteAllText(settingsPath, "{broken json");
 Check(await settingsStore.LoadAsync() == new AppSettings(), "损坏设置不能阻止启动");
 var sanitized = new AppSettings { Width = -1, Height = 99999, Theme = 99, ThumbnailSize = double.NaN,
     SidebarWidth = double.PositiveInfinity, LastFolder = "relative", SortField = (MediaSortField)99 }.Normalize();
-Check(sanitized.Width == 800 && sanitized.Height == 4320 && sanitized.Theme == 0 && sanitized.ThumbnailSize == 240
+Check(sanitized.Width == 320 && sanitized.Height == 4320 && sanitized.Theme == 0 && sanitized.ThumbnailSize == 240
     && sanitized.SidebarWidth == 260 && sanitized.LastFolder is null && sanitized.SortField == MediaSortField.Name, "非法设置应被校正");
 Check(new AppSettings { LastFolder = "E:\\invalid\0path" }.Normalize().LastFolder is null, "非法绝对路径不能进入启动导航");
 Check(new AppSettings { DisplayMode = (GalleryDisplayMode)99 }.Normalize().DisplayMode == GalleryDisplayMode.Masonry,

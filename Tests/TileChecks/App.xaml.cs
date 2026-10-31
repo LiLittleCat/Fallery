@@ -47,7 +47,7 @@ public partial class App : Application
                 Check(footer.Visibility == (item.IsFolder ? Visibility.Visible : Visibility.Collapsed), "文件夹名称区域未重置");
                 Check(placeholder.Visibility == footer.Visibility, "文件夹占位未同步");
                 Check(badge.Visibility == (item.IsVideo ? Visibility.Visible : Visibility.Collapsed), "视频角标未重置");
-                Check((string?)ToolTipService.GetToolTip(tile) == item.Path, "提示路径仍属于旧目录");
+                Check((string?)ToolTipService.GetToolTip(tile) == (item.IsFolder ? item.Path : null), "图片和视频不能弹出路径提示，文件夹提示应跟随复用更新");
                 Check(image.Source is null && failure.Visibility == Visibility.Collapsed, "旧封面或失败标记残留");
                 if (previous is not null)
                 {
@@ -126,19 +126,30 @@ public partial class App : Application
                 && ReferenceEquals(((Image)tile.FindName("FrontCoverImage")).Source, folder.FolderThumbnails[0])
                 && ReferenceEquals(((Image)tile.FindName("MiddleCoverImage")).Source, folder.FolderThumbnails[1])
                 && ReferenceEquals(((Image)tile.FindName("BackCoverImage")).Source, folder.FolderThumbnails[2]),
-                "叠放预览必须绑定三张真实封面");
+                "交叉叠图预览必须绑定三张真实封面");
             tile.SetPresentation(false, true, false);
-            Check(((Border)tile.FindName("FolderBadge")).Visibility == Visibility.Visible
+            Check(((Grid)tile.FindName("FolderArtwork")).Visibility == Visibility.Visible
+                && placeholder.Visibility == Visibility.Collapsed
                 && ((Border)tile.FindName("FolderFooter")).Visibility == Visibility.Collapsed,
-                "隐藏文件名时仍应保留文件夹标识");
+                "有封面时只显示交叉叠图，隐藏文件名也不能出现大文件夹底形");
+            folder.FolderThumbnails = [folder.FolderThumbnails[0]];
+            Check(placeholder.Visibility == Visibility.Collapsed
+                && ((Border)tile.FindName("MiddleCover")).Visibility == Visibility.Collapsed
+                && ((Border)tile.FindName("BackCover")).Visibility == Visibility.Collapsed
+                && ((Image)tile.FindName("MiddleCoverImage")).Source is null
+                && ((Image)tile.FindName("BackCoverImage")).Source is null,
+                "三封面变为单封面后应清除旧叠层，不能显示大文件夹底形");
             folder.ReleaseThumbnail();
             Check(folder.FolderThumbnails.Count == 0 && ((Image)tile.FindName("FrontCoverImage")).Source is null
                 && ((Image)tile.FindName("MiddleCoverImage")).Source is null && ((Image)tile.FindName("BackCoverImage")).Source is null,
                 "回收必须释放所有叠放图片引用");
+            Check(((Grid)tile.FindName("FolderArtwork")).Visibility == Visibility.Visible
+                && placeholder.Visibility == Visibility.Visible && ((Grid)tile.FindName("FolderStack")).Visibility == Visibility.Collapsed,
+                "封面回收后目录应显示大文件夹，不能变成空白");
             tile.Bind(returned);
             Check(((Grid)tile.FindName("FolderStack")).Visibility == Visibility.Collapsed
-                && ((Border)tile.FindName("FolderBadge")).Visibility == Visibility.Collapsed,
-                "复用为媒体卡片时不能残留文件夹叠层和角标");
+                && ((Grid)tile.FindName("FolderArtwork")).Visibility == Visibility.Collapsed,
+                "复用为媒体卡片时不能残留文件夹底形与叠层");
             MediaCache.Clear();
             var canceled = new MediaItem(source, MediaKind.Image, FileVersion.Read(source));
             var pending = canceled.EnsureThumbnailAsync(512);
@@ -172,6 +183,7 @@ public partial class App : Application
             File.WriteAllText(brokenVideo, "not a video");
             var brokenItem = new MediaItem(brokenVideo, MediaKind.Video, FileVersion.Read(brokenVideo));
             tile.Bind(brokenItem);
+            tile.SetPresentation(true, false, false);
             Check(((TextBlock)tile.FindName("LoadingText")).Visibility == Visibility.Visible && badge.Visibility == Visibility.Visible,
                 "视频加载期间必须显示状态和角标");
             await brokenItem.EnsureThumbnailAsync(128);

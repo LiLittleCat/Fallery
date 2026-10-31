@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml.Controls;
 using Windows.Media.Core;
+using Windows.Media.MediaProperties;
 using Windows.Media.Playback;
 using Windows.Storage;
 
@@ -9,7 +10,7 @@ namespace Fallery.Services.Playback;
 public sealed class WindowsMediaPlayer : IPlayer
 {
     private readonly MediaPlayerElement _view;
-    private readonly MediaPlayer _player = new() { AutoPlay = true };
+    private readonly MediaPlayer _player = new() { AutoPlay = false };
     private MediaPlaybackItem? _item;
     private MediaSource? _source;
 
@@ -19,9 +20,10 @@ public sealed class WindowsMediaPlayer : IPlayer
     public event EventHandler<string>? Failed;
     public event EventHandler? TracksChanged;
 
-    public WindowsMediaPlayer(MediaPlayerElement view)
+    public WindowsMediaPlayer(MediaPlayerElement view, bool enableSystemTransportControls = true)
     {
         _view = view;
+        if (!enableSystemTransportControls) _player.CommandManager.IsEnabled = false;
         _player.MediaOpened += (_, _) => Opened?.Invoke(this, EventArgs.Empty);
         _player.MediaEnded += (_, _) => Ended?.Invoke(this, EventArgs.Empty);
         _player.MediaFailed += (_, args) => Failed?.Invoke(this, args.ErrorMessage);
@@ -36,6 +38,25 @@ public sealed class WindowsMediaPlayer : IPlayer
     }
 
     public TimeSpan Duration => _player.PlaybackSession.NaturalDuration;
+    public uint VideoWidth => _player.PlaybackSession.NaturalVideoWidth;
+    public uint VideoHeight => _player.PlaybackSession.NaturalVideoHeight;
+    public int Rotation
+    {
+        get => _player.PlaybackSession.PlaybackRotation switch
+        {
+            MediaRotation.Clockwise90Degrees => 90,
+            MediaRotation.Clockwise180Degrees => 180,
+            MediaRotation.Clockwise270Degrees => 270,
+            _ => 0,
+        };
+        set => _player.PlaybackSession.PlaybackRotation = value switch
+        {
+            90 => MediaRotation.Clockwise90Degrees,
+            180 => MediaRotation.Clockwise180Degrees,
+            270 => MediaRotation.Clockwise270Degrees,
+            _ => MediaRotation.None,
+        };
+    }
     public bool IsPlaying => _player.PlaybackSession.PlaybackState is MediaPlaybackState.Playing or MediaPlaybackState.Opening or MediaPlaybackState.Buffering;
 
     public double Volume

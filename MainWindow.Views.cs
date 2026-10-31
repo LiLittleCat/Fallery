@@ -17,6 +17,14 @@ public sealed partial class MainWindow
         ToVisibility(open && mode != GalleryDisplayMode.Filmstrip);
     public Visibility FilmstripVisibility(GalleryDisplayMode mode) => ToVisibility(mode == GalleryDisplayMode.Filmstrip);
 
+    public string DisplayModeGlyph(GalleryDisplayMode mode) => FluentIcons.Glyph(mode switch
+    {
+        GalleryDisplayMode.Justified => "IconJustified",
+        GalleryDisplayMode.LargeIcons => "IconLargeIcons",
+        GalleryDisplayMode.Filmstrip => "IconFilmstrip",
+        _ => "IconMasonry"
+    });
+
     private async void DisplayMode_Click(object sender, RoutedEventArgs e)
     {
         if (sender is RadioMenuFlyoutItem { Tag: string text } && Enum.TryParse<GalleryDisplayMode>(text, out var mode))
@@ -60,6 +68,17 @@ public sealed partial class MainWindow
         }
         Grid.SetRow(Viewer, embedded || _presenterBeforeFullScreen is not null ? 0 : 1);
         Grid.SetRowSpan(Viewer, embedded ? 1 : _presenterBeforeFullScreen is not null ? 3 : 2);
+        UpdateViewerBackdrop();
+    }
+
+    private void UpdateViewerBackdrop()
+    {
+        bool embedded = IsFilmstrip && _presenterBeforeFullScreen is null;
+        bool covered = ViewerState.IsOpen && !embedded;
+        // 保留浏览区布局和滚动位置，但不能让旧缩略图透过查看器的透明留白。
+        BrowserSurface.Opacity = BrowserStatus.Opacity = covered ? 0 : 1;
+        BrowserSurface.IsHitTestVisible = BrowserStatus.IsHitTestVisible = !covered;
+        GallerySurfaceFill.Opacity = ViewerState.IsOpen && embedded ? 0 : 1;
     }
 
     private void ApplyDisplayOptions()
