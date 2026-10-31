@@ -99,7 +99,9 @@ public sealed partial class MainWindow : Window
             var roots = await Task.Run(() => FolderScanner.GetRoots(_lifetimeCts.Token));
             if (_closed) return;
             foreach (var entry in roots)
-                FolderTree.RootNodes.Add(CreateNode(entry.Path, entry.Name));
+                if (!IsTreeFolderExcluded(entry.Path) && !FolderTree.RootNodes.Any(node =>
+                    node.Content is FolderEntry existing && string.Equals(existing.Path, entry.Path, StringComparison.OrdinalIgnoreCase)))
+                    FolderTree.RootNodes.Add(CreateNode(entry.Path, entry.Name, entry.ModifiedTicks));
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -163,9 +165,9 @@ public sealed partial class MainWindow : Window
         MediaCache.Clear();
     }
 
-    private static TreeViewNode CreateNode(string path, string name) => new()
+    private TreeViewNode CreateNode(string path, string name, long? modifiedTicks = null) => new()
     {
-        Content = new FolderEntry(path, name),
+        Content = new FolderEntry(path, name) { ModifiedTicks = modifiedTicks, ShowModifiedTime = _treeShowModifiedTime },
         HasUnrealizedChildren = true,
     };
 
@@ -192,15 +194,20 @@ public sealed partial class MainWindow : Window
     private async Task LoadChildrenAsync(TreeViewNode node, FolderEntry entry)
     {
         bool showHidden = GalleryState.ShowHidden;
-        var children = await Task.Run(() => FolderScanner.GetChildFolders(entry.Path, _lifetimeCts.Token, showHidden));
+        var result = await Task.Run(() => (Children: FolderScanner.GetChildFolders(entry.Path, _lifetimeCts.Token, showHidden),
+            ModifiedTicks: FolderScanner.ReadFolderModifiedTicks(entry.Path)));
         _lifetimeCts.Token.ThrowIfCancellationRequested();
-        foreach (var (path, hasChildren) in children)
+        node.Content = entry with { ModifiedTicks = result.ModifiedTicks, ShowModifiedTime = _treeShowModifiedTime };
+        foreach (var childInfo in result.Children)
         {
-            var child = CreateNode(path, System.IO.Path.GetFileName(path));
-            child.HasUnrealizedChildren = hasChildren;
+            if (IsTreeFolderExcluded(childInfo.Path)) continue;
+            var child = CreateNode(childInfo.Path, System.IO.Path.GetFileName(childInfo.Path), childInfo.ModifiedTicks);
+            child.HasUnrealizedChildren = childInfo.HasChildren;
             node.Children.Add(child);
         }
         node.HasUnrealizedChildren = false;
+        SortTreeChildren(node);
+        if (node.Parent is { } parent) SortTreeChildren(parent);
     }
 
     private static string NormalizeFolderPath(string path) =>
@@ -221,6 +228,7 @@ public sealed partial class MainWindow : Window
             await (_rootsTask ??= LoadRootsAsync()).WaitAsync(ct);
             ct.ThrowIfCancellationRequested();
             var target = NormalizeFolderPath(folder);
+            if (IsTreeFolderExcluded(target)) { ClearCurrentTreeSelection(); return; }
             // “图片”与盘符可能指向同一目录树，优先使用最接近目标的根节点。
             var node = FolderTree.RootNodes
                 .Where(n => n.Content is FolderEntry entry && IsSameOrChildFolder(target, entry.Path))
@@ -242,6 +250,7 @@ public sealed partial class MainWindow : Window
                     // 导航取消只停止定位；手动展开的同一节点仍可共享已启动的加载。
                     await EnsureChildrenLoadedAsync(node).WaitAsync(ct);
                     ct.ThrowIfCancellationRequested();
+                    if (IsTreeFolderExcluded(target)) { ClearCurrentTreeSelection(); return; }
                     ancestor = System.IO.Path.Combine(ancestor, segment);
                     var child = node.Children.FirstOrDefault(n => n.Content is FolderEntry entry
                         && string.Equals(NormalizeFolderPath(entry.Path), ancestor, StringComparison.OrdinalIgnoreCase));
@@ -250,6 +259,7 @@ public sealed partial class MainWindow : Window
                         // 显式打开的隐藏目录或扫描后新建目录也需要可定位。
                         child = CreateNode(ancestor, segment);
                         node.Children.Add(child);
+                        SortTreeChildren(node);
                     }
                     node.IsExpanded = true;
                     node = child;
@@ -258,6 +268,7 @@ public sealed partial class MainWindow : Window
             ct.ThrowIfCancellationRequested();
             await EnsureChildrenLoadedAsync(node).WaitAsync(ct);
             ct.ThrowIfCancellationRequested();
+            if (IsTreeFolderExcluded(target)) { ClearCurrentTreeSelection(); return; }
             node.IsExpanded = node.Children.Count > 0;
             _currentFolderNode = node;
             FolderTree.SelectedNode = node;

@@ -86,6 +86,7 @@ public sealed partial class MainWindow
                 "copy-path" => "IconCopy",
                 "copy-file" => "IconCopyFile",
                 "delete" => "IconDelete",
+                "exclude" => "IconFilter",
                 _ => "IconRefresh",
             };
             var entry = new MenuFlyoutItem { Text = text, Tag = key, Icon = FluentIcons.Create(icon) };
@@ -96,7 +97,7 @@ public sealed partial class MainWindow
             };
             menu.Items.Add(entry);
         }
-        Add(folder ? "打开文件夹" : "打开", "open", async () =>
+        if (node is null) Add(folder ? "打开文件夹" : "打开", "open", async () =>
         {
             if (folder) await NavigateAsync(path);
             else
@@ -106,11 +107,14 @@ public sealed partial class MainWindow
             }
         });
         if (node is not null)
+        {
+            Add("排除此文件夹", "exclude", () => { ExcludeTreeFolder(path); return Task.CompletedTask; });
             Add(node.IsExpanded ? "折叠" : "展开", "expand", async () =>
             {
                 if (node.IsExpanded) node.IsExpanded = false;
                 else { await EnsureChildrenLoadedAsync(node); node.IsExpanded = true; }
             });
+        }
         Add("在资源管理器中定位", "reveal", () => RevealPathAsync(path, folder));
         menu.Items.Add(new MenuFlyoutSeparator());
         Add("复制完整路径", "copy-path", () =>

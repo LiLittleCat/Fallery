@@ -29,6 +29,7 @@ ICONS = [
     ("IconUp", "arrow_up_20", "regular"),
     ("IconRefresh", "arrow_clockwise_20", "regular"),
     ("IconOpenFolder", "folder_open_20", "regular"),
+    ("IconNewFolder", "folder_add_20", "regular"),
     ("IconFolder", "folder_20", "regular"),
     ("IconFolderFilled", "folder_20", "filled"),
     ("IconFolderHidden", "folder_prohibited_20", "regular"),

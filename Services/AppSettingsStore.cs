@@ -13,6 +13,10 @@ public sealed record AppSettings
     public int Theme { get; init; }
     public double ThumbnailSize { get; init; } = 240;
     public double SidebarWidth { get; init; } = 260;
+    public MediaSortField TreeSortField { get; init; } = MediaSortField.Name;
+    public bool TreeDescending { get; init; }
+    public bool TreeShowModifiedTime { get; init; }
+    public string[] TreeExcludedFolders { get; init; } = [];
     public MediaSortField SortField { get; init; }
     public bool Descending { get; init; }
     public GalleryDisplayMode DisplayMode { get; init; }
@@ -38,6 +42,9 @@ public sealed record AppSettings
         ThumbnailSize = double.IsFinite(ThumbnailSize) ? Math.Clamp(ThumbnailSize, 120, 480) : 240,
         SidebarWidth = double.IsFinite(SidebarWidth) ? Math.Clamp(SidebarWidth, 160, 480) : 260,
         SortField = Enum.IsDefined(SortField) ? SortField : MediaSortField.Name,
+        TreeSortField = TreeSortField is MediaSortField.Name or MediaSortField.Modified ? TreeSortField : MediaSortField.Name,
+        TreeExcludedFolders = (TreeExcludedFolders ?? []).Select(NormalizeFolder).OfType<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
         DisplayMode = Enum.IsDefined(DisplayMode) ? DisplayMode : GalleryDisplayMode.Masonry,
         Filter = Enum.IsDefined(Filter) ? Filter : MediaFilter.All,
         Volume = double.IsFinite(Volume) ? Math.Clamp(Volume, 0, 100) : 100,

@@ -229,7 +229,7 @@ public static class FolderScanner
         ct.ThrowIfCancellationRequested();
         var roots = new List<FolderEntry>();
         var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-        if (Directory.Exists(pictures)) roots.Add(new(pictures, "图片"));
+        if (Directory.Exists(pictures)) roots.Add(new(pictures, "图片") { ModifiedTicks = ReadFolderModifiedTicks(pictures) });
         foreach (var drive in DriveInfo.GetDrives())
         {
             ct.ThrowIfCancellationRequested();
@@ -238,7 +238,7 @@ public static class FolderScanner
                 if (!drive.IsReady) continue;
                 var label = drive.VolumeLabel;
                 roots.Add(new(drive.RootDirectory.FullName, string.IsNullOrEmpty(label)
-                    ? drive.Name : $"{label} ({drive.Name.TrimEnd('\\')})"));
+                    ? drive.Name : $"{label} ({drive.Name.TrimEnd('\\')})") { ModifiedTicks = ReadFolderModifiedTicks(drive.RootDirectory.FullName) });
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
             {
@@ -275,7 +275,8 @@ public static class FolderScanner
         {
             if (showHidden && !IsVisibleHiddenEntry(path, token)) return null;
             // 能列出名称不代表能访问目录；失败节点不应留下一个无法打开的入口。
-            return TryGetHasSubfolders(path, showHidden, token, out var hasChildren) ? new FolderChild(path, hasChildren) : null;
+            return TryGetHasSubfolders(path, showHidden, token, out var hasChildren)
+                ? new FolderChild(path, hasChildren) { ModifiedTicks = ReadFolderModifiedTicks(path) } : null;
         }, ct);
         return children.OfType<FolderChild>().ToList();
     }
@@ -297,6 +298,16 @@ public static class FolderScanner
 
     public static bool HasSubfolders(string folder, bool showHidden = false) =>
         TryGetHasSubfolders(folder, showHidden, default, out var result) && result;
+
+    public static long? ReadFolderModifiedTicks(string path)
+    {
+        try
+        {
+            var directory = new DirectoryInfo(path);
+            return directory.Exists ? directory.LastWriteTimeUtc.Ticks : null;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or ArgumentException) { return null; }
+    }
 
     private static bool TryGetHasSubfolders(string folder, bool showHidden, CancellationToken ct, out bool hasChildren)
     {

@@ -18,6 +18,7 @@ public sealed partial class MainWindow
 
     private void RefreshAddressBar()
     {
+        NewFolderButton.IsEnabled = GalleryState.CurrentFolder is not null;
         UpdateFavoriteState();
         CloseAddressMenu();
         EndAddressEdit(cancelRequest: false);

@@ -29,10 +29,12 @@ public sealed partial class MainWindow
         _favoritesRoot.Children.Clear();
         foreach (string path in _favoriteFolders)
         {
+            if (IsTreeFolderExcluded(path)) continue;
             string name = System.IO.Path.GetFileName(path);
             _favoritesRoot.Children.Add(new TreeViewNode { Content = new FolderEntry(path, string.IsNullOrEmpty(name) ? path : name) });
         }
         UpdateFavoriteState();
+        _ = RefreshTreePresentationAsync();
     }
 
     private void UpdateFavoriteState()
@@ -86,11 +88,11 @@ public sealed partial class MainWindow
     private MenuFlyout BuildFavoriteMenu(string path)
     {
         var menu = new MenuFlyout();
-        var open = new MenuFlyoutItem { Text = "打开文件夹", Icon = FluentIcons.Create("IconOpenFolder"), Tag = "open" };
-        open.Click += async (_, _) => await OpenFavoriteAsync(path);
+        var exclude = new MenuFlyoutItem { Text = "排除此文件夹", Icon = FluentIcons.Create("IconFilter"), Tag = "exclude" };
+        exclude.Click += (_, _) => ExcludeTreeFolder(path);
         var remove = new MenuFlyoutItem { Text = "移除收藏", Icon = FluentIcons.Create("IconDelete"), Tag = "remove-favorite", KeyboardAcceleratorTextOverride = "Delete" };
         remove.Click += (_, _) => RemoveFavorite(path);
-        menu.Items.Add(open);
+        menu.Items.Add(exclude);
         menu.Items.Add(remove);
         return menu;
     }

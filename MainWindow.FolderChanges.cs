@@ -104,6 +104,7 @@ public sealed partial class MainWindow
 
     private async Task RefreshWatchedTreeAsync(string folder, int version)
     {
+        var selected = FolderTree.SelectedNode;
         var parent = System.IO.Path.GetDirectoryName(folder);
         List<TreeViewNode> targets = [];
         var pending = new Stack<TreeViewNode>(FolderTree.RootNodes);
@@ -131,11 +132,13 @@ public sealed partial class MainWindow
                     // 一个节点在枚举时消失或失去权限，不应阻止其他节点和主列表更新。
                     exists = Directory.Exists(entry.Path);
                 }
-                return (exists, children);
+                return (exists, children, modifiedTicks: exists ? FolderScanner.ReadFolderModifiedTicks(entry.Path) : null);
             });
             if (_closed || version != _navigationVersion) return;
             if (!result.exists) { RemoveTreeNode(entry.Path); continue; }
+            node.Content = entry with { ModifiedTicks = result.modifiedTicks, ShowModifiedTime = _treeShowModifiedTime };
             if (result.children is null) continue;
+            result.children.RemoveAll(child => IsTreeFolderExcluded(child.Path));
             var paths = result.children.Select(child => child.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
             for (int i = node.Children.Count - 1; i >= 0; i--)
                 if (node.Children[i].Content is FolderEntry child && !paths.Contains(child.Path)) node.Children.RemoveAt(i);
@@ -145,7 +148,7 @@ public sealed partial class MainWindow
                 var child = node.Children.FirstOrDefault(n => n.Content is FolderEntry info && string.Equals(info.Path, path, StringComparison.OrdinalIgnoreCase));
                 if (child is null)
                 {
-                    child = CreateNode(path, System.IO.Path.GetFileName(path));
+                    child = CreateNode(path, System.IO.Path.GetFileName(path), result.children[index].ModifiedTicks);
                     child.HasUnrealizedChildren = hasChildren;
                     node.Children.Insert(index, child);
                 }
@@ -154,8 +157,13 @@ public sealed partial class MainWindow
                     node.Children.Remove(child);
                     node.Children.Insert(index, child);
                 }
+                if (child.Content is FolderEntry childEntry)
+                    child.Content = childEntry with { ModifiedTicks = result.children[index].ModifiedTicks, ShowModifiedTime = _treeShowModifiedTime };
             }
             node.HasUnrealizedChildren = false;
+            SortTreeChildren(node);
         }
+        if (selected is not null && (selected.Parent is not null || FolderTree.RootNodes.Contains(selected)))
+            FolderTree.SelectedNode = selected;
     }
 }

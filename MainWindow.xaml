@@ -31,6 +31,7 @@
                     <Setter Property="CornerRadius" Value="5" />
                 </Style>
                 <controls:FolderIconConverter x:Key="FolderIconConverter" />
+                <controls:NonEmptyTextVisibilityConverter x:Key="NonEmptyTextVisibilityConverter" />
                 <DataTemplate x:Key="PlaylistTextTemplate" x:DataType="models:MediaItem">
                     <TextBlock Text="{x:Bind Name}" FontSize="12" TextWrapping="Wrap" MaxLines="2" Margin="0,8"
                                TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTipService.ToolTip="{x:Bind Name}" />
@@ -48,8 +49,8 @@
                 <Style x:Key="PlaybackRateMenuPresenterStyle" TargetType="MenuFlyoutPresenter"
                        BasedOn="{StaticResource NavigationMenuPresenterStyle}">
                     <Setter Property="MinWidth" Value="0" />
-                    <Setter Property="Width" Value="120" />
-                    <Setter Property="Padding" Value="4" />
+                    <Setter Property="Width" Value="88" />
+                    <Setter Property="Padding" Value="3" />
                     <Setter Property="CornerRadius" Value="8" />
                 </Style>
                 <Style x:Key="AddressMenuItemStyle" TargetType="ListViewItem">
@@ -267,10 +268,14 @@
                                 ToolTipService.ToolTip="返回浏览 (Esc)" AutomationProperties.Name="关闭查看器">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconBack}" />
                         </Button>
-                        <TextBlock x:Name="ViewerTitle" Grid.Column="1" Text="{x:Bind ViewerState.Title, Mode=OneWay}"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                        <TextBlock x:Name="ViewerCounter" Grid.Column="2" Text="{x:Bind ViewerState.Counter, Mode=OneWay}"
-                                   VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Grid Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" ColumnSpacing="6">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <TextBlock x:Name="ViewerTitle" Text="{x:Bind ViewerState.Title, Mode=OneWay}"
+                                       VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="ViewerCounter" Grid.Column="1" Text="{x:Bind FormatViewerCounter(ViewerState.Counter), Mode=OneWay}"
+                                       VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </Grid>
+                        <Border Grid.Column="2" Width="{x:Bind CloseViewerButton.ActualWidth, Mode=OneWay}" IsHitTestVisible="False" />
                     </Grid>
                 </Grid>
             </TitleBar.Content>
@@ -292,8 +297,37 @@
                 <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" MinWidth="200" />
             </Grid.ColumnDefinitions>
             <Grid x:Name="SidebarPanel" Background="Transparent" Padding="4,4,2,4">
-                <Grid.RowDefinitions><RowDefinition Height="Auto" MaxHeight="240" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                <TreeView x:Name="FavoritesTree" SelectionMode="Single" ItemInvoked="FavoritesTree_ItemInvoked"
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" MaxHeight="240" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <Grid x:Name="TreeToolbar" Margin="8,0,4,4" ColumnSpacing="4">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="文件夹" FontSize="12" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                        <Button Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="文件树设置" AutomationProperties.Name="文件树设置">
+                            <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSettings}" />
+                            <Button.Flyout>
+                                <MenuFlyout MenuFlyoutPresenterStyle="{StaticResource NavigationMenuPresenterStyle}" Placement="BottomEdgeAlignedLeft" ShouldConstrainToRootBounds="True">
+                                    <RadioMenuFlyoutItem x:Name="TreeSortNameItem" Text="名称" Tag="Name" GroupName="TreeSortField" IsChecked="True" Click="TreeSort_Click" />
+                                    <RadioMenuFlyoutItem x:Name="TreeSortModifiedItem" Text="修改时间" Tag="Modified" GroupName="TreeSortField" Click="TreeSort_Click" />
+                                    <MenuFlyoutSeparator />
+                                    <RadioMenuFlyoutItem x:Name="TreeAscendingItem" Text="升序" Tag="Ascending" GroupName="TreeSortDirection" IsChecked="True" Click="TreeSort_Click" />
+                                    <RadioMenuFlyoutItem x:Name="TreeDescendingItem" Text="降序" Tag="Descending" GroupName="TreeSortDirection" Click="TreeSort_Click" />
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem x:Name="TreeExclusionsItem" Text="管理排除的文件夹" Click="TreeExclusions_Click" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <Button x:Name="NewFolderButton" Style="{StaticResource IconButtonStyle}" IsEnabled="False" Click="NewFolder_Click"
+                                ToolTipService.ToolTip="在当前目录新建文件夹" AutomationProperties.Name="新建文件夹">
+                            <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconNewFolder}" />
+                        </Button>
+                        <ToggleButton x:Name="TreeModifiedToggle" Style="{StaticResource DefaultToggleButtonStyle}" Click="TreeModified_Click"
+                                      MinWidth="30" MinHeight="30" Padding="7" BorderThickness="0" CornerRadius="5"
+                                      ToolTipService.ToolTip="显示文件夹修改时间" AutomationProperties.Name="显示文件夹修改时间">
+                            <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortModified}" />
+                        </ToggleButton>
+                    </StackPanel>
+                </Grid>
+                <TreeView x:Name="FavoritesTree" Grid.Row="1" SelectionMode="Single" ItemInvoked="FavoritesTree_ItemInvoked"
                           ContextRequested="FavoritesTree_ContextRequested" AutomationProperties.Name="收藏文件夹">
                     <TreeView.Resources><x:Double x:Key="TreeViewItemMinHeight">30</x:Double></TreeView.Resources>
                     <TreeView.ItemTemplate>
@@ -301,12 +335,17 @@
                             <Grid ColumnSpacing="8" ToolTipService.ToolTip="{Binding Content.Path}">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconBookmark}" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="1" Text="{Binding Content.Name}" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <Grid Grid.Column="1" VerticalAlignment="Center" Margin="0,3">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Content.Name}" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Content.ModifiedText}" Visibility="{Binding Content.ModifiedText, Converter={StaticResource NonEmptyTextVisibilityConverter}}"
+                                               FontSize="11" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </Grid>
                             </Grid>
                         </DataTemplate>
                     </TreeView.ItemTemplate>
                 </TreeView>
-                <TreeView x:Name="FolderTree" Grid.Row="1" SelectionMode="Single" SizeChanged="FolderTree_SizeChanged"
+                <TreeView x:Name="FolderTree" Grid.Row="2" SelectionMode="Single" SizeChanged="FolderTree_SizeChanged"
                           ContextRequested="FolderTree_ContextRequested" Expanding="FolderTree_Expanding" ItemInvoked="FolderTree_ItemInvoked">
                     <TreeView.Resources>
                         <x:Double x:Key="TreeViewItemMinHeight">30</x:Double>
@@ -323,7 +362,12 @@
                                     <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconPictures}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                                               Visibility="{Binding Content, Converter={StaticResource FolderIconConverter}, ConverterParameter=Pictures}" />
                                 </Grid>
-                                <TextBlock Grid.Column="1" Text="{Binding Content.Name}" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <Grid Grid.Column="1" VerticalAlignment="Center" Margin="0,3">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Content.Name}" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Content.ModifiedText}" Visibility="{Binding Content.ModifiedText, Converter={StaticResource NonEmptyTextVisibilityConverter}}"
+                                               FontSize="11" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </Grid>
                             </Grid>
                         </DataTemplate>
                     </TreeView.ItemTemplate>

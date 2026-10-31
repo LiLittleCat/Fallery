@@ -50,7 +50,7 @@ public sealed partial class MainWindow
             var entry = new RadioMenuFlyoutItem
             {
                 Text = $"{rate:0.##}×", Tag = rate, GroupName = "PlaybackRate",
-                FontSize = 13, MinHeight = 30, Padding = new Thickness(8, 4, 8, 4)
+                FontSize = 13, MinWidth = 0, MinHeight = 30, Padding = new Thickness(6, 4, 6, 4)
             };
             entry.Click += VideoRate_Click;
             VideoRateMenu.Items.Add(entry);

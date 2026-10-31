@@ -153,6 +153,8 @@ public partial class App : Application
             var treeMenu = (MenuFlyout)typeof(MainWindow).GetMethod("BuildItemMenu", flags)!.Invoke(window, new object?[] { folder, true, firstNode, true })!;
             Check(treeMenu.Items.OfType<MenuFlyoutItem>().Any(i => Equals(i.Tag, "expand"))
                 && treeMenu.Items.OfType<MenuFlyoutItem>().Any(i => Equals(i.Tag, "refresh")), "文件树菜单缺少展开或刷新入口");
+            Check(treeMenu.Items.OfType<MenuFlyoutItem>().Any(i => Equals(i.Tag, "exclude"))
+                && !treeMenu.Items.OfType<MenuFlyoutItem>().Any(i => Equals(i.Tag, "open")), "文件树应以排除替代重复的打开入口");
             await Invoke("SetDisplayModeAsync", GalleryDisplayMode.Masonry);
             namesToggle.IsChecked = true;
             typeof(MainWindow).GetMethod("ShowFileNames_Click", flags)!.Invoke(window, new object[] { namesToggle, new RoutedEventArgs() });
@@ -172,6 +174,42 @@ public partial class App : Application
             Check(items.Select(i => i.Name).SequenceEqual(new[] { "image1.jpg", "image2.jpg" }), "实际排序操作未更新数据顺序");
             Check(items.All(original.Contains), "排序不能重建媒体模型丢掉缓存");
             Check(window.ViewerState.Playlist.SequenceEqual(items), "查看器播放顺序未与排序同步");
+            await Invoke("NavigateAsync", folder, false, false);
+            await Invoke("SetDisplayModeAsync", GalleryDisplayMode.Masonry);
+            window.ViewerState.SetPlaylist([.. window.GalleryState.MediaItems,
+                new MediaItem(Path.Combine(workspace, "work", "validation", "media", "video.mp4"), MediaKind.Video)]);
+            await Invoke("ShowInViewerAsync", 0, false);
+            long wheelTime = 10000;
+            await Invoke("NavigateViewerWheelAsync", -60, wheelTime);
+            Check(window.ViewerState.CurrentIndex == 0, "高精度滚轮不足一格时不应跳项");
+            await Invoke("NavigateViewerWheelAsync", -60, wheelTime + 20);
+            Check(window.ViewerState.CurrentIndex == 1, "滚轮向下累计一格应打开下一张图片");
+            await Invoke("NavigateViewerWheelAsync", -120, wheelTime + 40);
+            Check(window.ViewerState.CurrentIndex == 1, "快速滚轮事件应节流，不能连续跳过多项");
+            await Invoke("NavigateViewerWheelAsync", -120, wheelTime + 240);
+            Check(window.ViewerState.CurrentItem?.IsVideo == true, "滚轮应从图片切换到视频");
+            await Invoke("NavigateViewerWheelAsync", -120, wheelTime + 440);
+            Check(window.ViewerState.CurrentIndex == 2, "末项继续向下不能越界或循环");
+            await Invoke("NavigateViewerWheelAsync", 120, wheelTime + 640);
+            Check(window.ViewerState.CurrentIndex == 1 && window.ViewerState.CurrentItem?.IsVideo == false,
+                "滚轮向上应从视频返回上一张图片");
+            bool AllowsWheel(bool modified, bool horizontal) => (bool)typeof(MainWindow).GetMethod("CanNavigateViewerWheel", flags)!.Invoke(window, [modified, horizontal])!;
+            Check(!AllowsWheel(true, false) && !AllowsWheel(false, true), "组合键缩放及横向滚轮不能触发媒体切换");
+            Set("_settingsDialog", new ContentDialog());
+            Check(!AllowsWheel(false, false), "弹窗打开时滚轮不能切换底层媒体");
+            Set("_settingsDialog", null!);
+            await Invoke("SetDisplayModeAsync", GalleryDisplayMode.Filmstrip);
+            await Invoke("ShowInViewerAsync", 0, false);
+            await Invoke("NavigateViewerWheelAsync", -120, wheelTime + 1000);
+            Check(window.ViewerState.CurrentIndex == 1 && ReferenceEquals(Get("_selectedItem"), window.ViewerState.CurrentItem),
+                "大图缩略图模式滚轮切换后应同步大图及缩略图选择");
+            await Invoke("NavigateViewerWheelAsync", 120, wheelTime + 1200);
+            await Invoke("NavigateViewerWheelAsync", 120, wheelTime + 1400);
+            Check(window.ViewerState.CurrentIndex == 0, "首项继续向上不能越界或循环");
+            typeof(MainWindow).GetMethod("CloseViewer", flags)!.Invoke(window, null);
+            Check(!AllowsWheel(false, false), "查看器关闭时不能处理媒体滚轮切换");
+            await Invoke("SetDisplayModeAsync", GalleryDisplayMode.Masonry);
+            window.ViewerState.SetPlaylist(items);
             typeof(MainWindow).GetMethod("ApplyTheme", flags)!.Invoke(window, new object[] { 1 });
             root.UpdateLayout();
             Check(window.AppWindow.TitleBar.PreferredTheme == Microsoft.UI.Windowing.TitleBarTheme.Light,
@@ -319,7 +357,7 @@ public partial class App : Application
             window.ViewerState.SetPlaylist(items.AsEnumerable().Reverse().ToList());
             Check(ReferenceEquals(window.ViewerState.CurrentItem, items[0]) && window.ViewerState.CurrentIndex == 1,
                 "重排播放列表必须保持当前媒体");
-            Check(((TextBlock)root.FindName("ViewerCounter")).Text == "2 / 2" && !((Button)root.FindName("NextButton")).IsEnabled,
+            Check(((TextBlock)root.FindName("ViewerCounter")).Text == "(2 / 2)" && !((Button)root.FindName("NextButton")).IsEnabled,
                 "重排后查看器计数或切换按钮绑定未更新");
             var nextRequest = window.ViewerState.BeginOpen(0)!;
             Check(request.Token.IsCancellationRequested && !nextRequest.Token.IsCancellationRequested, "查看器切换必须取消旧请求");
@@ -892,8 +930,8 @@ public partial class App : Application
             await Invoke("RestoreSettingsAsync");
             Check(favoriteRoot.Children.Count == 1 && favoriteRoot.IsExpanded, "恢复设置必须重建并展开收藏入口");
             var favoriteMenu = (MenuFlyout)typeof(MainWindow).GetMethod("BuildFavoriteMenu", flags)!.Invoke(window, [folder])!;
-            Check(favoriteMenu.Items.OfType<MenuFlyoutItem>().Select(item => item.Tag).SequenceEqual(new[] { "open", "remove-favorite" }),
-                "收藏右键只提供打开和移除收藏，不能提供磁盘删除操作");
+            Check(favoriteMenu.Items.OfType<MenuFlyoutItem>().Select(item => item.Tag).SequenceEqual(new[] { "exclude", "remove-favorite" }),
+                "收藏右键提供排除和移除收藏，不能提供磁盘删除操作");
             await Invoke("NavigateAsync", sideButtonFolder, false, false);
             await Invoke("OpenFavoriteAsync", folder);
             Check(window.GalleryState.CurrentFolder == folder && favoriteTree.SelectedNode == favoriteRoot.Children[0]
@@ -913,6 +951,106 @@ public partial class App : Application
             Check(normalizedFavorites.FavoriteFolders.SequenceEqual([folder])
                 && new AppSettings { FavoriteFolders = null! }.Normalize().FavoriteFolders.Length == 0,
                 "收藏设置应标准化路径、忽略大小写去重，并过滤非法路径和 null");
+            var treeFixture = Path.Combine(workspace, "work", "validation", "tree-options", Guid.NewGuid().ToString("N"));
+            string treeOne = Path.Combine(treeFixture, "folder1"), treeTwo = Path.Combine(treeFixture, "folder2"), treeTen = Path.Combine(treeFixture, "folder10");
+            await Task.Run(() =>
+            {
+                Directory.CreateDirectory(treeOne);
+                Directory.CreateDirectory(Path.Combine(treeTwo, "child"));
+                Directory.CreateDirectory(treeTen);
+                Directory.SetLastWriteTimeUtc(treeOne, new DateTime(2026, 3, 3, 12, 0, 0, DateTimeKind.Utc));
+                Directory.SetLastWriteTimeUtc(treeTwo, new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc));
+                Directory.SetLastWriteTimeUtc(treeTen, new DateTime(2026, 2, 2, 12, 0, 0, DateTimeKind.Utc));
+            });
+            await Invoke("NavigateAsync", treeTwo, false, false);
+            await Invoke("SelectCurrentFolderAsync", treeTwo, CancellationToken.None);
+            var selectedTreeNode = tree.SelectedNode!;
+            var treeParent = selectedTreeNode.Parent!;
+            var preservedChild = selectedTreeNode.Children.Single();
+            string[] TreeNames() => treeParent.Children.Select(node => ((FolderEntry)node.Content).Name).ToArray();
+            await Invoke("SetTreeOptionsAsync", MediaSortField.Name, false, true);
+            Check(TreeNames().SequenceEqual(new[] { "folder1", "folder2", "folder10" }), "文件树名称升序应使用自然排序");
+            root.UpdateLayout();
+            var datedEntry = (FolderEntry)selectedTreeNode.Content;
+            var datedContainer = tree.ContainerFromNode(selectedTreeNode);
+            Check(datedEntry.ModifiedTicks == Directory.GetLastWriteTimeUtc(treeTwo).Ticks && datedEntry.ModifiedText.Length > 0
+                && datedContainer is not null && Descendants(datedContainer).OfType<TextBlock>().Any(text => text.Text == datedEntry.ModifiedText && text.Visibility == Visibility.Visible),
+                "打开修改时间开关后，真实树节点应显示后台读取的修改时间");
+            await Invoke("SetTreeOptionsAsync", MediaSortField.Modified, false, true);
+            Check(TreeNames().SequenceEqual(new[] { "folder2", "folder10", "folder1" }), "文件树应支持修改时间升序");
+            await Invoke("SetTreeOptionsAsync", MediaSortField.Modified, true, false);
+            Check(TreeNames().SequenceEqual(new[] { "folder1", "folder10", "folder2" })
+                && ((FolderEntry)selectedTreeNode.Content).ModifiedText == "", "时间显示关闭后仍应按修改时间降序排序");
+            Check(ReferenceEquals(tree.SelectedNode, selectedTreeNode) && selectedTreeNode.IsExpanded
+                && ReferenceEquals(selectedTreeNode.Children.Single(), preservedChild), "排序和显示切换不能丢失当前选择或重建展开的子树");
+            await Invoke("SetTreeOptionsAsync", MediaSortField.Name, true, false);
+            Check(TreeNames().SequenceEqual(new[] { "folder10", "folder2", "folder1" }), "文件树名称降序应独立于右侧媒体排序");
+            var treeSettings = (AppSettings)typeof(MainWindow).GetMethod("CaptureSettings", flags)!.Invoke(window, null)!;
+            Check(await store.SaveAsync(treeSettings) && (await store.LoadAsync()).TreeDescending, "文件树排序选项必须保存");
+            await Invoke("RestoreSettingsAsync");
+            Check(((RadioMenuFlyoutItem)root.FindName("TreeSortNameItem")).IsChecked
+                && ((RadioMenuFlyoutItem)root.FindName("TreeDescendingItem")).IsChecked
+                && ((ToggleButton)root.FindName("TreeModifiedToggle")).IsChecked == false, "文件树工具栏必须恢复已保存的状态");
+            string createdFolder = await FolderCreation.CreateAsync(treeFixture, "新建目录");
+            Check(Directory.Exists(createdFolder) && Path.GetDirectoryName(createdFolder) == treeFixture, "新建文件夹只能创建指定父目录中的一层目录");
+            bool duplicateRejected = false;
+            try { await FolderCreation.CreateAsync(treeFixture, "新建目录"); }
+            catch (IOException) { duplicateRejected = true; }
+            Check(duplicateRejected && Directory.Exists(createdFolder), "新建时重名必须报错且保留原目录");
+            foreach (string invalidName in new[] { "..", "bad/name", "CON", "LPT1.txt", "tail.", "tail " })
+            {
+                bool invalidRejected = false;
+                try { await FolderCreation.CreateAsync(treeFixture, invalidName); }
+                catch (ArgumentException) { invalidRejected = true; }
+                Check(invalidRejected, $"必须拒绝无效的新目录名称 {invalidName}");
+            }
+            string missingParent = Path.Combine(treeFixture, "missing-parent");
+            bool missingRejected = false;
+            try { await FolderCreation.CreateAsync(missingParent, "child"); }
+            catch (IOException) { missingRejected = true; }
+            Check(missingRejected && !Directory.Exists(missingParent), "父目录不存在时不能递归重建路径");
+            await Invoke("NavigateAsync", createdFolder, false, false);
+            await Invoke("SelectCurrentFolderAsync", createdFolder, CancellationToken.None);
+            Check(tree.SelectedNode?.Content is FolderEntry createdEntry && createdEntry.Path == createdFolder
+                && createdEntry.ModifiedTicks.HasValue && ((Button)root.FindName("NewFolderButton")).IsEnabled,
+                "新建空目录应立即可在树中定位，并具有修改时间和可用的新建按钮");
+            Check(new AppSettings { TreeSortField = MediaSortField.Size }.Normalize().TreeSortField == MediaSortField.Name,
+                "非法文件树排序字段必须回退名称");
+            void Exclude(string path) => typeof(MainWindow).GetMethod("ExcludeTreeFolder", flags)!.Invoke(window, [path]);
+            bool Excluded(string path) => (bool)typeof(MainWindow).GetMethod("IsTreeFolderExcluded", flags)!.Invoke(window, [path])!;
+            await Invoke("NavigateAsync", treeTwo, false, false);
+            await Invoke("SelectCurrentFolderAsync", treeTwo, CancellationToken.None);
+            ToggleFavorite();
+            Exclude(treeTwo);
+            Check(!TreeNames().Contains("folder2") && tree.SelectedNode is null && Directory.Exists(treeTwo)
+                && window.GalleryState.CurrentFolder == treeTwo, "排除应立即移除节点和选择，保留磁盘目录及当前浏览内容");
+            Check(Excluded(Path.Combine(treeTwo, "child")) && !Excluded(treeTen), "排除必须涵盖后代但不能误伤相邻名称目录");
+            Check(!favoriteRoot.Children.Any(node => ((FolderEntry)node.Content).Path == treeTwo), "排除应同时隐藏收藏入口");
+            await Invoke("SelectCurrentFolderAsync", treeTen, CancellationToken.None);
+            await Invoke("SelectCurrentFolderAsync", Path.Combine(treeTwo, "child"), CancellationToken.None);
+            Check(!TreeNames().Contains("folder2") && tree.SelectedNode is null, "显式路径定位不能重新插入排除的祖先目录或保留其他目录的高亮");
+            await Invoke("RefreshWatchedTreeAsync", treeFixture, (int)Get("_navigationVersion")!);
+            Check(!TreeNames().Contains("folder2"), "自动刷新不能恢复排除的目录");
+            var excludedSettings = (AppSettings)typeof(MainWindow).GetMethod("CaptureSettings", flags)!.Invoke(window, null)!;
+            Check(await store.SaveAsync(excludedSettings) && (await store.LoadAsync()).TreeExcludedFolders.SequenceEqual([treeTwo]), "排除路径必须跨启动保存");
+            await Invoke("RestoreSettingsAsync");
+            Check(Excluded(treeTwo), "启动恢复设置后必须保持排除规则");
+            Exclude(treeFixture);
+            await Invoke("RestoreExcludedTreeFolderAsync", treeTwo);
+            Check(Excluded(treeTwo), "取消子目录排除时仍应遵守父目录排除规则");
+            await Invoke("RestoreExcludedTreeFolderAsync", treeFixture);
+            await Invoke("SelectCurrentFolderAsync", treeTwo, CancellationToken.None);
+            Check(tree.SelectedNode?.Content is FolderEntry restoredTree && restoredTree.Path == treeTwo
+                && favoriteRoot.Children.Any(node => ((FolderEntry)node.Content).Path == treeTwo), "取消父目录排除后应恢复节点和保留的收藏");
+            Check(new AppSettings { TreeExcludedFolders = [treeTwo, treeTwo.ToUpperInvariant() + "\\", "relative"] }.Normalize()
+                .TreeExcludedFolders.SequenceEqual([treeTwo]), "排除路径应标准化去重并忽略无效路径");
+            var excludedRoot = tree.RootNodes.First(node => node.Content is FolderEntry entry && IsAncestor(entry.Path, treeTwo));
+            string excludedRootPath = ((FolderEntry)excludedRoot.Content).Path;
+            Exclude(excludedRootPath);
+            Check(!tree.RootNodes.Contains(excludedRoot), "排除根入口也应立即隐藏");
+            await Invoke("RestoreExcludedTreeFolderAsync", excludedRootPath);
+            Check(tree.RootNodes.Any(node => node.Content is FolderEntry entry && entry.Path == excludedRootPath), "取消排除根入口必须恢复导航");
+            static bool IsAncestor(string ancestor, string path) => path.StartsWith(ancestor.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
             typeof(MainWindow).GetMethod("ApplyTheme", flags)!.Invoke(window, new object[] { 1 });
             ((Slider)root.FindName("ThumbSize")).Value = 360;
             var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -17,6 +17,7 @@
     <x:String x:Key="IconUp">&#xF19B;</x:String>
     <x:String x:Key="IconRefresh">&#xF13D;</x:String>
     <x:String x:Key="IconOpenFolder">&#xF42E;</x:String>
+    <x:String x:Key="IconNewFolder">&#xF41C;</x:String>
     <x:String x:Key="IconFolder">&#xF418;</x:String>
     <x:String x:Key="IconFolderHidden">&#xE65C;</x:String>
     <x:String x:Key="IconDrive">&#xE6E3;</x:String>

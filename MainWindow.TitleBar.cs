@@ -6,6 +6,8 @@ namespace Fallery;
 
 public sealed partial class MainWindow
 {
+    private string FormatViewerCounter(string counter) => string.IsNullOrEmpty(counter) ? "" : $"({counter})";
+
     private void TitleBar_LayoutUpdated(object? sender, object e)
     {
         if (_closed || _closing || !ExtendsContentIntoTitleBar

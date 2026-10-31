@@ -58,6 +58,7 @@ public sealed partial class MainWindow
         AppWindow.Closing += AppWindow_Closing;
         _settingsTimer.Tick += SettingsTimer_Tick;
         Root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(Root_MouseNavigationPressed), true);
+        ViewerStage.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(ViewerStage_PointerWheelChanged), true);
         GallerySurface.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(Gallery_PointerPressed), true);
         GallerySurface.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(Gallery_PointerMoved), true);
         GallerySurface.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(Gallery_PointerReleased), true);
@@ -81,6 +82,12 @@ public sealed partial class MainWindow
         ThumbSize.Value = settings.ThumbnailSize;
         SidebarColumn.Width = new GridLength(settings.SidebarWidth);
         _sidebarWidth = settings.SidebarWidth;
+        _treeSortField = settings.TreeSortField;
+        _treeDescending = settings.TreeDescending;
+        _treeShowModifiedTime = settings.TreeShowModifiedTime;
+        _treeExcludedFolders.Clear();
+        _treeExcludedFolders.AddRange(settings.TreeExcludedFolders);
+        UpdateTreeToolbar();
         GalleryState.SortField = settings.SortField;
         GalleryState.Descending = settings.Descending;
         GalleryState.ShowFileNames = settings.ShowFileNames;
@@ -101,6 +108,7 @@ public sealed partial class MainWindow
         ApplyDisplayOptions();
         UpdateBrowseMenus();
         _lastFolderToRestore = settings.LastFolder;
+        await RefreshTreePresentationAsync();
         if (!_videoWindowDefaultsApplied) _videoWindowDefaultsApplied = ApplyDefaultVideoWindowSize();
         _settingsReady = true;
         if (_videoWindowDefaultsApplied && !settings.VideoWindowDefaultsApplied) QueueSettingsSave();
@@ -116,6 +124,10 @@ public sealed partial class MainWindow
         Theme = _themeIndex,
         ThumbnailSize = ThumbSize.Value,
         SidebarWidth = _sidebarVisible ? SidebarColumn.ActualWidth : _sidebarWidth,
+        TreeSortField = _treeSortField,
+        TreeDescending = _treeDescending,
+        TreeShowModifiedTime = _treeShowModifiedTime,
+        TreeExcludedFolders = [.. _treeExcludedFolders],
         SortField = GalleryState.SortField,
         Descending = GalleryState.Descending,
         DisplayMode = GalleryState.DisplayMode,
