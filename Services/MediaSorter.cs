@@ -16,19 +16,28 @@ public static class MediaSorter
         bool folder = left.Kind == MediaKind.Folder;
         if (folder != (right.Kind == MediaKind.Folder)) return folder ? -1 : 1;
         int order;
-        if (field == MediaSortField.Name || (field == MediaSortField.Size && folder))
+        bool folderByName = folder && field is MediaSortField.Size or MediaSortField.Taken;
+        if (field == MediaSortField.Name || folderByName)
             order = FolderScanner.CompareNames(left.Name, right.Name);
         else
         {
-            long? a = field == MediaSortField.Size ? left.Version?.Length : left.ModifiedTicks;
-            long? b = field == MediaSortField.Size ? right.Version?.Length : right.ModifiedTicks;
+            long? a = Value(left, field);
+            long? b = Value(right, field);
             // 缺少元数据的文件始终放在这一组的末尾，不猜测大小，也不递归计算目录大小。
             if (a.HasValue != b.HasValue) return a.HasValue ? -1 : 1;
             order = Nullable.Compare(a, b);
         }
         if (order != 0)
-            return descending && !(field == MediaSortField.Size && folder) ? -Math.Sign(order) : Math.Sign(order);
+            return descending && !folderByName ? -Math.Sign(order) : Math.Sign(order);
         order = FolderScanner.CompareNames(left.Name, right.Name);
         return order != 0 ? order : StringComparer.Ordinal.Compare(left.Path, right.Path);
     }
+
+    private static long? Value(MediaFile file, MediaSortField field) => field switch
+    {
+        MediaSortField.Size => file.Version?.Length,
+        MediaSortField.Created => file.CreatedTicks,
+        MediaSortField.Taken => file.TakenTicks,
+        _ => file.ModifiedTicks,
+    };
 }

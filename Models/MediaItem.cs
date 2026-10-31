@@ -78,7 +78,7 @@ public sealed partial class MediaItem : ObservableObject
             if (IsFolder)
             {
                 // 文件夹时间戳不能反映封面文件被覆盖，重新验证少量候选的文件版本。
-                candidates = await Task.Run(() => FolderScanner.FindFolderPreviews(Path, ct), ct);
+                candidates = await Task.Run(() => FolderScanner.FindFolderPreviews(Path, ct, File.PreviewFilter), ct);
                 ct.ThrowIfCancellationRequested();
             }
             var covers = new List<BitmapImage>(3);

@@ -27,5 +27,6 @@ public static class MediaCache
     {
         Thumbnails.Clear();
         AspectRatios.Clear();
+        MediaDates.Clear();
     }
 }

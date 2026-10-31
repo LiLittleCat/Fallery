@@ -12,6 +12,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     private readonly BoundedCache<string, List<MediaItem>> _directories = new(20_000, 32);
     private CancellationTokenSource? _loadCts;
     private CancellationTokenSource? _searchCts;
+    private CancellationTokenSource? _sortCts;
     private int _sortVersion;
     private bool _disposed;
     public event Action? ItemsChanging;
@@ -21,6 +22,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     public List<MediaItem> Items { get; private set; } = [];
     public List<MediaItem> MediaItems { get; private set; } = [];
     public IReadOnlyList<FolderEntry> Breadcrumbs { get; private set; } = [];
+    public string? PendingFolder { get; private set; }
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanGoBack), nameof(CanGoForward), nameof(CanGoUp))]
     public partial bool IsScanning { get; set; }
@@ -37,6 +39,10 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     public partial GalleryDisplayMode DisplayMode { get; set; }
     [ObservableProperty]
     public partial bool ShowFileNames { get; set; } = true;
+    [ObservableProperty]
+    public partial MediaFilter Filter { get; set; }
+    [ObservableProperty]
+    public partial bool ShowSubfolders { get; set; } = true;
     public bool CanGoBack => !IsScanning && _history.Count > 0;
     public string? PreviousFolder => _history.TryPeek(out var folder) ? folder : null;
     public bool CanGoForward => !IsScanning && _forwardHistory.Count > 0;
@@ -49,21 +55,30 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     {
         if (_disposed) return false;
         CancelSearch();
+        _sortCts?.Cancel();
         _sortVersion++;
         folder = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
         if (!refresh && !IsScanning && string.Equals(folder, CurrentFolder, StringComparison.OrdinalIgnoreCase)) return false;
         _loadCts?.Cancel();
         using var cts = new CancellationTokenSource();
         _loadCts = cts;
+        PendingFolder = folder;
         IsScanning = true;
         Status = $"正在扫描：{folder}";
         try
         {
-            var files = await Task.Run(() => FolderScanner.ScanEntries(folder, cts.Token), cts.Token);
+            var filter = Filter;
+            bool showSubfolders = ShowSubfolders;
+            var files = await Task.Run(() => FolderScanner.ScanEntries(folder, cts.Token, filter, showSubfolders), cts.Token);
             while (true)
             {
                 var field = SortField;
                 bool descending = Descending;
+                if (field == MediaSortField.Taken)
+                {
+                    Status = "正在读取拍摄日期…";
+                    files = await MediaDates.ReadAsync(files, cts.Token);
+                }
                 files = await Task.Run(() => MediaSorter.Sort(files, f => f, field, descending), cts.Token);
                 cts.Token.ThrowIfCancellationRequested();
                 if (field == SortField && descending == Descending) break;
@@ -94,14 +109,14 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
             var reusable = (previous ?? []).Where(i => !i.IsFolder && i.Version is not null)
                 .ToDictionary(i => i.Path, StringComparer.Ordinal);
             var next = files.Select(f => f.Version is not null
-                && reusable.TryGetValue(f.Path, out var old) && old.File == f ? old : new MediaItem(f)).ToList();
+                && reusable.TryGetValue(f.Path, out var old) && old.Version == f.Version
+                && old.Kind == f.Kind && old.File.CreatedTicks == f.CreatedTicks ? old : new MediaItem(f)).ToList();
             ReplaceItems(next);
             _directories.Set(folder.ToUpperInvariant(), next, Math.Max(1, next.Count));
             IsScanning = false;
             OnPropertyChanged(nameof(CanGoBack));
             OnPropertyChanged(nameof(CanGoForward));
-            int videos = MediaItems.Count(i => i.IsVideo);
-            Status = $"{Items.Count - MediaItems.Count} 个文件夹 · {MediaItems.Count - videos} 张图片 · {videos} 个视频";
+            UpdateStatus();
             FolderCommitted?.Invoke(folder, cts.Token);
             await ProbeAspectRatiosAsync(MediaItems, cts.Token);
             return true;
@@ -114,7 +129,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            if (ReferenceEquals(_loadCts, cts)) { _loadCts = null; IsScanning = false; }
+            if (ReferenceEquals(_loadCts, cts)) { _loadCts = null; PendingFolder = null; IsScanning = false; }
         }
     }
 
@@ -164,12 +179,38 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     public async Task ApplySortAsync()
     {
         int version = ++_sortVersion;
+        _sortCts?.Cancel();
         if (IsScanning || _disposed) return;
+        using var cts = new CancellationTokenSource();
+        _sortCts = cts;
         var original = Items;
         var field = SortField;
         bool descending = Descending;
-        var sorted = await Task.Run(() => MediaSorter.Sort(original, item => item.File, field, descending));
-        if (!_disposed && version == _sortVersion && ReferenceEquals(original, Items)) ReplaceItems(sorted);
+        try
+        {
+            var metadata = original.Select(item => item.File).ToList();
+            if (field == MediaSortField.Taken)
+            {
+                Status = "正在读取拍摄日期…";
+                metadata = await MediaDates.ReadAsync(metadata, cts.Token);
+            }
+            var byPath = metadata.ToDictionary(file => file.Path, StringComparer.OrdinalIgnoreCase);
+            var sorted = await Task.Run(() => MediaSorter.Sort(original, item => byPath[item.Path], field, descending), cts.Token);
+            if (!_disposed && version == _sortVersion && ReferenceEquals(original, Items))
+            {
+                ReplaceItems(sorted);
+                UpdateStatus();
+            }
+        }
+        catch (OperationCanceledException) { }
+        finally { if (ReferenceEquals(_sortCts, cts)) _sortCts = null; }
+    }
+
+    private void UpdateStatus()
+    {
+        int videos = MediaItems.Count(item => item.IsVideo);
+        string filter = Filter switch { MediaFilter.Photos => "仅图片 · ", MediaFilter.Videos => "仅视频 · ", _ => "" };
+        Status = $"{filter}{Items.Count - MediaItems.Count} 个文件夹 · {MediaItems.Count - videos} 张图片 · {videos} 个视频";
     }
 
     public async Task<string?> FindAdjacentAsync(bool forward)
@@ -182,7 +223,8 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
         Status = "正在查找含图片或视频的目录…（Esc 取消）";
         try
         {
-            var target = await Task.Run(() => FolderNavigator.FindAdjacent(current, forward, cts.Token), cts.Token);
+            var filter = Filter;
+            var target = await Task.Run(() => FolderNavigator.FindAdjacent(current, forward, cts.Token, filter: filter), cts.Token);
             cts.Token.ThrowIfCancellationRequested();
             if (_disposed) return null;
             if (target is null) Status = forward ? "已经是最后一个媒体目录" : "已经是第一个媒体目录";
@@ -202,7 +244,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     }
 
     public void CancelSearch() { _searchCts?.Cancel(); _searchCts = null; }
-    public void Cancel() { _loadCts?.Cancel(); CancelSearch(); _sortVersion++; }
+    public void Cancel() { _loadCts?.Cancel(); _sortCts?.Cancel(); CancelSearch(); _sortVersion++; }
     public void ClearCachedDirectories() => _directories.Clear();
     public void Dispose()
     {

@@ -16,6 +16,8 @@ public sealed record AppSettings
     public bool Descending { get; init; }
     public GalleryDisplayMode DisplayMode { get; init; }
     public bool ShowFileNames { get; init; } = true;
+    public MediaFilter Filter { get; init; }
+    public bool ShowSubfolders { get; init; } = true;
 
     public AppSettings Normalize() => this with
     {
@@ -27,6 +29,7 @@ public sealed record AppSettings
         SidebarWidth = double.IsFinite(SidebarWidth) ? Math.Clamp(SidebarWidth, 160, 480) : 260,
         SortField = Enum.IsDefined(SortField) ? SortField : MediaSortField.Name,
         DisplayMode = Enum.IsDefined(DisplayMode) ? DisplayMode : GalleryDisplayMode.Masonry,
+        Filter = Enum.IsDefined(Filter) ? Filter : MediaFilter.All,
     };
 
     private static string? NormalizeFolder(string? path)

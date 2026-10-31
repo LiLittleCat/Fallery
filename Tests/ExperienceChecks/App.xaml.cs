@@ -198,6 +198,51 @@ public partial class App : Application
             window.GalleryState.FolderCommitted += (_, _) => ratiosReadyAtCommit = window.GalleryState.MediaItems.All(i => i.HasAspectRatio);
             await Invoke("NavigateAsync", folder, false, true);
             Check(ratiosReadyAtCommit, "内存宽高比应在首次布局前恢复");
+            await Invoke("NavigateAsync", Path.Combine(workspace, "work", "validation", "experience", "10-混合"), true, false);
+            await Invoke("SetFilterAsync", MediaFilter.Photos, true);
+            Check(window.GalleryState.MediaItems.Count > 0 && window.GalleryState.MediaItems.All(item => !item.IsVideo)
+                && window.ViewerState.Playlist.All(item => !item.IsVideo), "图片筛选必须同步卡片和查看器播放列表");
+            await Invoke("ShowInViewerAsync", 0);
+            await Invoke("SetFilterAsync", MediaFilter.Videos, false);
+            Check(!window.ViewerState.IsOpen && window.GalleryState.Items.Count > 0
+                && window.GalleryState.Items.All(item => item.IsVideo), "仅视频且隐藏文件夹时应关闭旧图片并只显示视频");
+            Check(((RadioMenuFlyoutItem)root.FindName("FilterVideosItem")).IsChecked
+                && ((RadioMenuFlyoutItem)root.FindName("HideSubfoldersItem")).IsChecked,
+                "筛选菜单的选中状态必须同步");
+            var filterSettings = (AppSettings)typeof(MainWindow).GetMethod("CaptureSettings", flags)!.Invoke(window, null)!;
+            Check(filterSettings.Filter == MediaFilter.Videos && !filterSettings.ShowSubfolders, "保存入口必须包含筛选状态");
+            string? previousFilterFolder = window.GalleryState.PreviousFolder;
+            var oldFilterRequest = Invoke("SetFilterAsync", MediaFilter.Photos, true);
+            var newFilterRequest = Invoke("SetFilterAsync", MediaFilter.Videos, false);
+            await Task.WhenAll(oldFilterRequest, newFilterRequest);
+            Check(window.GalleryState.Items.Count > 0 && window.GalleryState.Items.All(item => item.IsVideo)
+                && window.GalleryState.PreviousFolder == previousFilterFolder && !window.GalleryState.IsScanning,
+                "快速切换筛选必须以最后选择为准且不能增加历史记录");
+            await Invoke("SetFilterAsync", MediaFilter.All, true);
+            await Invoke("NavigateAsync", folder, true, false);
+            window.GalleryState.SortField = MediaSortField.Created;
+            window.GalleryState.Descending = true;
+            await Invoke("ApplySortAsync");
+            typeof(MainWindow).GetMethod("UpdateBrowseMenus", flags)!.Invoke(window, null);
+            Check(((RadioMenuFlyoutItem)root.FindName("SortCreatedItem")).IsChecked
+                && ((RadioMenuFlyoutItem)root.FindName("SortDescendingItem")).IsChecked
+                && !((RadioMenuFlyoutItem)root.FindName("SortAscendingItem")).IsChecked, "排序字段和方向必须分别单选");
+            await Invoke("SetFilterAsync", MediaFilter.Videos, true);
+            Check(window.GalleryState.Items.Count == 0 && ((TextBlock)root.FindName("EmptyText")).Text.Contains("筛选"),
+                "筛选无结果时应说明筛选条件，而非误报目录为空");
+            await Invoke("SetFilterAsync", MediaFilter.All, true);
+            var settingsDialog = (ContentDialog)typeof(MainWindow).GetMethod("BuildSettingsDialog", flags)!.Invoke(window, null)!;
+            Check(settingsDialog.PrimaryButtonText == "保存" && settingsDialog.CloseButtonText == "取消"
+                && ((StackPanel)((ScrollViewer)settingsDialog.Content).Content).Children.OfType<ComboBox>().Count() == 2,
+                "设置面板应提供可保存或取消的主题和视图选项");
+            await Invoke("ApplyPreferencesAsync", 1, GalleryDisplayMode.LargeIcons, false, 280d);
+            Check(window.GalleryState.DisplayMode == GalleryDisplayMode.LargeIcons && !window.GalleryState.ShowFileNames
+                && ((ComboBox)root.FindName("ThemeSelector")).SelectedIndex == 1 && ((Slider)root.FindName("ThumbSize")).Value == 280,
+                "设置保存必须应用到现有控件和视图");
+            await Invoke("ApplyPreferencesAsync", 2, GalleryDisplayMode.Masonry, true, 320d);
+            window.GalleryState.SortField = MediaSortField.Name;
+            window.GalleryState.Descending = false;
+            await Invoke("ApplySortAsync");
             using (var gallery = new GalleryViewModel())
             {
                 var oldNavigation = gallery.NavigateAsync(Path.Combine(workspace, "work", "validation", "large"));
@@ -228,6 +273,13 @@ public partial class App : Application
                 var newSort = gallery.ApplySortAsync();
                 await Task.WhenAll(oldSort, newSort);
                 Check(gallery.Items[0].Name == "image2.jpg", "旧排序结果不能覆盖最新选项");
+                gallery.SortField = MediaSortField.Taken;
+                var oldDateSort = gallery.ApplySortAsync();
+                gallery.SortField = MediaSortField.Name;
+                gallery.Descending = false;
+                var latestSort = gallery.ApplySortAsync();
+                await Task.WhenAll(oldDateSort, latestSort);
+                Check(gallery.Items[0].Name == "image1.jpg", "取消的拍摄日期读取不能覆盖后续名称排序");
             }
             using (var gallery = new GalleryViewModel())
             {

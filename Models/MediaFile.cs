@@ -1,7 +1,8 @@
 namespace Fallery.Models;
 
 public enum MediaKind { Image, Video, Folder }
-public enum MediaSortField { Name, Modified, Size }
+public enum MediaSortField { Name, Modified, Size, Taken, Created }
+public enum MediaFilter { All, Photos, Videos }
 
 // 扫描结果不携带 UI 对象，可以在后台生成和测试。
 public sealed record MediaFile(string Path, MediaKind Kind)
@@ -9,6 +10,9 @@ public sealed record MediaFile(string Path, MediaKind Kind)
     public string Name => System.IO.Path.GetFileName(Path);
     public FileVersion? Version { get; init; }
     public long? FolderModifiedTicks { get; init; }
+    public long? CreatedTicks { get; init; }
+    public long? TakenTicks { get; init; }
+    public MediaFilter PreviewFilter { get; init; }
     public long? ModifiedTicks => Version?.ModifiedTicks ?? FolderModifiedTicks;
 }
 

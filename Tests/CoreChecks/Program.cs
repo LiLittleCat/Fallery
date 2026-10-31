@@ -97,6 +97,15 @@ Check(FolderScanner.FindFolderPreviews(Path.Combine(fixture, "empty")).Count == 
 Check(FolderScanner.FindFolderPreviews(Path.Combine(fixture, "missing")).Count == 0, "失效目录封面应安全回退");
 File.WriteAllText(Path.Combine(fixture, "folder10", "video.mp4"), "fixture");
 Check(FolderScanner.FindFolderPreviews(Path.Combine(fixture, "folder10")).Single().Kind == MediaKind.Video, "纯视频目录也应有封面候选");
+var photoFiltered = FolderScanner.ScanEntries(fixture, filter: MediaFilter.Photos);
+Check(photoFiltered.All(f => f.Kind != MediaKind.Video) && photoFiltered.Any(f => f.Name == "folder2")
+    && photoFiltered.All(f => f.Name != "folder10"), "图片筛选应过滤视频文件及仅有视频的子文件夹");
+var videoFiltered = FolderScanner.ScanEntries(fixture, filter: MediaFilter.Videos);
+Check(videoFiltered.All(f => f.Kind != MediaKind.Image) && videoFiltered.Any(f => f.Name == "folder10")
+    && videoFiltered.All(f => f.Name != "folder2"), "视频筛选应过滤图片文件及仅有图片的子文件夹");
+Check(FolderScanner.ScanEntries(fixture, showSubfolders: false).All(f => f.Kind != MediaKind.Folder), "隐藏子文件夹应只显示当前层媒体");
+Check(FolderScanner.FindFolderPreviews(fixture, filter: MediaFilter.Videos).All(f => f.Kind == MediaKind.Video), "叠放封面应遵守媒体筛选");
+Check(media.All(f => f.CreatedTicks is > 0), "创建时间必须从文件系统读取");
 var parentOnly = Path.Combine(fixture, "parent-only");
 Directory.CreateDirectory(Path.Combine(parentOnly, "album"));
 File.WriteAllText(Path.Combine(parentOnly, "album", "photo.jpg"), "fixture");
@@ -158,7 +167,7 @@ Expect<ArgumentException>(() => FolderNavigator.FindAdjacent(fixture, true, boun
 Check(FolderNavigator.FindAdjacent(Path.Combine(navRoot, "album3-empty"), true, boundary: navRoot) == navPaths[^1], "空目录也应能跳到下一个媒体目录");
 
 MediaFile SortFile(string name, long length, long ticks) => new(Path.Combine(fixture, name), MediaKind.Image)
-{ Version = new FileVersion(Path.Combine(fixture, name), length, ticks) };
+{ Version = new FileVersion(Path.Combine(fixture, name), length, ticks), CreatedTicks = ticks, TakenTicks = ticks };
 var sortable = new[]
 {
     SortFile("image10.jpg", 10, 2), SortFile("image2.jpg", 30, 1), SortFile("image1.jpg", 20, 3),
@@ -181,8 +190,9 @@ foreach (var descending in new[] { false, true })
         if (field == MediaSortField.Size) Check(sorted[0].Name == "folder2", "大小排序不能递归计算文件夹，也不改变其自然顺序");
     }
     var missingMetadata = new MediaFile(Path.Combine(fixture, "missing.jpg"), MediaKind.Image);
-    Check(MediaSorter.Sort(sortable.Append(missingMetadata), f => f, MediaSortField.Size, descending)[^1] == missingMetadata,
-        "缺少元数据的文件始终排在这一组末尾");
+    foreach (var field in new[] { MediaSortField.Size, MediaSortField.Taken, MediaSortField.Created })
+        Check(MediaSorter.Sort(sortable.Append(missingMetadata), f => f, field, descending)[^1] == missingMetadata,
+            "缺少元数据的文件始终排在这一组末尾");
 }
 Check(NavigationGesture.Classify(100, 5) == NavigationAction.Next && NavigationGesture.Classify(-100, 5) == NavigationAction.Previous, "左右手势映射错误");
 Check(NavigationGesture.Classify(5, -100) == NavigationAction.Parent && NavigationGesture.Classify(5, 100) == NavigationAction.Back, "上下手势映射错误");
@@ -205,6 +215,8 @@ Check(new AppSettings { LastFolder = "E:\\invalid\0path" }.Normalize().LastFolde
 Check(new AppSettings { DisplayMode = (GalleryDisplayMode)99 }.Normalize().DisplayMode == GalleryDisplayMode.Masonry,
     "非法视图模式应回退瀑布流");
 var viewSettings = savedSettings with { DisplayMode = GalleryDisplayMode.Filmstrip, ShowFileNames = false };
+viewSettings = viewSettings with { Filter = MediaFilter.Videos, ShowSubfolders = false, SortField = MediaSortField.Taken };
+Check(new AppSettings { Filter = (MediaFilter)99 }.Normalize().Filter == MediaFilter.All, "非法筛选应回退所有媒体");
 Check(await settingsStore.SaveAsync(viewSettings) && await settingsStore.LoadAsync() == viewSettings,
     "视图模式和文件名开关必须跨启动保存");
 Check((await Task.WhenAll(Enumerable.Range(0, 10).Select(i => settingsStore.SaveAsync(savedSettings with { Width = 1000 + i })))).All(ok => ok), "并发保存不能互相覆盖临时文件或写出半份 JSON");
@@ -283,6 +295,31 @@ if (Directory.Exists(mediaFixtures))
     try { await MediaProbe.TryGetAspectRatioAsync(Path.Combine(mediaFixtures, "image1.jpg"), MediaKind.Image, canceled.Token); }
     catch (OperationCanceledException) { observedCancellation = true; }
     Check(observedCancellation, "媒体探测必须传播取消");
+    var dateFixture = Directory.CreateDirectory(Path.Combine(fixture, "dates")).FullName;
+    foreach (var (name, year) in new[] { ("later.jpg", 2023), ("earlier.jpg", 2020) })
+    {
+        var path = Path.Combine(dateFixture, name);
+        File.Copy(Path.Combine(mediaFixtures, "image1.jpg"), path);
+        var photo = await StorageFile.GetFileFromPathAsync(path);
+        await photo.Properties.SavePropertiesAsync(new Dictionary<string, object>
+        {
+            ["System.Photo.DateTaken"] = new DateTimeOffset(year, 4, 5, 12, 0, 0, TimeSpan.Zero),
+        });
+    }
+    var dated = await MediaDates.ReadAsync(FolderScanner.Scan(dateFixture), timeout.Token);
+    Check(dated.All(file => file.TakenTicks is > 0), "必须读取真实 JPEG EXIF 拍摄日期");
+    Check(MediaSorter.Sort(dated, file => file, MediaSortField.Taken, false).Select(file => file.Name)
+        .SequenceEqual(new[] { "earlier.jpg", "later.jpg" }), "真实拍摄日期应决定排序顺序");
+    var stale = dated.Single(file => file.Name == "earlier.jpg");
+    File.Copy(Path.Combine(mediaFixtures, "image2.jpg"), stale.Path, true);
+    File.SetLastWriteTimeUtc(stale.Path, DateTime.UtcNow.AddSeconds(10));
+    var replacedDate = await MediaDates.ReadAsync(FolderScanner.Scan(dateFixture), timeout.Token);
+    Check(replacedDate.Single(file => file.Name == "earlier.jpg").TakenTicks is null,
+        "覆盖成无拍摄日期文件后，不能继续命中旧日期缓存");
+    bool dateCanceled = false;
+    try { await MediaDates.ReadAsync(dated, canceled.Token); }
+    catch (OperationCanceledException) { dateCanceled = true; }
+    Check(dateCanceled, "拍摄日期读取必须响应取消");
     Console.WriteLine($"PASS: {checks} total checks including Windows media metadata and system image thumbnails.");
 }
 Console.WriteLine("These checks do not measure WinUI scrolling, decoder memory, GIF animation, or video playback.");

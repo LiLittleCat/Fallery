@@ -31,34 +31,38 @@ public static class FolderScanner
         {
             ct.ThrowIfCancellationRequested();
             if (GetMediaKind(file.FullName) is { } kind)
-                items.Add(new MediaFile(file.FullName, kind) { Version = FileVersion.FromInfo(file) });
+                items.Add(new MediaFile(file.FullName, kind) { Version = FileVersion.FromInfo(file), CreatedTicks = GetCreatedTicks(file) });
         }
         items.Sort((a, b) => StrCmpLogicalW(a.Name, b.Name));
         ct.ThrowIfCancellationRequested();
         return items;
     }
 
-    public static List<MediaFile> ScanEntries(string folder, CancellationToken ct = default)
+    public static List<MediaFile> ScanEntries(string folder, CancellationToken ct = default,
+        MediaFilter filter = MediaFilter.All, bool showSubfolders = true)
     {
-        var files = Scan(folder, ct);
+        var files = Scan(folder, ct).Where(file => MatchesFilter(file.Kind, filter)).ToList();
+        if (!showSubfolders) return files;
         var entries = GetChildFolders(folder, ct)
-            .Where(child => ContainsMediaRecursive(child.Path, ct))
+            .Where(child => ContainsMediaRecursive(child.Path, ct, filter))
             .Select(child => new MediaFile(child.Path, MediaKind.Folder)
             {
                 FolderModifiedTicks = GetFolderModifiedTicks(child.Path),
+                CreatedTicks = GetCreatedTicks(new DirectoryInfo(child.Path)),
+                PreviewFilter = filter,
             }).ToList();
         entries.AddRange(files);
         ct.ThrowIfCancellationRequested();
         return entries;
     }
 
-    public static List<MediaFile> FindFolderPreviews(string folder, CancellationToken ct = default)
-        => FindFolderPreviews(folder, 4, ct);
+    public static List<MediaFile> FindFolderPreviews(string folder, CancellationToken ct = default, MediaFilter filter = MediaFilter.All)
+        => FindFolderPreviews(folder, 4, ct, filter);
 
-    public static bool ContainsMediaRecursive(string folder, CancellationToken ct = default)
-        => FindFolderPreviews(folder, 1, ct).Count > 0;
+    public static bool ContainsMediaRecursive(string folder, CancellationToken ct = default, MediaFilter filter = MediaFilter.All)
+        => FindFolderPreviews(folder, 1, ct, filter).Count > 0;
 
-    private static List<MediaFile> FindFolderPreviews(string folder, int limit, CancellationToken ct)
+    private static List<MediaFile> FindFolderPreviews(string folder, int limit, CancellationToken ct, MediaFilter filter)
     {
         ct.ThrowIfCancellationRequested();
         var previews = new List<MediaFile>();
@@ -78,8 +82,8 @@ public static class FolderScanner
                 foreach (var file in new DirectoryInfo(current).EnumerateFiles("*", TopLevelOnly))
                 {
                     ct.ThrowIfCancellationRequested();
-                    if (GetMediaKind(file.FullName) is { } kind)
-                        previews.Add(new(file.FullName, kind) { Version = FileVersion.FromInfo(file) });
+                    if (GetMediaKind(file.FullName) is { } kind && MatchesFilter(kind, filter))
+                        previews.Add(new(file.FullName, kind) { Version = FileVersion.FromInfo(file), CreatedTicks = GetCreatedTicks(file) });
                     if (previews.Count == limit) { ct.ThrowIfCancellationRequested(); return previews; }
                 }
             }
@@ -115,7 +119,20 @@ public static class FolderScanner
         return null;
     }
 
-    public static bool HasMedia(string folder, CancellationToken ct = default)
+    public static bool MatchesFilter(MediaKind kind, MediaFilter filter) => filter switch
+    {
+        MediaFilter.Photos => kind == MediaKind.Image,
+        MediaFilter.Videos => kind == MediaKind.Video,
+        _ => kind is MediaKind.Image or MediaKind.Video,
+    };
+
+    private static long? GetCreatedTicks(FileSystemInfo info)
+    {
+        try { return info.Exists ? info.CreationTimeUtc.Ticks : null; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    public static bool HasMedia(string folder, CancellationToken ct = default, MediaFilter filter = MediaFilter.All)
     {
         ct.ThrowIfCancellationRequested();
         try
@@ -123,7 +140,7 @@ public static class FolderScanner
             foreach (var path in Directory.EnumerateFiles(folder, "*", TopLevelOnly))
             {
                 ct.ThrowIfCancellationRequested();
-                if (GetMediaKind(path) is not null) return true;
+                if (GetMediaKind(path) is { } kind && MatchesFilter(kind, filter)) return true;
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }

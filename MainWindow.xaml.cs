@@ -129,6 +129,7 @@ public sealed partial class MainWindow : Window
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         _closed = true;
+        _settingsDialog?.Hide();
         CloseItemMenu();
         CloseAddressMenu();
         GalleryState.Dispose();
@@ -304,12 +305,17 @@ public sealed partial class MainWindow : Window
         CancelGesture();
         if (refresh || GalleryState.IsScanning || !string.Equals(NormalizeFolderPath(folder), GalleryState.CurrentFolder, StringComparison.OrdinalIgnoreCase))
             CloseViewer();
-        if (!await GalleryState.NavigateAsync(folder, pushHistory, refresh, forward)
-            && !_closed && !_closing && version == _navigationVersion && !GalleryState.IsScanning)
+        _pendingBrowseNavigation = (folder, pushHistory, forward);
+        try
         {
-            FolderTree.SelectedNode = _currentFolderNode;
-            if (IsFilmstrip && !ViewerState.IsOpen && previewIndex >= 0) await ShowInViewerAsync(previewIndex);
+            if (!await GalleryState.NavigateAsync(folder, pushHistory, refresh, forward)
+                && !_closed && !_closing && version == _navigationVersion && !GalleryState.IsScanning)
+            {
+                FolderTree.SelectedNode = _currentFolderNode;
+                if (IsFilmstrip && !ViewerState.IsOpen && previewIndex >= 0) await ShowInViewerAsync(previewIndex);
+            }
         }
+        finally { if (version == _navigationVersion) _pendingBrowseNavigation = null; }
     }
 
     private async void Back_Click(object sender, RoutedEventArgs e) => await GoBackAsync();
@@ -340,7 +346,9 @@ public sealed partial class MainWindow : Window
         Gallery.Visibility = GalleryState.IsScanning ? Visibility.Collapsed : Visibility.Visible;
         EmptyText.Visibility = GalleryState.IsScanning || (IsFilmstrip ? GalleryState.MediaItems.Count : GalleryState.Items.Count) == 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyText.Text = GalleryState.IsScanning ? "正在读取目录…" : GalleryState.CurrentFolder is null
-            ? "在左侧选择目录，或点击“打开文件夹”" : IsFilmstrip ? "此目录没有图片或视频，可从下方或左侧进入子文件夹" : "此目录没有可显示的文件夹、图片或视频";
+            ? "在左侧选择目录，或点击“打开文件夹”" : GalleryState.Filter != MediaFilter.All || !GalleryState.ShowSubfolders
+            ? "没有符合当前筛选的媒体，可调整顶部筛选或从左侧进入子文件夹"
+            : IsFilmstrip ? "此目录没有图片或视频，可从下方或左侧进入子文件夹" : "此目录没有可显示的文件夹、图片或视频";
     }
 
     private uint ThumbnailDecodeSize
@@ -592,6 +600,7 @@ public sealed partial class MainWindow : Window
 
     private async void Root_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (_settingsDialog is not null) return;
         bool control = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
             & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
         bool alt = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu)

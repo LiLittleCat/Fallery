@@ -1,8 +1,11 @@
+using Fallery.Models;
+
 namespace Fallery.Services;
 
 public static class FolderNavigator
 {
-    public static string? FindAdjacent(string current, bool forward, CancellationToken ct = default, string? boundary = null)
+    public static string? FindAdjacent(string current, bool forward, CancellationToken ct = default, string? boundary = null,
+        MediaFilter filter = MediaFilter.All)
     {
         current = Normalize(current);
         boundary = Normalize(boundary ?? Path.GetPathRoot(current)!);
@@ -65,7 +68,7 @@ public static class FolderNavigator
              candidate = forward ? Next(candidate) : Previous(candidate))
         {
             ct.ThrowIfCancellationRequested();
-            if (FolderScanner.HasMedia(candidate, ct)) return candidate;
+            if (FolderScanner.HasMedia(candidate, ct, filter)) return candidate;
         }
         ct.ThrowIfCancellationRequested();
         return null;

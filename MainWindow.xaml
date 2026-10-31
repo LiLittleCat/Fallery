@@ -124,22 +124,64 @@
             </TitleBar.Content>
             <TitleBar.RightHeader>
                 <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" Spacing="4" Visibility="{x:Bind GalleryChromeVisibility(ViewerState.IsOpen, GalleryState.DisplayMode), Mode=OneWay}">
                         <Button x:Name="OpenFolderButton" Style="{StaticResource IconButtonStyle}" Click="OpenFolder_Click"
                                 ToolTipService.ToolTip="打开文件夹 (Ctrl+O)" AutomationProperties.Name="打开文件夹">
                             <Button.KeyboardAccelerators><KeyboardAccelerator Key="O" Modifiers="Control" /></Button.KeyboardAccelerators>
                             <FontIcon Glyph="&#xE8DA;" FontSize="16" />
                         </Button>
-                        <DropDownButton Style="{StaticResource IconButtonStyle}" AutomationProperties.Name="排序与缓存" ToolTipService.ToolTip="排序与缓存（文件夹优先）">
+                        <DropDownButton Style="{StaticResource IconButtonStyle}" AutomationProperties.Name="排序" ToolTipService.ToolTip="排序（文件夹优先）">
                             <FontIcon Glyph="&#xE8CB;" FontSize="16" />
                             <DropDownButton.Flyout>
                                 <MenuFlyout>
+                                    <RadioMenuFlyoutItem x:Name="SortTakenItem" Text="拍摄日期" Tag="Taken" GroupName="SortField" Click="SortField_Click"
+                                                        ToolTipService.ToolTip="照片使用 EXIF 拍摄日期，视频使用媒体日期；无日期排在末尾">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Glyph="&#xE787;" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="SortCreatedItem" Text="创建日期" Tag="Created" GroupName="SortField" Click="SortField_Click">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Glyph="&#xE8F4;" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
                                     <RadioMenuFlyoutItem x:Name="SortNameItem" Text="名称" Tag="Name" GroupName="SortField" IsChecked="True" Click="SortField_Click" />
-                                    <RadioMenuFlyoutItem x:Name="SortModifiedItem" Text="修改时间" Tag="Modified" GroupName="SortField" Click="SortField_Click" />
+                                    <RadioMenuFlyoutItem x:Name="SortModifiedItem" Text="修改日期" Tag="Modified" GroupName="SortField" Click="SortField_Click" />
                                     <RadioMenuFlyoutItem x:Name="SortSizeItem" Text="文件大小" Tag="Size" GroupName="SortField" Click="SortField_Click" />
                                     <MenuFlyoutSeparator />
-                                    <ToggleMenuFlyoutItem x:Name="SortDescendingItem" Text="降序" Click="SortDescending_Click" />
-                                    <MenuFlyoutSeparator /><MenuFlyoutItem Text="清除缩略图缓存" Click="ClearCache_Click" />
+                                    <RadioMenuFlyoutItem x:Name="SortAscendingItem" Text="升序" Tag="Ascending" GroupName="SortDirection" IsChecked="True" Click="SortDirection_Click">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Glyph="&#xE74A;" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="SortDescendingItem" Text="降序" Tag="Descending" GroupName="SortDirection" Click="SortDirection_Click">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Glyph="&#xE74B;" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                        <DropDownButton x:Name="FilterMenuButton" Style="{StaticResource IconButtonStyle}" AutomationProperties.Name="筛选" ToolTipService.ToolTip="筛选媒体与子文件夹">
+                            <FontIcon Glyph="&#xE71C;" FontSize="16" />
+                            <DropDownButton.Flyout>
+                                <MenuFlyout>
+                                    <RadioMenuFlyoutItem x:Name="FilterAllItem" Text="所有媒体" Tag="All" GroupName="MediaFilter" IsChecked="True" Click="MediaFilter_Click" />
+                                    <RadioMenuFlyoutItem x:Name="FilterPhotosItem" Text="图片" Tag="Photos" GroupName="MediaFilter" Click="MediaFilter_Click">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Glyph="&#xE91B;" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="FilterVideosItem" Text="视频" Tag="Videos" GroupName="MediaFilter" Click="MediaFilter_Click">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Glyph="&#xE714;" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <RadioMenuFlyoutItem x:Name="ShowSubfoldersItem" Text="显示子文件夹" Tag="Show" GroupName="Subfolders" IsChecked="True" Click="Subfolders_Click" />
+                                    <RadioMenuFlyoutItem x:Name="HideSubfoldersItem" Text="隐藏子文件夹" Tag="Hide" GroupName="Subfolders" Click="Subfolders_Click" />
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                        <DropDownButton x:Name="ViewMenuButton" Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="视图"
+                                        AutomationProperties.Name="视图模式与文件名">
+                            <FontIcon Glyph="&#xE80A;" FontSize="16" />
+                            <DropDownButton.Flyout>
+                                <MenuFlyout>
+                                    <RadioMenuFlyoutItem x:Name="MasonryModeItem" Text="瀑布流" Tag="Masonry" GroupName="DisplayMode" IsChecked="True" Click="DisplayMode_Click" />
+                                    <RadioMenuFlyoutItem x:Name="LargeIconsModeItem" Text="大图列表" Tag="LargeIcons" GroupName="DisplayMode" Click="DisplayMode_Click" />
+                                    <RadioMenuFlyoutItem x:Name="FilmstripModeItem" Text="大图 + 底部缩略图" Tag="Filmstrip" GroupName="DisplayMode" Click="DisplayMode_Click" />
+                                    <MenuFlyoutSeparator />
+                                    <ToggleMenuFlyoutItem x:Name="ShowFileNamesItem" Text="显示文件名" IsChecked="True" Click="ShowFileNames_Click" />
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
                         </DropDownButton>
@@ -147,6 +189,10 @@
                     <Button x:Name="ViewerFullScreenButton" Visibility="{x:Bind ViewerChromeVisibility(ViewerState.IsOpen, GalleryState.DisplayMode), Mode=OneWay}"
                             Style="{StaticResource IconButtonStyle}" Click="ViewerFullScreen_Click" ToolTipService.ToolTip="全屏 (F11)" AutomationProperties.Name="全屏">
                         <FontIcon x:Name="ViewerFullScreenIcon" Glyph="&#xE740;" FontSize="14" />
+                    </Button>
+                    <Button x:Name="SettingsButton" Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource IconButtonStyle}"
+                            Click="Settings_Click" ToolTipService.ToolTip="设置" AutomationProperties.Name="设置">
+                        <FontIcon Glyph="&#xE713;" FontSize="18" />
                     </Button>
                 </Grid>
             </TitleBar.RightHeader>
@@ -196,20 +242,9 @@
 
         <Grid Grid.Row="2" Padding="12,2,10,2" ColumnSpacing="12" Background="{ThemeResource ChromeBrush}" BorderBrush="{ThemeResource DividerBrush}" BorderThickness="0,1,0,0">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-            <TextBlock x:Name="StatusText" Text="{x:Bind GalleryState.Status, Mode=OneWay}" FontSize="12" VerticalAlignment="Center"
+            <TextBlock x:Name="StatusText" Grid.ColumnSpan="2" Text="{x:Bind GalleryState.Status, Mode=OneWay}" FontSize="12" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            <DropDownButton x:Name="ViewMenuButton" Grid.Column="1" Content="视图" MinHeight="28" Padding="8,3" FontSize="12"
-                            AutomationProperties.Name="视图模式与文件名">
-                <DropDownButton.Flyout>
-                    <MenuFlyout>
-                        <RadioMenuFlyoutItem x:Name="MasonryModeItem" Text="瀑布流" Tag="Masonry" GroupName="DisplayMode" IsChecked="True" Click="DisplayMode_Click" />
-                        <RadioMenuFlyoutItem x:Name="LargeIconsModeItem" Text="大图列表" Tag="LargeIcons" GroupName="DisplayMode" Click="DisplayMode_Click" />
-                        <RadioMenuFlyoutItem x:Name="FilmstripModeItem" Text="大图 + 底部缩略图" Tag="Filmstrip" GroupName="DisplayMode" Click="DisplayMode_Click" />
-                        <MenuFlyoutSeparator />
-                        <ToggleMenuFlyoutItem x:Name="ShowFileNamesItem" Text="显示文件名" IsChecked="True" Click="ShowFileNames_Click" />
-                    </MenuFlyout>
-                </DropDownButton.Flyout>
-            </DropDownButton>
+
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <FontIcon Glyph="&#xE91B;" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <Slider x:Name="ThumbSize" Width="116" Minimum="120" Maximum="480" StepFrequency="20" Value="240"

@@ -82,11 +82,10 @@ public sealed partial class MainWindow
         GalleryState.Descending = settings.Descending;
         GalleryState.ShowFileNames = settings.ShowFileNames;
         GalleryState.DisplayMode = settings.DisplayMode;
+        GalleryState.Filter = settings.Filter;
+        GalleryState.ShowSubfolders = settings.ShowSubfolders;
         ApplyDisplayOptions();
-        SortNameItem.IsChecked = GalleryState.SortField == MediaSortField.Name;
-        SortModifiedItem.IsChecked = GalleryState.SortField == MediaSortField.Modified;
-        SortSizeItem.IsChecked = GalleryState.SortField == MediaSortField.Size;
-        SortDescendingItem.IsChecked = GalleryState.Descending;
+        UpdateBrowseMenus();
         _lastFolderToRestore = settings.LastFolder;
         _settingsReady = true;
     }
@@ -104,6 +103,8 @@ public sealed partial class MainWindow
         Descending = GalleryState.Descending,
         DisplayMode = GalleryState.DisplayMode,
         ShowFileNames = GalleryState.ShowFileNames,
+        Filter = GalleryState.Filter,
+        ShowSubfolders = GalleryState.ShowSubfolders,
     };
 
     private void QueueSettingsSave()
@@ -142,6 +143,7 @@ public sealed partial class MainWindow
         args.Cancel = true;
         if (_closing) return;
         _closing = true;
+        _settingsDialog?.Hide();
         _settingsTimer.Stop();
         GalleryState.Cancel();
         CloseViewer();
@@ -156,19 +158,21 @@ public sealed partial class MainWindow
         if (sender is RadioMenuFlyoutItem { Tag: string field } && Enum.TryParse<MediaSortField>(field, out var value))
         {
             GalleryState.SortField = value;
+            UpdateBrowseMenus();
             QueueSettingsSave();
             await ApplySortAsync();
         }
     }
 
-    private async void SortDescending_Click(object sender, RoutedEventArgs e)
+    private async void SortDirection_Click(object sender, RoutedEventArgs e)
     {
-        GalleryState.Descending = SortDescendingItem.IsChecked;
+        GalleryState.Descending = (sender as RadioMenuFlyoutItem)?.Tag as string == "Descending";
+        UpdateBrowseMenus();
         QueueSettingsSave();
         await ApplySortAsync();
     }
 
-    private Task ApplySortAsync() => GalleryState.ApplySortAsync();
+    private Task ApplySortAsync() => GalleryState.IsScanning ? ReloadBrowseOptionsAsync() : GalleryState.ApplySortAsync();
 
     private async Task GoAdjacentFolderAsync(bool forward)
     {
