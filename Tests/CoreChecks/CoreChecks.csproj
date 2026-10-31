@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Models/MediaFile.cs" Link="MediaFile.cs" />
+    <Compile Include="../../Models/FolderEntry.cs" Link="FolderEntry.cs" />
+    <Compile Include="../../Services/FolderScanner.cs" Link="FolderScanner.cs" />
+    <Compile Include="../../Services/FolderAddress.cs" Link="FolderAddress.cs" />
+    <Compile Include="../../Services/BoundedCache.cs" Link="BoundedCache.cs" />
+    <Compile Include="../../Services/FolderNavigator.cs" Link="FolderNavigator.cs" />
+    <Compile Include="../../Services/MediaSorter.cs" Link="MediaSorter.cs" />
+    <Compile Include="../../Services/NavigationGesture.cs" Link="NavigationGesture.cs" />
+    <Compile Include="../../Services/AppSettingsStore.cs" Link="AppSettingsStore.cs" />
+    <Compile Include="../../Services/MediaProbe.cs" Link="MediaProbe.cs" />
+    <Compile Include="../../Layouts/MasonryGeometry.cs" Link="MasonryGeometry.cs" />
+  </ItemGroup>
+</Project>

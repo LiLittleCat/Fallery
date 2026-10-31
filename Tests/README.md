@@ -1,0 +1,37 @@
+# 验证
+
+在项目根目录运行（Windows、.NET 10，无额外测试包）：
+
+```powershell
+dotnet run --project Tests/CoreChecks/CoreChecks.csproj -- .
+dotnet build -p:Platform=x64
+```
+
+检查实际扫描代码的自然排序、扩展名和隐藏文件过滤、取消及失败语义；用一万项混合宽高比检查布局边界、重叠、滚动范围，并将可见项查询与完整遍历结果对照。测试素材生成在忽略的 `work/validation/corechecks/` 中。
+
+如果存在 `work/validation/media`，还会检查实际 Windows 解码器的图片宽高比、系统缩略图、MP4/MOV 元数据、损坏文件与取消行为。
+
+这些检查不替代界面验收。运行 Fallery 后还需检查：
+
+1. “打开文件夹”或 Ctrl+O 打开 `work/validation/media`，检查数量、面包屑、返回和上级。
+2. 快速切换目录，或打开后删除/拔出测试目录，确认旧扫描不会覆盖当前目录，失败后仍能重新打开。
+3. 打开 `work/validation/large`，连续滚动和调整列宽，观察内存是否趋于稳定，而非随浏览数量持续增长。
+4. 连续快速切图（包括 A→B→A），加载中按 Esc，再重新打开，确认没有旧图片闪回或关闭后继续播放。
+5. 打开 GIF、图片和 MP4/MOV，检查缩放、平移、播放、全屏、切换、关闭和损坏文件提示。
+6. 将焦点移到主题下拉框和播放滑块，检查方向键没有被查看器抢走。
+7. 通过“打开文件夹”选择尚未展开的深层目录，检查左侧展开、高亮及滚动定位；后退、上级和面包屑跳转后选中项应与当前目录一致，快速切换不会被旧定位覆盖。
+8. 打开 `work/validation/folders`，检查“图片”“视频”“混合”“空文件夹”卡片及封面，双击进入，再用上级返回。“混合”包含一个子文件夹、一个 JPG 和一个 MP4；查看器应只显示两项媒体，左右键不能进入文件夹。
+9. 图片首次打开、窗口调整大小、F11 进出全屏后应居中；关闭查看器应恢复原窗口状态。
+
+按用户要求，不使用 Computer Use。构建并启动后提供上述步骤，由用户确认视觉和交互结果。后台检查额外覆盖文件夹优先排序、空/失效目录、封面候选限量、非递归和取消；它们不能替代卡片封面及双击的实测。
+
+卡片复用回归测试（复用项目现有 WinUI/MVVM 依赖，直接实例化生产控件，不模拟输入）：
+
+```powershell
+dotnet build Tests/TileChecks/TileChecks.csproj -p:Platform=x64
+$tileCheckDir = 'Tests/TileChecks/bin/x64/Debug/net10.0-windows10.0.22621.0/win-x64'
+Start-Process -FilePath "$tileCheckDir/TileChecks.exe" -WindowStyle Hidden -Wait
+Get-Content "$tileCheckDir/tile-checks.txt"
+```
+
+测试连续将同一控件换绑为图片、视频、文件夹及空对象，验证名称、提示路径、角标、封面与旧通知隔离。导航仍需人工检查：测试目录 → 自己的其他目录 → 空目录 → 后退，确认“混合”等旧名称不残留，点击目标与显示一致。

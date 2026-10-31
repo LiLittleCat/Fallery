@@ -20,10 +20,6 @@ public sealed class MasonryLayout : VirtualizingLayout
         nameof(Spacing), typeof(double), typeof(MasonryLayout),
         new PropertyMetadata(6.0, OnLayoutPropertyChanged));
 
-    // 全景图、长截图夹紧到这个范围，避免出现极细或极长的格子
-    private const double MinAspectRatio = 0.25;
-    private const double MaxAspectRatio = 4.0;
-
     private int _version;
 
     public double DesiredColumnWidth
@@ -50,24 +46,26 @@ public sealed class MasonryLayout : VirtualizingLayout
 
     private sealed class State
     {
-        public Rect[] Bounds = [];
-        public double ExtentHeight;
+        public MasonryGeometry Geometry = new(0, 0, 240, 6, _ => 1);
         public double Width = double.NaN;
         public int Version = -1;
-        public HashSet<int> Realized = [];
+        public Dictionary<int, UIElement> Realized = [];
     }
 
     protected override void InitializeForContextCore(VirtualizingLayoutContext context)
         => context.LayoutState = new State();
 
     protected override void UninitializeForContextCore(VirtualizingLayoutContext context)
-        => context.LayoutState = null;
+    {
+        if (context.LayoutState is State state) RecycleAll(context, state);
+        context.LayoutState = null;
+    }
 
     protected override void OnItemsChangedCore(VirtualizingLayoutContext context, object source, NotifyCollectionChangedEventArgs args)
     {
-        // 索引已失效，旧元素由 ItemsRepeater 自己清理
+        // 更换 ItemsSource 不保证自动回收同索引元素；否则清空后的旧卡片会跳过 ElementPrepared。
         var state = (State)context.LayoutState;
-        state.Realized.Clear();
+        RecycleAll(context, state);
         state.Version = -1;
         InvalidateMeasure();
     }
@@ -75,74 +73,56 @@ public sealed class MasonryLayout : VirtualizingLayout
     protected override Size MeasureOverride(VirtualizingLayoutContext context, Size availableSize)
     {
         var state = (State)context.LayoutState;
-        double width = double.IsInfinity(availableSize.Width) ? DesiredColumnWidth : availableSize.Width;
+        double width = double.IsFinite(availableSize.Width) ? Math.Max(0, availableSize.Width) : DesiredColumnWidth;
 
-        if (state.Version != _version || state.Width != width || state.Bounds.Length != context.ItemCount)
+        if (state.Version != _version || state.Width != width || state.Geometry.Bounds.Length != context.ItemCount)
         {
             ComputeBounds(context, state, width);
         }
 
         var viewport = context.RealizationRect;
-        var visible = new HashSet<int>();
-        for (int i = 0; i < state.Bounds.Length; i++)
-        {
-            var b = state.Bounds[i];
-            if (b.Y < viewport.Y + viewport.Height && b.Y + b.Height > viewport.Y) visible.Add(i);
-        }
+        var visible = state.Geometry.GetVisibleIndices(viewport.Y, viewport.Height).ToHashSet();
 
         // 先回收滚出去的，ItemsRepeater 才能把它们复用给新进来的
-        foreach (int i in state.Realized)
+        foreach (int i in state.Realized.Keys.Where(i => !visible.Contains(i)).ToArray())
         {
-            if (!visible.Contains(i)) context.RecycleElement(context.GetOrCreateElementAt(i));
+            context.RecycleElement(state.Realized[i]);
+            state.Realized.Remove(i);
         }
 
         foreach (int i in visible)
         {
-            var b = state.Bounds[i];
-            context.GetOrCreateElementAt(i).Measure(new Size(b.Width, b.Height));
+            var b = state.Geometry.Bounds[i];
+            // 布局显式管理生命周期，避免框架自动回收与本地索引集合各自保留不同状态。
+            if (!state.Realized.TryGetValue(i, out var element))
+                state.Realized.Add(i, element = context.GetOrCreateElementAt(i, ElementRealizationOptions.SuppressAutoRecycle));
+            element.Measure(new Size(b.Width, b.Height));
         }
 
-        state.Realized = visible;
-        return new Size(width, state.ExtentHeight);
+        return new Size(width, state.Geometry.ExtentHeight);
     }
 
     protected override Size ArrangeOverride(VirtualizingLayoutContext context, Size finalSize)
     {
         var state = (State)context.LayoutState;
-        foreach (int i in state.Realized)
+        foreach (var (i, element) in state.Realized)
         {
-            context.GetOrCreateElementAt(i).Arrange(state.Bounds[i]);
+            var b = state.Geometry.Bounds[i];
+            element.Arrange(new Rect(b.X, b.Y, b.Width, b.Height));
         }
         return finalSize;
     }
 
+    private static void RecycleAll(VirtualizingLayoutContext context, State state)
+    {
+        foreach (var element in state.Realized.Values) context.RecycleElement(element);
+        state.Realized.Clear();
+    }
+
     private void ComputeBounds(VirtualizingLayoutContext context, State state, double width)
     {
-        int count = context.ItemCount;
-        double spacing = Spacing;
-        int columns = Math.Max(1, (int)((width + spacing) / (DesiredColumnWidth + spacing)));
-        double columnWidth = (width - spacing * (columns - 1)) / columns;
-        var columnHeights = new double[columns];
-
-        var bounds = new Rect[count];
-        for (int i = 0; i < count; i++)
-        {
-            double ratio = (context.GetItemAt(i) as MediaItem)?.AspectRatio ?? 1.0;
-            ratio = Math.Clamp(ratio, MinAspectRatio, MaxAspectRatio);
-
-            int column = 0;
-            for (int c = 1; c < columns; c++)
-            {
-                if (columnHeights[c] < columnHeights[column]) column = c;
-            }
-
-            double height = columnWidth / ratio;
-            bounds[i] = new Rect(column * (columnWidth + spacing), columnHeights[column], columnWidth, height);
-            columnHeights[column] += height + spacing;
-        }
-
-        state.Bounds = bounds;
-        state.ExtentHeight = count == 0 ? 0 : Math.Max(0, columnHeights.Max() - spacing);
+        state.Geometry = new MasonryGeometry(context.ItemCount, width, DesiredColumnWidth, Spacing,
+            i => (context.GetItemAt(i) as MediaItem)?.AspectRatio ?? 1.0, imageInset: 6, captionHeight: 22);
         state.Width = width;
         state.Version = _version;
     }

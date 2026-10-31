@@ -5,3 +5,5 @@ public sealed record FolderEntry(string Path, string Name)
 {
     public override string ToString() => Name;
 }
+
+public sealed record FolderChild(string Path, bool HasChildren);

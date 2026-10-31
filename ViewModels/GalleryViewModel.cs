@@ -1,0 +1,210 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using Fallery.Models;
+using Fallery.Services;
+
+namespace Fallery.ViewModels;
+
+public sealed partial class GalleryViewModel : ObservableObject, IDisposable
+{
+    private readonly Stack<string> _history = new();
+    private readonly Stack<string> _forwardHistory = new();
+    // 只保留有限目录的模型；图片引用在离开目录时释放，由独立像素预算管理。
+    private readonly BoundedCache<string, List<MediaItem>> _directories = new(20_000, 32);
+    private CancellationTokenSource? _loadCts;
+    private CancellationTokenSource? _searchCts;
+    private int _sortVersion;
+    private bool _disposed;
+    public event Action? ItemsChanging;
+    public event Action? ItemsChanged;
+    public event Action? LayoutInvalidated;
+    public event Action<string, CancellationToken>? FolderCommitted;
+    public List<MediaItem> Items { get; private set; } = [];
+    public List<MediaItem> MediaItems { get; private set; } = [];
+    public IReadOnlyList<FolderEntry> Breadcrumbs { get; private set; } = [];
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanGoBack), nameof(CanGoForward), nameof(CanGoUp))]
+    public partial bool IsScanning { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanGoUp))]
+    public partial string? CurrentFolder { get; set; }
+    [ObservableProperty]
+    public partial string Status { get; set; } = "在左侧选择一个文件夹";
+    [ObservableProperty]
+    public partial MediaSortField SortField { get; set; }
+    [ObservableProperty]
+    public partial bool Descending { get; set; }
+    public bool CanGoBack => !IsScanning && _history.Count > 0;
+    public string? PreviousFolder => _history.TryPeek(out var folder) ? folder : null;
+    public bool CanGoForward => !IsScanning && _forwardHistory.Count > 0;
+    public string? NextFolder => _forwardHistory.TryPeek(out var folder) ? folder : null;
+    public string? ParentFolder => CurrentFolder is null ? null : Path.GetDirectoryName(CurrentFolder);
+    public bool CanGoUp => !IsScanning && ParentFolder is not null;
+    public bool IsSearching => _searchCts is not null;
+
+    public async Task<bool> NavigateAsync(string folder, bool pushHistory = true, bool refresh = false, bool forward = false)
+    {
+        if (_disposed) return false;
+        CancelSearch();
+        _sortVersion++;
+        folder = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
+        if (!refresh && !IsScanning && string.Equals(folder, CurrentFolder, StringComparison.OrdinalIgnoreCase)) return false;
+        _loadCts?.Cancel();
+        using var cts = new CancellationTokenSource();
+        _loadCts = cts;
+        IsScanning = true;
+        Status = $"正在扫描：{folder}";
+        try
+        {
+            var files = await Task.Run(() => FolderScanner.ScanEntries(folder, cts.Token), cts.Token);
+            while (true)
+            {
+                var field = SortField;
+                bool descending = Descending;
+                files = await Task.Run(() => MediaSorter.Sort(files, f => f, field, descending), cts.Token);
+                cts.Token.ThrowIfCancellationRequested();
+                if (field == SortField && descending == Descending) break;
+            }
+            // 扫描成功才移动历史游标；失败或取消不能吞掉后退/前进记录。
+            if (forward && string.Equals(NextFolder, folder, StringComparison.OrdinalIgnoreCase))
+            {
+                if (CurrentFolder is not null) _history.Push(CurrentFolder);
+                _forwardHistory.Pop();
+            }
+            else if (!pushHistory && string.Equals(PreviousFolder, folder, StringComparison.OrdinalIgnoreCase))
+            {
+                if (CurrentFolder is not null) _forwardHistory.Push(CurrentFolder);
+                _history.Pop();
+            }
+            else if (pushHistory && CurrentFolder is not null && !string.Equals(folder, CurrentFolder, StringComparison.OrdinalIgnoreCase))
+            {
+                _history.Push(CurrentFolder);
+                _forwardHistory.Clear();
+            }
+            CurrentFolder = folder;
+            var segments = new List<FolderEntry>();
+            for (var directory = new DirectoryInfo(folder); directory is not null; directory = directory.Parent)
+                segments.Insert(0, new(directory.FullName, directory.Parent is null ? directory.FullName.TrimEnd('\\') : directory.Name));
+            Breadcrumbs = segments;
+            OnPropertyChanged(nameof(Breadcrumbs));
+            _directories.TryGet(folder.ToUpperInvariant(), out var previous);
+            var reusable = (previous ?? []).Where(i => !i.IsFolder && i.Version is not null)
+                .ToDictionary(i => i.Path, StringComparer.Ordinal);
+            var next = files.Select(f => f.Version is not null
+                && reusable.TryGetValue(f.Path, out var old) && old.File == f ? old : new MediaItem(f)).ToList();
+            ReplaceItems(next);
+            _directories.Set(folder.ToUpperInvariant(), next, Math.Max(1, next.Count));
+            IsScanning = false;
+            OnPropertyChanged(nameof(CanGoBack));
+            OnPropertyChanged(nameof(CanGoForward));
+            int videos = MediaItems.Count(i => i.IsVideo);
+            Status = $"{Items.Count - MediaItems.Count} 个文件夹 · {MediaItems.Count - videos} 张图片 · {videos} 个视频";
+            FolderCommitted?.Invoke(folder, cts.Token);
+            await ProbeAspectRatiosAsync(MediaItems, cts.Token);
+            return true;
+        }
+        catch (OperationCanceledException) { return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            if (!cts.IsCancellationRequested && !_disposed) Status = $"无法打开这个文件夹：{ex.Message}";
+            return false;
+        }
+        finally
+        {
+            if (ReferenceEquals(_loadCts, cts)) { _loadCts = null; IsScanning = false; }
+        }
+    }
+
+    private async Task ProbeAspectRatiosAsync(List<MediaItem> items, CancellationToken ct)
+    {
+        foreach (var batch in items.Where(i => !i.HasAspectRatio).Chunk(200))
+        {
+            var results = await Task.WhenAll(batch.Select(item => Task.Run(async () =>
+            {
+                // 限制元数据探测并发，避免大目录同时打开成千上万个文件。
+                await ProbeSlots.WaitAsync(ct);
+                try
+                {
+                    double? ratio = await MediaProbe.TryGetAspectRatioAsync(item.Path, item.Kind, ct);
+                    bool unchanged = item.Version is { } key && FileVersion.Read(item.Path) == key;
+                    return (Item: item, Ratio: ratio, Unchanged: unchanged);
+                }
+                finally { ProbeSlots.Release(); }
+            }, ct)));
+            ct.ThrowIfCancellationRequested();
+            foreach (var result in results)
+            {
+                if (result.Ratio is not { } ratio || !result.Unchanged) continue;
+                result.Item.AspectRatio = ratio;
+                result.Item.HasAspectRatio = true;
+                if (result.Unchanged && result.Item.Version is { } key)
+                {
+                    MediaCache.AspectRatios.Set(key, ratio);
+                }
+            }
+            LayoutInvalidated?.Invoke();
+        }
+    }
+    private static readonly SemaphoreSlim ProbeSlots = new(4);
+
+    private void ReplaceItems(List<MediaItem> items)
+    {
+        ItemsChanging?.Invoke();
+        foreach (var item in Items) item.ReleaseThumbnail();
+        Items = items;
+        MediaItems = items.Where(i => !i.IsFolder).ToList();
+        OnPropertyChanged(nameof(Items));
+        OnPropertyChanged(nameof(MediaItems));
+        ItemsChanged?.Invoke();
+    }
+
+    public async Task ApplySortAsync()
+    {
+        int version = ++_sortVersion;
+        if (IsScanning || _disposed) return;
+        var original = Items;
+        var field = SortField;
+        bool descending = Descending;
+        var sorted = await Task.Run(() => MediaSorter.Sort(original, item => item.File, field, descending));
+        if (!_disposed && version == _sortVersion && ReferenceEquals(original, Items)) ReplaceItems(sorted);
+    }
+
+    public async Task<string?> FindAdjacentAsync(bool forward)
+    {
+        if (CurrentFolder is null || IsScanning || _disposed) return null;
+        CancelSearch();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        _searchCts = cts;
+        string current = CurrentFolder;
+        Status = "正在查找含图片或视频的目录…（Esc 取消）";
+        try
+        {
+            var target = await Task.Run(() => FolderNavigator.FindAdjacent(current, forward, cts.Token), cts.Token);
+            cts.Token.ThrowIfCancellationRequested();
+            if (_disposed) return null;
+            if (target is null) Status = forward ? "已经是最后一个媒体目录" : "已经是第一个媒体目录";
+            return target;
+        }
+        catch (OperationCanceledException)
+        {
+            if (!_disposed && ReferenceEquals(_searchCts, cts)) Status = "目录查找已取消或超时";
+            return null;
+        }
+        catch (IOException ex)
+        {
+            if (!_disposed && ReferenceEquals(_searchCts, cts)) Status = ex.Message;
+            return null;
+        }
+        finally { if (ReferenceEquals(_searchCts, cts)) _searchCts = null; }
+    }
+
+    public void CancelSearch() { _searchCts?.Cancel(); _searchCts = null; }
+    public void Cancel() { _loadCts?.Cancel(); CancelSearch(); _sortVersion++; }
+    public void ClearCachedDirectories() => _directories.Clear();
+    public void Dispose()
+    {
+        _disposed = true;
+        Cancel();
+        foreach (var item in Items) item.ReleaseThumbnail();
+        _directories.Clear();
+    }
+}

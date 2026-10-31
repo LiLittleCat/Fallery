@@ -18,31 +18,131 @@ public static class FolderScanner
 
     private static readonly EnumerationOptions TopLevelOnly = new()
     {
-        IgnoreInaccessible = true,
+        IgnoreInaccessible = false,
         AttributesToSkip = FileAttributes.Hidden | FileAttributes.System,
     };
 
     /// <summary>当前目录（不递归）下的图片和视频，按资源管理器的自然顺序排列。</summary>
-    public static List<MediaItem> Scan(string folder, CancellationToken ct = default)
+    public static List<MediaFile> Scan(string folder, CancellationToken ct = default)
     {
-        var items = new List<MediaItem>();
-        foreach (var path in Directory.EnumerateFiles(folder, "*", TopLevelOnly))
+        ct.ThrowIfCancellationRequested();
+        var items = new List<MediaFile>();
+        foreach (var file in new DirectoryInfo(folder).EnumerateFiles("*", TopLevelOnly))
         {
             ct.ThrowIfCancellationRequested();
-            var ext = Path.GetExtension(path);
-            if (ImageExtensions.Contains(ext)) items.Add(new MediaItem(path, MediaKind.Image));
-            else if (VideoExtensions.Contains(ext)) items.Add(new MediaItem(path, MediaKind.Video));
+            if (GetMediaKind(file.FullName) is { } kind)
+                items.Add(new MediaFile(file.FullName, kind) { Version = FileVersion.FromInfo(file) });
         }
         items.Sort((a, b) => StrCmpLogicalW(a.Name, b.Name));
+        ct.ThrowIfCancellationRequested();
         return items;
     }
 
-    public static List<string> GetSubfolders(string folder)
+    public static List<MediaFile> ScanEntries(string folder, CancellationToken ct = default)
+    {
+        var files = Scan(folder, ct);
+        var entries = GetChildFolders(folder, ct)
+            .Select(child => new MediaFile(child.Path, MediaKind.Folder)
+            {
+                FolderModifiedTicks = GetFolderModifiedTicks(child.Path),
+            }).ToList();
+        entries.AddRange(files);
+        ct.ThrowIfCancellationRequested();
+        return entries;
+    }
+
+    public static List<MediaFile> FindFolderPreviews(string folder, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        var previews = new List<MediaFile>();
+        try
+        {
+            // 只为可见卡片找少量候选，避免一张损坏图片让整个文件夹失去封面。
+            foreach (var file in new DirectoryInfo(folder).EnumerateFiles("*", TopLevelOnly))
+            {
+                ct.ThrowIfCancellationRequested();
+                if (GetMediaKind(file.FullName) is { } kind)
+                    previews.Add(new(file.FullName, kind) { Version = FileVersion.FromInfo(file) });
+                if (previews.Count == 4) break;
+            }
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
+        ct.ThrowIfCancellationRequested();
+        return previews;
+    }
+
+    private static MediaKind? GetMediaKind(string path)
+    {
+        var extension = Path.GetExtension(path);
+        if (ImageExtensions.Contains(extension)) return MediaKind.Image;
+        if (VideoExtensions.Contains(extension)) return MediaKind.Video;
+        return null;
+    }
+
+    public static bool HasMedia(string folder, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        try
+        {
+            foreach (var path in Directory.EnumerateFiles(folder, "*", TopLevelOnly))
+            {
+                ct.ThrowIfCancellationRequested();
+                if (GetMediaKind(path) is not null) return true;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        return false;
+    }
+
+    private static long? GetFolderModifiedTicks(string path)
     {
         try
         {
-            var dirs = Directory.EnumerateDirectories(folder, "*", TopLevelOnly).ToList();
+            var directory = new DirectoryInfo(path);
+            return directory.Exists ? directory.LastWriteTimeUtc.Ticks : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    public static int CompareNames(string left, string right) => StrCmpLogicalW(left, right);
+
+    public static List<FolderEntry> GetRoots(CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        var roots = new List<FolderEntry>();
+        var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+        if (Directory.Exists(pictures)) roots.Add(new(pictures, "图片"));
+        foreach (var drive in DriveInfo.GetDrives())
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                if (!drive.IsReady) continue;
+                var label = drive.VolumeLabel;
+                roots.Add(new(drive.RootDirectory.FullName, string.IsNullOrEmpty(label)
+                    ? drive.Name : $"{label} ({drive.Name.TrimEnd('\\')})"));
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+            {
+                // 枚举期间可移动磁盘可能已拔出。
+            }
+        }
+        return roots;
+    }
+
+    public static List<string> GetSubfolders(string folder, CancellationToken ct = default)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            var dirs = new List<string>();
+            foreach (var path in Directory.EnumerateDirectories(folder, "*", TopLevelOnly))
+            {
+                ct.ThrowIfCancellationRequested();
+                dirs.Add(path);
+            }
             dirs.Sort((a, b) => StrCmpLogicalW(Path.GetFileName(a), Path.GetFileName(b)));
+            ct.ThrowIfCancellationRequested();
             return dirs;
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
@@ -51,14 +151,31 @@ public static class FolderScanner
         }
     }
 
-    public static bool HasSubfolders(string folder)
+    public static List<FolderChild> GetChildFolders(string folder, CancellationToken ct = default)
+    {
+        var children = new List<FolderChild>();
+        foreach (var path in GetSubfolders(folder, ct))
+        {
+            ct.ThrowIfCancellationRequested();
+            // 能列出名称不代表能访问目录；失败节点不应留下一个无法打开的入口。
+            if (TryGetHasSubfolders(path, out var hasChildren)) children.Add(new(path, hasChildren));
+        }
+        ct.ThrowIfCancellationRequested();
+        return children;
+    }
+
+    public static bool HasSubfolders(string folder) => TryGetHasSubfolders(folder, out var result) && result;
+
+    private static bool TryGetHasSubfolders(string folder, out bool hasChildren)
     {
         try
         {
-            return Directory.EnumerateDirectories(folder, "*", TopLevelOnly).Any();
+            hasChildren = Directory.EnumerateDirectories(folder, "*", TopLevelOnly).Any();
+            return true;
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
         {
+            hasChildren = false;
             return false;
         }
     }

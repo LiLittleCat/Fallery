@@ -14,6 +14,7 @@
     <UseWinUI>true</UseWinUI>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <DefaultItemExcludes>$(DefaultItemExcludes);work/**;Tests/**;logo/**</DefaultItemExcludes>
 
     <!-- 非打包 + 自包含：输出目录直接拷走就能运行 -->
     <WindowsPackageType>None</WindowsPackageType>

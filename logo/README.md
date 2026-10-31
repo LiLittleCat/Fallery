@@ -22,7 +22,7 @@
 | 场景 | 文件 |
 |---|---|
 | 系统图标（exe、开始菜单、任务栏） | `../Assets/Fallery.ico`：全部尺寸均为光影三列 |
-| WinUI 标题栏 | `../Assets/FalleryTitleBar.scale-*.png`：16 DIP，按 100%/125%/150%/200%/250%/300%/400% 缩放分别使用 16/20/24/32/40/48/64px；由同一三列 SVG 渲染，避免 ICO 第一帧被放大 |
+| WinUI 标题栏 | `../Assets/FalleryTitleBar.scale-*.png`：24 DIP，按 100%/125%/150%/200%/250%/300%/400% 缩放分别使用 24/30/36/48/60/72/96px；由同一三列 SVG 渲染，避免小图放大模糊 |
 | 安装包、Store 页面、关于页面 | `final/fallery-icon-fluent.svg` / `final/fallery-icon-fluent-1024.png` |
 | README、网站、单色印刷、水印 | `final/fallery-mark.svg`（无底板） |
 | 需要扁平风格的地方 | `final/fallery-icon.svg`（三列） |

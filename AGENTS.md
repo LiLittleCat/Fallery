@@ -8,7 +8,7 @@ Windows 上的瀑布流图片浏览器和视频播放器。Fallery = Falls + Gal
 ## 当前状态
 
 - 骨架代码是在 macOS 上写的，2026-10-31 已在 Windows 10 x64 首次构建通过（0 错误、0 警告）并启动。后续问题按报错修，不要推翻整体结构。
-- 进度：阶段 0 的 SDK、构建和启动已验证；阶段 1–3 已有初版，完整交互和性能验收待完成（自动截图及点击工具暂不可用，见 PLAN.md）。阶段 4–6 还没开始。
+- 进度：阶段 0–3 的核心代码已实现；用户已确认基础图片/GIF、视频播放、切换、关闭和缩放拖动正常。阶段 4 已实现媒体目录 A/D 遍历、右键手势、排序、设置持久化、目录模型内存复用、LRU 缓存及 MVVM 拆分，已移除 SQLite。按用户要求完成 FlowVision 风格界面调整；后台检查 1,166 项及生产窗口检查 51 项通过；真实 WinUI 卡片/布局/缓存检查此前 4,251 项通过。已增加资源管理器式地址栏和前进历史，实际交互待人工验收。卡片增加文件名行后每屏实现元素数量变化，布局回归断言总数随之变化。新界面、居中、全屏、缓存速度及万图性能仍待人工验收（见 PLAN.md）。阶段 5–6 尚未实施。
 
 ## 技术栈
 
@@ -23,20 +23,39 @@ Windows 上的瀑布流图片浏览器和视频播放器。Fallery = Falls + Gal
 dotnet restore
 dotnet build -p:Platform=x64        # ARM 电脑用 -p:Platform=ARM64
 dotnet run -p:Platform=x64
+dotnet run --project Tests/CoreChecks/CoreChecks.csproj -- .
 ```
 
-改完代码必须编译通过才算完成。涉及界面的改动，要运行程序实际点一遍。
+改完代码必须编译通过才算完成。按用户最新要求，不再使用 Computer Use；涉及界面的改动，编译后启动程序并提供具体检测步骤，由用户手动验收，不能把未验证的交互标成通过。
 
 ## 目录结构
 
 ```
 App.xaml(.cs)              入口，创建 MainWindow
-MainWindow.xaml(.cs)       界面、文件树、导航、查看器、键盘处理（目前都在 code-behind 里）
+MainWindow.xaml(.cs)       界面、文件树、原生图片/视频控件及键盘处理
+MainWindow.Experience.cs   排序、快捷导航、手势及设置接线
+MainWindow.ViewModels.cs   视图模型事件接线、树定位取消及缓存清理入口
+MainWindow.Navigation.cs   资源管理器式地址栏、路径编辑、每级子目录菜单及前进接线
+ViewModels/GalleryViewModel.cs  扫描、导航历史、排序、宽高比恢复/探测及取消
+ViewModels/ViewerViewModel.cs   播放列表、当前项、查看器状态及加载取消
+Controls/MediaTile.xaml(.cs) 可回收媒体卡片，显式绑定/清理名称、类型、封面及通知订阅
 Layouts/MasonryLayout.cs   瀑布流虚拟化布局（VirtualizingLayout），项目核心
+Layouts/MasonryGeometry.cs 纯几何位置缓存和可见区查询，不依赖 WinRT
+Models/MediaFile.cs        后台扫描返回的路径和媒体类型
 Models/MediaItem.cs        单个图片/视频：宽高比、缩略图加载和释放
+Services/MediaCache.cs     有上限的内存缩略图及宽高比缓存，按文件版本复用
+Services/BoundedCache.cs   按权重和数量限制的线程安全 LRU
+Services/VideoThumbnail.cs 系统缩略图失败后，通过 Windows 媒体 API 提取视频开头一帧
+Services/FolderNavigator.cs 按名称顺序深度优先查找相邻媒体目录，支持取消
+Services/MediaSorter.cs    名称/修改时间/大小排序，文件夹始终优先
+Services/AppSettingsStore.cs 本地 JSON 设置，后台串行原子写入
 Models/FolderEntry.cs      文件树和面包屑节点
 Services/FolderScanner.cs  目录扫描、扩展名过滤、自然排序（StrCmpLogicalW）
+Services/FolderAddress.cs  输入路径规范化及地址菜单的当前层目录枚举
 Services/MediaProbe.cs     只读文件头获取宽高比
+Tests/CoreChecks/          无额外测试包的扫描、布局及 Windows 媒体 API 检查
+Tests/TileChecks/          直接实例化生产 WinUI 卡片的复用回归检查，不操作用户窗口
+Tests/ExperienceChecks/    隐藏宿主直接检查生产窗口的设置恢复、导航、排序及保存，不发送输入
 Assets/Fallery.ico         程序图标（多尺寸），由 logo/build_ico.py 生成
 logo/                      图标源文件和设计说明，见 logo/README.md
 ```
@@ -45,17 +64,31 @@ logo/                      图标源文件和设计说明，见 logo/README.md
 
 - **瀑布流**：`ScrollViewer` + `ItemsRepeater` + 自定义 `MasonryLayout`。不要换成 `GridView` / `ItemsView` 或一次性渲染全部元素的方案，目标是上万张图依然流畅。
 - **布局缓存**：`MasonryLayout` 缓存所有项的位置，只有宽度、数量或调用 `Refresh()` 后才重算；滚动时只筛选可见区间。不要在滚动路径上加 O(n) 的 WinRT 调用。
-- **缩略图**：用 `StorageFile.GetThumbnailAsync`（走系统缩略图缓存，视频也能用）。在 `ElementPrepared` 时加载，`ElementClearing` 时释放。
-- **宽高比**：后台并发探测，每 200 项调用一次 `Refresh()`。探测完成前按 1:1 占位。
-- **文件树**：`TreeView` 懒加载，节点展开时才在后台列子目录。
+- **布局元素生命周期**：布局以索引到 UIElement 的映射记录当前已实现元素，并使用 `SuppressAutoRecycle` 自己管理回收；滚出范围、数据源变化和布局卸载时回收保存的实际元素。Arrange 仅使用 Measure 已准备好的元素，不调用 GetOrCreateElementAt。不能在更换目录时只清索引集合：真实列表检查已复现这种写法会复用已清空的旧卡片且跳过 ElementPrepared。
+- **缩略图**：用 `StorageFile.GetThumbnailAsync`（走系统缩略图缓存，视频也能用）。在 `ElementPrepared` 时优先同步命中内存缓存，否则进入六并发加载；`ElementClearing` 时取消请求、清空控件和模型的图片引用，独立 LRU 保留最近图片。按用户要求增加的内存缓存以 128 MiB 估算解码像素及 512 条目为上限（并非进程总内存限制），缩略图尺寸不足时升级，大图可供小图复用；关闭窗口清空缓存。`VerticalCacheLength=2` 通过原虚拟化布局预加载附近区域，不另建全量控件。
+- **缓存校验与刷新**：目录仍在后台扫描，使用标准化完整路径、文件大小和 UTC 修改时间校验媒体缓存；文件夹封面每次重新加载时只校验当前层最多四个候选，避免仅检查目录时间戳漏掉封面覆盖。重复点击当前目录不重建页面，F5 主动刷新，切走再回来也会重新扫描；不依赖缓存目录列表，因此新增/删除文件会反映到新扫描结果中。
+- **目录模型复用**：按用户要求参考 FlowVision 的内存复用思路独立实现，不使用 SQLite 或应用自建磁盘缓存。每次导航扫描后按路径、类型、大小和修改时间复用未变化的媒体对象及尺寸；新增、删除、改名和覆盖以新扫描为准。目录模型 LRU 最多 32 个目录、合计 20,000 项；离开目录释放模型的图片引用，解码图只由独立缩略图 LRU 保留。文件夹卡片重新创建并验证封面候选。排序菜单的“清除缩略图缓存”清除内存图片、比例及目录快照；缓存不跨进程保留，Windows 系统缩略图缓存仍由系统管理。
+- **视频预览兜底**：系统缩略图为空、返回图标或发生异常时，用 `MediaClip` / `MediaComposition.GetThumbnailAsync` 获取开头一帧，最多两个取帧任务并发，不播放整段视频、不引入播放器依赖。单次缩略图加载使用 20 秒取消期限；取消回收不报失败，超时/解码失败有明确提示，视频角标始终保留。仍受系统支持的编解码器范围限制。
+- **文件夹卡片**：按用户要求，瀑布流显示当前层子文件夹及媒体，文件夹优先且自然排序；双击文件夹进入目录。文件夹保持方形卡片，显示名称和文件夹图标，可见时后台查找最多四个当前层媒体封面候选，失败保留图标，不递归扫后代。查看器播放列表和宽高比探测只包含媒体文件。
+- **卡片复用**：`ElementPrepared` 显式调用 `MediaTile.Bind(item)`，回收和换目录时调用 `Bind(null)`，完整重置名称、类型、封面和旧通知订阅；卡片显示与点击对象必须一致。这里不用模板的一次性绑定承载可回收状态。扫描期间隐藏旧卡片，后退历史仍保留。
+- **宽高比**：首轮布局前复用未变化模型的尺寸或最多 20,000 条目的内存比例缓存；只有未命中的媒体需要后台并发探测，每 200 项调用一次 `Refresh()`。探测中变化的文件不能写回旧版本模型。探测完成前按 1:1 占位。
+- **MVVM 边界**：GalleryViewModel 管理扫描、导航历史、排序和比例缓存；ViewerViewModel 管理播放列表、当前项及请求取消。窗口保留原生控件资源、树定位、布局回收和手势接线。状态、面包屑和查看器文案使用 x:Bind；ItemsSource 仍显式断开/重绑以保障已有回收逻辑。
+- **文件树**：`TreeView` 懒加载，手动展开和导航定位共用可等待的 `EnsureChildrenLoadedAsync`。打开文件夹、面包屑、后退和上级导航成功后，按路径逐层展开、选中当前目录并滚动到可见位置；切换目录会取消旧定位。仅后台读取路径沿途节点，不预扫全盘。
 - **侧栏宽度**：使用 Toolkit `GridSplitter`，默认 260，范围 160–480（XAML 逻辑像素）；拖动与瀑布流联动尚待实际验收，见 PLAN.md。
-- **外观主题**：工具栏提供跟随系统、亮色、暗色，启动默认跟随系统（暂不保存选择）。使用 WinUI `TitleBar` + `ExtendsContentIntoTitleBar`，标题和背景跟随根布局的主题资源；系统窗口按钮通过 `AppWindow.TitleBar.PreferredTheme` 同步，保留系统拖动和窗口控制。不再直接调用 DWM 修改标题栏。查看器保持深色并位于标题栏下方。
+- **界面布局**：按用户要求参考 FlowVision 官方截图独立实现紧凑界面。顶部使用 WinUI TitleBar 的 Content / RightHeader 放导航、面包屑、打开目录、刷新和排序；文件树有图标、可收起，收起时保留原宽度。底部放状态、缩略图滑块和主题选择。媒体卡片内边距 6、文件名行高 22、图片圆角 3；MasonryGeometry 将文件名和内边距计入卡片高度，保持原虚拟化/位置缓存/回收机制。
+- **外观主题**：底栏提供跟随系统、亮色、暗色，首次启动默认跟随系统，后续恢复上次选择。使用 WinUI `TitleBar` + `ExtendsContentIntoTitleBar`，标题和背景跟随主题资源；系统窗口按钮通过 `AppWindow.TitleBar.PreferredTheme` 同步，保留系统拖动和窗口控制。不直接调用 DWM 修改标题栏。查看器保持深色并位于标题栏下方；打开时顶部切换为返回、文件名、计数和全屏操作，关闭时恢复导航及当前外观主题。
+- **阶段 4 导航**：W 上级、S 后退；A/D 按自然名称顺序在同一磁盘/共享根内深度优先查找上/下一个含图片或视频的目录，不循环。跳过空目录、隐藏/系统目录、联接和符号链接，后台按需枚举，最多检查 10,000 个目录并设 15 秒取消期限；Esc、其他导航或关闭窗口会取消旧查找。文件树定位和历史仍走统一导航方法。
+- **右键手势**：仅在瀑布流区域按住右键拖动，↑ 上级、↓ 后退、←/→ 前后媒体目录；48 逻辑像素阈值，斜向不明确时不执行，松开后只执行一次，Esc/丢失捕获可取消。不接管查看器和滚动条。
+- **地址栏**：按用户截图采用 Windows 资源管理器式后退、前进、上级及逐级路径按钮。名称跳转该级目录，箭头后台读取当前层子目录并用虚拟化列表显示；关闭菜单或导航取消旧读取。点击空白、Ctrl+L / Alt+D / F4 编辑全路径，TextBox 提供标准复制粘贴，Enter 提交、Esc 取消。无效地址保留原目录和输入；前进/后退历史仅在扫描成功时移动，后退后成功打开新目录清除前进分支，刷新不破坏历史。Alt+← / → / ↑ 分别后退、前进、上级。
+- **排序与设置**：工具栏支持名称、修改时间、文件大小及降序；文件夹始终优先，大小排序不递归统计目录大小。后台排序复用已有模型和缓存，查看器播放列表同步。`%LOCALAPPDATA%\Fallery\settings.json` 保存正常窗口尺寸、最大化状态、上次成功目录、主题、缩略图尺寸、侧栏宽度和排序；后台防抖/串行原子写入，退出前等待最后保存。损坏设置回退默认，失效目录显示错误且仍可打开其他目录；全屏/最小化尺寸不覆盖正常窗口尺寸。
 - **查看器**：覆盖在主窗口上的层，不开新窗口，也不调用外部程序。图片用 `ScrollViewer(ZoomMode)` + `Image`，视频暂时用 `MediaPlayerElement`。
+- **图片对齐与全屏**：图片通过居中的 `Viewbox` 跟随视口约束尺寸；工具栏全屏按钮和 F11 使用 `AppWindow` 全屏显示，关闭查看器恢复之前的窗口呈现器。这两项等待用户验收。
 - **播放内核**：阶段 6 会换成 LibVLCSharp 或 libmpv，并统一包在 `IPlayer` 接口后面。在那之前不要引入这两个依赖。
 - **启动顺序**（阶段 5）：从“打开方式”启动时先播放，扫描目录和展开文件树放到后台。
 
 ## 图标
 
+- 标题栏 logo 显示为 24 DIP，通过 `TitleBarIconMaxWidth` / `TitleBarIconMaxHeight` 设置；PNG 对应 24/30/36/48/60/72/96px，调整大小时同步重新渲染各档资源，不能直接拉伸旧的 16px 图。
 - 程序图标是 `Assets/Fallery.ico`，csproj 的 `ApplicationIcon` 用它设置 exe 图标，`MainWindow` 构造函数里用 `AppWindow.SetIcon` 设置窗口和任务栏图标。WinUI `TitleBar.IconSource` 使用 `Assets/FalleryTitleBar.scale-*.png`（逻辑 URI 不带 scale），按 100%–400% 缩放选取原生尺寸；不要直接加载 ICO，图像控件只读取第一帧会导致放大模糊。两种资源由同一脚本、同一三列 SVG 生成。
 - 按用户最新要求，所有尺寸统一使用光影三列版，包括 16/20/24px 的标题栏和任务栏图标。`logo/build_ico.py` 从 `fallery-icon-fluent.svg` 生成全部 ICO 条目，不再使用两列版。
 - 不要手动编辑 `.ico` 或 `logo/final/` 里的文件，它们都由 `logo/` 下的脚本生成。Windows 上没有 `uv` 和 geometric-logo skill 时，直接使用现有文件即可。
@@ -75,7 +108,7 @@ logo/                      图标源文件和设计说明，见 logo/README.md
 
 - `ItemsRepeater.Layout` 里 `MasonryLayout` 的 `x:Bind DesiredColumnWidth` 绑定是否生效
 - `ElementPrepared` 时 `DataContext` 是否已经设置（目前用 `args.Index` 取数据，规避了这个问题）
-- 非打包模式下 `StorageFile.GetFileFromPathAsync` 和 `GetThumbnailAsync` 的表现
+- 非打包控制台已验证 `StorageFile.GetFileFromPathAsync`、图片 `GetThumbnailAsync` 和 MP4/MOV 元数据；WinUI 中的缩略图加载、回收及视频实际播放仍待交互验收
 - 查看器 `FitImageToViewport` 在首次显示时的尺寸时机
 - HEIC / HEVC 需要系统扩展，缺少时应该显示占位，不能崩溃
 

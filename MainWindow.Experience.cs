@@ -1,0 +1,241 @@
+using Fallery.Models;
+using Fallery.Services;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
+using Windows.Foundation;
+
+namespace Fallery;
+
+public sealed partial class MainWindow
+{
+    private readonly AppSettingsStore _settingsStore = new(AppSettingsStore.DefaultPath);
+    private readonly DispatcherTimer _settingsTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    private bool _settingsReady;
+    private bool _closing;
+    private bool _allowClose;
+    private int _normalWidth = 1400;
+    private int _normalHeight = 900;
+    private bool _maximized;
+    private string? _lastFolderToRestore;
+    private int _navigationVersion;
+    private Pointer? _gesturePointer;
+    private Point _gestureOrigin;
+    private string _statusBeforeGesture = "";
+    private bool _sidebarVisible = true;
+    private double _sidebarWidth = 260;
+
+    private void SidebarToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_sidebarVisible)
+        {
+            _sidebarWidth = Math.Clamp(SidebarColumn.ActualWidth, 160, 480);
+            _sidebarVisible = false;
+            SidebarPanel.Visibility = SidebarSplitter.Visibility = Visibility.Collapsed;
+            SidebarColumn.MinWidth = 0;
+            SidebarColumn.Width = new GridLength(0);
+        }
+        else
+        {
+            _sidebarVisible = true;
+            SidebarColumn.MinWidth = 160;
+            SidebarColumn.Width = new GridLength(_sidebarWidth);
+            SidebarPanel.Visibility = SidebarSplitter.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async void Refresh_Click(object sender, RoutedEventArgs e)
+    {
+        if (GalleryState.CurrentFolder is { } folder) await NavigateAsync(folder, refresh: true);
+    }
+
+    private void InitializeExperience()
+    {
+        AppWindow.Changed += AppWindow_Changed;
+        AppWindow.Closing += AppWindow_Closing;
+        _settingsTimer.Tick += SettingsTimer_Tick;
+        GallerySurface.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(Gallery_PointerPressed), true);
+        GallerySurface.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(Gallery_PointerMoved), true);
+        GallerySurface.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(Gallery_PointerReleased), true);
+        GallerySurface.PointerCanceled += Gallery_PointerCanceled;
+        GallerySurface.PointerCaptureLost += Gallery_PointerCanceled;
+        GallerySurface.RightTapped += (_, args) => args.Handled = true;
+    }
+
+    private async Task RestoreSettingsAsync()
+    {
+        var settings = await _settingsStore.LoadAsync();
+        if (_closed || _closing) return;
+        var workArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        _normalWidth = Math.Min(settings.Width, workArea.Width);
+        _normalHeight = Math.Min(settings.Height, workArea.Height);
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(_normalWidth, _normalHeight));
+        _maximized = settings.Maximized;
+        if (_maximized && AppWindow.Presenter is OverlappedPresenter presenter) presenter.Maximize();
+        ThemeSelector.SelectedIndex = settings.Theme;
+        ThumbSize.Value = settings.ThumbnailSize;
+        SidebarColumn.Width = new GridLength(settings.SidebarWidth);
+        _sidebarWidth = settings.SidebarWidth;
+        GalleryState.SortField = settings.SortField;
+        GalleryState.Descending = settings.Descending;
+        SortNameItem.IsChecked = GalleryState.SortField == MediaSortField.Name;
+        SortModifiedItem.IsChecked = GalleryState.SortField == MediaSortField.Modified;
+        SortSizeItem.IsChecked = GalleryState.SortField == MediaSortField.Size;
+        SortDescendingItem.IsChecked = GalleryState.Descending;
+        _lastFolderToRestore = settings.LastFolder;
+        _settingsReady = true;
+    }
+
+    private AppSettings CaptureSettings() => new()
+    {
+        Width = _normalWidth,
+        Height = _normalHeight,
+        Maximized = _maximized,
+        LastFolder = GalleryState.CurrentFolder ?? _lastFolderToRestore,
+        Theme = ThemeSelector.SelectedIndex,
+        ThumbnailSize = ThumbSize.Value,
+        SidebarWidth = _sidebarVisible ? SidebarColumn.ActualWidth : _sidebarWidth,
+        SortField = GalleryState.SortField,
+        Descending = GalleryState.Descending,
+    };
+
+    private void QueueSettingsSave()
+    {
+        if (!_settingsReady || _closed || _closing) return;
+        _settingsTimer.Stop();
+        _settingsTimer.Start();
+    }
+
+    private async void SettingsTimer_Tick(object? sender, object e)
+    {
+        _settingsTimer.Stop();
+        if (_closed || _closing) return;
+        if (!await _settingsStore.SaveAsync(CaptureSettings()) && !_closed && !_closing)
+            GalleryState.Status = "无法保存设置，请检查用户目录的写入权限。";
+    }
+
+    private void FolderTree_SizeChanged(object sender, SizeChangedEventArgs e) => QueueSettingsSave();
+
+    private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        if (!_settingsReady || sender.Presenter is not OverlappedPresenter presenter
+            || presenter.State == OverlappedPresenterState.Minimized) return;
+        _maximized = presenter.State == OverlappedPresenterState.Maximized;
+        if (!_maximized)
+        {
+            _normalWidth = sender.Size.Width;
+            _normalHeight = sender.Size.Height;
+        }
+        QueueSettingsSave();
+    }
+
+    private async void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (_allowClose) return;
+        args.Cancel = true;
+        if (_closing) return;
+        _closing = true;
+        _settingsTimer.Stop();
+        GalleryState.Cancel();
+        CloseViewer();
+        // 退出前等最后一次写入完成，避免异步保存被进程结束打断。
+        if (_settingsReady) await _settingsStore.SaveAsync(CaptureSettings());
+        _allowClose = true;
+        DispatcherQueue.TryEnqueue(Close);
+    }
+
+    private async void SortField_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is RadioMenuFlyoutItem { Tag: string field } && Enum.TryParse<MediaSortField>(field, out var value))
+        {
+            GalleryState.SortField = value;
+            QueueSettingsSave();
+            await ApplySortAsync();
+        }
+    }
+
+    private async void SortDescending_Click(object sender, RoutedEventArgs e)
+    {
+        GalleryState.Descending = SortDescendingItem.IsChecked;
+        QueueSettingsSave();
+        await ApplySortAsync();
+    }
+
+    private Task ApplySortAsync() => GalleryState.ApplySortAsync();
+
+    private async Task GoAdjacentFolderAsync(bool forward)
+    {
+        if (_closed || _closing) return;
+        var target = await GalleryState.FindAdjacentAsync(forward);
+        if (!_closed && !_closing && target is not null) await NavigateAsync(target);
+    }
+
+    private void Gallery_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (_closed || _closing || GalleryState.IsScanning || Viewer.Visibility == Visibility.Visible
+            || e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Mouse) return;
+        var point = e.GetCurrentPoint(GallerySurface);
+        if (!point.Properties.IsRightButtonPressed || point.Properties.IsLeftButtonPressed || point.Properties.IsMiddleButtonPressed) return;
+        for (var source = e.OriginalSource as DependencyObject; source is not null;
+             source = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(source))
+            if (source is ScrollBar) return;
+        if (!GallerySurface.CapturePointer(e.Pointer)) return;
+        _gesturePointer = e.Pointer;
+        _gestureOrigin = point.Position;
+        _statusBeforeGesture = GalleryState.Status;
+        e.Handled = true;
+    }
+
+    private NavigationAction GetGesture(PointerRoutedEventArgs e)
+    {
+        var point = e.GetCurrentPoint(GallerySurface).Position;
+        return NavigationGesture.Classify(point.X - _gestureOrigin.X, point.Y - _gestureOrigin.Y);
+    }
+
+    private void Gallery_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_gesturePointer?.PointerId != e.Pointer.PointerId) return;
+        string? label = GetGesture(e) switch
+        {
+            NavigationAction.Parent => "上级目录",
+            NavigationAction.Back => "后退",
+            NavigationAction.Previous => "上一个媒体目录",
+            NavigationAction.Next => "下一个媒体目录",
+            _ => null,
+        };
+        GalleryState.Status = label is null ? _statusBeforeGesture : $"手势：{label}（松开执行，Esc 取消）";
+        e.Handled = true;
+    }
+
+    private async void Gallery_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_gesturePointer?.PointerId != e.Pointer.PointerId) return;
+        if (e.GetCurrentPoint(GallerySurface).Properties.IsRightButtonPressed) return;
+        var action = GetGesture(e);
+        CancelGesture();
+        e.Handled = true;
+        switch (action)
+        {
+            case NavigationAction.Parent: await GoUpAsync(); break;
+            case NavigationAction.Back: await GoBackAsync(); break;
+            case NavigationAction.Previous: await GoAdjacentFolderAsync(false); break;
+            case NavigationAction.Next: await GoAdjacentFolderAsync(true); break;
+        }
+    }
+
+    private void Gallery_PointerCanceled(object sender, PointerRoutedEventArgs e)
+    {
+        if (_gesturePointer?.PointerId == e.Pointer.PointerId) CancelGesture();
+    }
+
+    private void CancelGesture()
+    {
+        var pointer = _gesturePointer;
+        _gesturePointer = null;
+        if (pointer is null) return;
+        GalleryState.Status = _statusBeforeGesture;
+        GallerySurface.ReleasePointerCapture(pointer);
+    }
+}

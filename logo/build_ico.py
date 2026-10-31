@@ -45,8 +45,8 @@ write_ico(ASSETS / "Fallery.ico", images)
 
 # XAML 图像控件只读取 ICO 第一帧；单独提供缩放资源，避免放大 16px 图像。
 for scale in [100, 125, 150, 200, 250, 300, 400]:
-    px = 16 * scale // 100
-    (ASSETS / f"FalleryTitleBar.scale-{scale}.png").write_bytes(dict(images)[px])
+    px = 24 * scale // 100
+    (ASSETS / f"FalleryTitleBar.scale-{scale}.png").write_bytes(render_png(OUT / "fallery-icon-fluent.svg", px))
 
 FINAL.mkdir(exist_ok=True)
 for name in [

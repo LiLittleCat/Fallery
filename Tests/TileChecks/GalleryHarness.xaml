@@ -1,0 +1,17 @@
+<UserControl
+    x:Class="Fallery.TileChecks.GalleryHarness"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Fallery.Controls"
+    xmlns:layouts="using:Fallery.Layouts">
+    <ScrollViewer x:Name="Scroller">
+        <ItemsRepeater x:Name="Gallery" VerticalCacheLength="2">
+            <ItemsRepeater.Layout>
+                <layouts:MasonryLayout x:Name="Masonry" />
+            </ItemsRepeater.Layout>
+            <ItemsRepeater.ItemTemplate>
+                <DataTemplate><controls:MediaTile /></DataTemplate>
+            </ItemsRepeater.ItemTemplate>
+        </ItemsRepeater>
+    </ScrollViewer>
+</UserControl>
