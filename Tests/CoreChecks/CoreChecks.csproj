@@ -17,6 +17,10 @@
     <Compile Include="../../Services/MediaSorter.cs" Link="MediaSorter.cs" />
     <Compile Include="../../Services/NavigationGesture.cs" Link="NavigationGesture.cs" />
     <Compile Include="../../Services/AppSettingsStore.cs" Link="AppSettingsStore.cs" />
+    <Compile Include="../../Services/StartupArguments.cs" Link="StartupArguments.cs" />
+    <Compile Include="../../Services/MediaDetails.cs" Link="MediaDetails.cs" />
+    <Compile Include="../../Services/FileAssociation.cs" Link="FileAssociation.cs" />
+    <Compile Include="../../Services/Playback/ResumeStore.cs" Link="ResumeStore.cs" />
     <Compile Include="../../Services/MediaProbe.cs" Link="MediaProbe.cs" />
     <Compile Include="../../Layouts/MasonryGeometry.cs" Link="MasonryGeometry.cs" />
   </ItemGroup>

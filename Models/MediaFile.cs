@@ -13,6 +13,7 @@ public sealed record MediaFile(string Path, MediaKind Kind)
     public long? CreatedTicks { get; init; }
     public long? TakenTicks { get; init; }
     public MediaFilter PreviewFilter { get; init; }
+    public bool PreviewHidden { get; init; }
     public long? ModifiedTicks => Version?.ModifiedTicks ?? FolderModifiedTicks;
 }
 

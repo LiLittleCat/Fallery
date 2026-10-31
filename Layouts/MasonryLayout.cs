@@ -7,7 +7,7 @@ using Windows.Foundation;
 namespace Fallery.Layouts;
 
 /// <summary>
-/// 瀑布流虚拟化布局：每一项放进当前最短的那一列，只创建视口附近的元素。
+/// 瀑布流 / 网格 / 自适应行共用的虚拟化布局，只创建视口附近的元素。瀑布流把每一项放进当前最短的那一列。
 /// 位置整体缓存，只有宽度、数量变化或调用 Refresh() 后才重算；滚动时只筛选可见区间。
 /// </summary>
 public sealed class MasonryLayout : VirtualizingLayout
@@ -21,8 +21,15 @@ public sealed class MasonryLayout : VirtualizingLayout
         new PropertyMetadata(6.0, OnLayoutPropertyChanged));
 
     private int _version;
+    private MasonryGeometry? _lastGeometry;
+
+    /// <summary>最近一次布局中某项的位置，用于把选中项滚到视口内；滚动路径不调用。</summary>
+    public TileBounds? BoundsOf(int index) =>
+        _lastGeometry is { } geometry && index >= 0 && index < geometry.Bounds.Length ? geometry.Bounds[index] : null;
     public bool UniformTiles { get; set; }
+    public bool JustifiedRows { get; set; }
     public bool ShowFileNames { get; set; } = true;
+    public bool ShowCards { get; set; } = true;
 
     public double DesiredColumnWidth
     {
@@ -123,10 +130,16 @@ public sealed class MasonryLayout : VirtualizingLayout
 
     private void ComputeBounds(VirtualizingLayoutContext context, State state, double width)
     {
-        state.Geometry = new MasonryGeometry(context.ItemCount, width, DesiredColumnWidth, Spacing,
-            i => UniformTiles ? 1.0 : (context.GetItemAt(i) as MediaItem)?.AspectRatio ?? 1.0,
-            imageInset: 6, captionHeight: ShowFileNames ? 22 : 0);
+        Func<int, double> ratioAt = i => UniformTiles ? 1.0 : (context.GetItemAt(i) as MediaItem)?.AspectRatio ?? 1.0;
+        double caption = ShowFileNames ? 22 : 0;
+        // 卡片内边距 5 + 描边 1；不显示卡片背景时图片贴满格子。
+        double inset = ShowCards ? 6 : 0;
+        // 自适应行把缩略图大小当作目标行高，按列宽的约四分之三取值，与其他视图的单张观感接近。
+        state.Geometry = JustifiedRows
+            ? MasonryGeometry.Justified(context.ItemCount, width, DesiredColumnWidth * 0.75, Spacing, ratioAt, imageInset: inset, captionHeight: caption)
+            : new MasonryGeometry(context.ItemCount, width, DesiredColumnWidth, Spacing, ratioAt, imageInset: inset, captionHeight: caption);
         state.Width = width;
         state.Version = _version;
+        _lastGeometry = state.Geometry;
     }
 }

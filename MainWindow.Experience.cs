@@ -74,16 +74,25 @@ public sealed partial class MainWindow
         AppWindow.Resize(new Windows.Graphics.SizeInt32(_normalWidth, _normalHeight));
         _maximized = settings.Maximized;
         if (_maximized && AppWindow.Presenter is OverlappedPresenter presenter) presenter.Maximize();
-        ThemeSelector.SelectedIndex = settings.Theme;
+        ApplyTheme(settings.Theme);
         ThumbSize.Value = settings.ThumbnailSize;
         SidebarColumn.Width = new GridLength(settings.SidebarWidth);
         _sidebarWidth = settings.SidebarWidth;
         GalleryState.SortField = settings.SortField;
         GalleryState.Descending = settings.Descending;
         GalleryState.ShowFileNames = settings.ShowFileNames;
+        GalleryState.ShowCards = settings.ShowCards;
         GalleryState.DisplayMode = settings.DisplayMode;
         GalleryState.Filter = settings.Filter;
         GalleryState.ShowSubfolders = settings.ShowSubfolders;
+        GalleryState.ShowHidden = settings.ShowHidden;
+        _volume = settings.Volume;
+        _muted = settings.Muted;
+        VideoVolume.Value = _volume;
+        _playlistOpen = settings.PlaylistOpen;
+        _detailsOpen = settings.DetailsOpen;
+        ApplyDetailsLayout();
+        GalleryState.RestoreRecentFolders(settings.RecentFolders);
         ApplyDisplayOptions();
         UpdateBrowseMenus();
         _lastFolderToRestore = settings.LastFolder;
@@ -96,15 +105,22 @@ public sealed partial class MainWindow
         Height = _normalHeight,
         Maximized = _maximized,
         LastFolder = GalleryState.CurrentFolder ?? _lastFolderToRestore,
-        Theme = ThemeSelector.SelectedIndex,
+        Theme = _themeIndex,
         ThumbnailSize = ThumbSize.Value,
         SidebarWidth = _sidebarVisible ? SidebarColumn.ActualWidth : _sidebarWidth,
         SortField = GalleryState.SortField,
         Descending = GalleryState.Descending,
         DisplayMode = GalleryState.DisplayMode,
         ShowFileNames = GalleryState.ShowFileNames,
+        ShowCards = GalleryState.ShowCards,
         Filter = GalleryState.Filter,
         ShowSubfolders = GalleryState.ShowSubfolders,
+        ShowHidden = GalleryState.ShowHidden,
+        Volume = _volume,
+        Muted = _muted,
+        PlaylistOpen = _playlistOpen,
+        DetailsOpen = _detailsOpen,
+        RecentFolders = [.. GalleryState.RecentFolders],
     };
 
     private void QueueSettingsSave()
@@ -239,7 +255,7 @@ public sealed partial class MainWindow
             case NavigationAction.Next: await GoAdjacentFolderAsync(true); break;
             case NavigationAction.None when click:
                 if (item is not null) ShowItemMenu(GallerySurface, origin, item.Path, item.IsFolder);
-                else if (GalleryState.CurrentFolder is { } path) ShowItemMenu(GallerySurface, origin, path, true);
+                else if (GalleryState.CurrentFolder is { } path) ShowItemMenu(GallerySurface, origin, path, true, allowDelete: false);
                 break;
         }
     }

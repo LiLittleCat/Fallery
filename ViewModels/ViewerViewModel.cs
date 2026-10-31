@@ -28,6 +28,8 @@ public sealed partial class ViewerViewModel : ObservableObject, IDisposable
         if (current is not null)
         {
             int index = items.ToList().IndexOf(current);
+            // 重新扫描会生成新模型（例如打开方式启动后的目录扫描），按路径接上当前项，不打断播放。
+            if (index < 0) index = items.ToList().FindIndex(i => string.Equals(i.Path, current.Path, StringComparison.OrdinalIgnoreCase));
             if (index < 0) Close();
             else CurrentIndex = index;
         }

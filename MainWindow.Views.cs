@@ -35,6 +35,13 @@ public sealed partial class MainWindow
         if (IsFilmstrip) await ShowInViewerAsync(selected);
     }
 
+    private void ShowCards_Click(object sender, RoutedEventArgs e)
+    {
+        GalleryState.ShowCards = ShowCardsItem.IsChecked;
+        ApplyDisplayOptions();
+        QueueSettingsSave();
+    }
+
     private void ShowFileNames_Click(object sender, RoutedEventArgs e)
     {
         GalleryState.ShowFileNames = ShowFileNamesItem.IsChecked;
@@ -61,7 +68,9 @@ public sealed partial class MainWindow
         ReleaseGalleryThumbnails();
         Gallery.ItemsSource = null;
         Masonry.UniformTiles = GalleryState.DisplayMode == GalleryDisplayMode.LargeIcons;
+        Masonry.JustifiedRows = GalleryState.DisplayMode == GalleryDisplayMode.Justified;
         Masonry.ShowFileNames = GalleryState.ShowFileNames;
+        Masonry.ShowCards = GalleryState.ShowCards;
         Masonry.Refresh();
         Gallery.Layout = IsFilmstrip ? _filmstripLayout : Masonry;
         Grid.SetRow(GalleryScroller, IsFilmstrip ? 1 : 0);
@@ -71,12 +80,15 @@ public sealed partial class MainWindow
         GalleryScroller.VerticalScrollMode = IsFilmstrip ? ScrollMode.Disabled : ScrollMode.Enabled;
         GalleryScroller.VerticalScrollBarVisibility = IsFilmstrip ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
         PlaceViewer();
+        ApplyPlaylistLayout();
         Gallery.ItemsSource = GalleryState.Items;
         GalleryScroller.ChangeView(0, 0, null, true);
+        JustifiedModeItem.IsChecked = GalleryState.DisplayMode == GalleryDisplayMode.Justified;
         MasonryModeItem.IsChecked = GalleryState.DisplayMode == GalleryDisplayMode.Masonry;
         LargeIconsModeItem.IsChecked = GalleryState.DisplayMode == GalleryDisplayMode.LargeIcons;
         FilmstripModeItem.IsChecked = IsFilmstrip;
         ShowFileNamesItem.IsChecked = GalleryState.ShowFileNames;
+        ShowCardsItem.IsChecked = GalleryState.ShowCards;
         ThumbSize.IsEnabled = !IsFilmstrip;
         UpdateGalleryVisibility();
         UpdateFilmstripSelection();
@@ -86,8 +98,19 @@ public sealed partial class MainWindow
     {
         tile.Width = IsFilmstrip ? 120 : double.NaN;
         tile.Height = IsFilmstrip ? GalleryState.ShowFileNames ? 132 : 110 : double.NaN;
-        tile.SetPresentation(GalleryState.ShowFileNames, GalleryState.DisplayMode != GalleryDisplayMode.Masonry,
-            IsFilmstrip && ReferenceEquals(tile.Item, ViewerState.CurrentItem));
+        // 只有网格和横排的格子比例与图片不一致，需要完整显示；瀑布流与自适应行按原比例铺满。
+        tile.SetPresentation(GalleryState.ShowFileNames, GalleryState.DisplayMode is GalleryDisplayMode.LargeIcons or GalleryDisplayMode.Filmstrip,
+            tile.Item is not null && ReferenceEquals(tile.Item, IsFilmstrip ? ViewerState.CurrentItem : _selectedItem),
+            GalleryState.ShowCards);
+    }
+
+    /// <summary>瀑布流和大图列表的单击选中；横排模式的选中始终跟随当前大图。</summary>
+    private void SelectItem(MediaItem? item)
+    {
+        if (ReferenceEquals(_selectedItem, item)) return;
+        _selectedItem = item;
+        if (IsFilmstrip || _closed) return;
+        foreach (var tile in _realizedItems.Keys.OfType<MediaTile>()) ConfigureTile(tile);
     }
 
     private void UpdateFilmstripSelection()
@@ -109,7 +132,12 @@ public sealed partial class MainWindow
 
     private async void Tile_Tapped(object sender, TappedRoutedEventArgs e)
     {
-        if (!IsFilmstrip || sender is not MediaTile { Item: { IsFolder: false } item }) return;
+        if (!IsFilmstrip)
+        {
+            if (sender is MediaTile { Item: { } selected }) SelectItem(selected);
+            return;
+        }
+        if (sender is not MediaTile { Item: { IsFolder: false } item }) return;
         e.Handled = true;
         await ShowInViewerAsync(GalleryState.MediaItems.IndexOf(item));
     }

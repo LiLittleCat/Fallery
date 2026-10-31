@@ -24,20 +24,25 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<TreeViewNode, Task> _expandingNodes = [];
     private Task? _rootsTask;
     private TreeViewNode? _currentFolderNode;
-    private MediaPlayer? _videoPlayer;
-    private MediaSource? _videoSource;
+    private Services.Playback.IPlayer? _videoPlayer;
     private AppWindowPresenter? _presenterBeforeFullScreen;
     private bool _initialized;
+    private int _themeIndex;
+    private MediaItem? _selectedItem;
     private bool _closed;
     private bool _pickingFolder;
     private Windows.Foundation.Point? _panOrigin;
     private double _panHorizontalOffset;
     private double _panVerticalOffset;
 
-    public MainWindow(AppSettingsStore? settingsStore = null)
+    public MainWindow(AppSettingsStore? settingsStore = null, string? startupPath = null)
     {
         if (settingsStore is not null) _settingsStore = settingsStore;
+        _startupPath = startupPath;
         InitializeComponent();
+        // Win10 不支持 Mica，换成系统亚克力，避免透明外框露出黑底。
+        if (!Microsoft.UI.Composition.SystemBackdrops.MicaController.IsSupported())
+            SystemBackdrop = new DesktopAcrylicBackdrop();
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1400, 900));
         AppWindow.SetIcon(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "Fallery.ico"));
         ExtendsContentIntoTitleBar = true;
@@ -47,22 +52,20 @@ public sealed partial class MainWindow : Window
         Root.Loaded += Root_Loaded;
         Activated += MainWindow_Activated;
         Closed += MainWindow_Closed;
-        ThemeSelector.SelectedIndex = 0;
         InitializeExperience();
         InitializeViewModels();
+        InitializePlayback();
+        InitializeViewerInfo();
         RefreshAddressBar();
     }
 
-    // 系统标题栏不属于 XAML 树，需要和页面主题分别同步。
-    private void ThemeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    // 0 跟随系统、1 亮色、2 暗色，与 ElementTheme 取值一致。系统标题栏不属于 XAML 树，需要和页面主题分别同步。
+    private void ApplyTheme(int index)
     {
-        if (ThemeSelector.SelectedItem is ComboBoxItem { Tag: string theme }
-            && Enum.TryParse<ElementTheme>(theme, out var requestedTheme))
-        {
-            Root.RequestedTheme = requestedTheme;
-            UpdateTitleBarTheme();
-            QueueSettingsSave();
-        }
+        _themeIndex = Math.Clamp(index, 0, 2);
+        Root.RequestedTheme = (ElementTheme)_themeIndex;
+        UpdateTitleBarTheme();
+        QueueSettingsSave();
     }
 
     private async void Root_Loaded(object sender, RoutedEventArgs e)
@@ -72,6 +75,13 @@ public sealed partial class MainWindow : Window
         _initialized = true;
         await RestoreSettingsAsync();
         if (_closed) return;
+        if (_startupPath is { } startup)
+        {
+            // 打开方式启动：不等磁盘列表和上次目录，直接打开文件。
+            _rootsTask ??= LoadRootsAsync();
+            await OpenPathAsync(startup);
+            return;
+        }
         await (_rootsTask ??= LoadRootsAsync());
         if (!_closed && _navigationVersion == 0 && _lastFolderToRestore is { } folder)
             await NavigateAsync(folder, pushHistory: false);
@@ -171,7 +181,8 @@ public sealed partial class MainWindow : Window
 
     private async Task LoadChildrenAsync(TreeViewNode node, FolderEntry entry)
     {
-        var children = await Task.Run(() => FolderScanner.GetChildFolders(entry.Path, _lifetimeCts.Token));
+        bool showHidden = GalleryState.ShowHidden;
+        var children = await Task.Run(() => FolderScanner.GetChildFolders(entry.Path, _lifetimeCts.Token, showHidden));
         _lifetimeCts.Token.ThrowIfCancellationRequested();
         foreach (var (path, hasChildren) in children)
         {
@@ -404,9 +415,9 @@ public sealed partial class MainWindow : Window
 
     // ───────────── 查看器 ─────────────
 
-    private async Task ShowInViewerAsync(int index)
+    private async Task ShowInViewerAsync(int index, bool allowWhileScanning = false)
     {
-        if (GalleryState.IsScanning || index < 0 || index >= GalleryState.MediaItems.Count || _closed || _closing) return;
+        if ((GalleryState.IsScanning && !allowWhileScanning) || index < 0 || index >= ViewerState.Playlist.Count || _closed || _closing) return;
         var request = ViewerState.BeginOpen(index);
         if (request is null) return;
         var ct = request.Token;
@@ -417,34 +428,23 @@ public sealed partial class MainWindow : Window
         StopVideo();
         ClearViewerImage();
         ImageScroller.Visibility = item.IsVideo ? Visibility.Collapsed : Visibility.Visible;
+        UpdateViewerOverlays();
+        _ = LoadViewerDetailsAsync(item);
         if (!IsFilmstrip) CloseViewerButton.Focus(FocusState.Programmatic);
 
         try
         {
-            var file = await StorageFile.GetFileFromPathAsync(item.Path).AsTask(ct);
-            ct.ThrowIfCancellationRequested();
-
             if (item.IsVideo)
             {
-                var player = new MediaPlayer { AutoPlay = true };
+                var player = CreatePlayer(item);
                 _videoPlayer = player;
-                player.MediaOpened += (_, _) => DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (!_closed && ReferenceEquals(_videoPlayer, player)) ViewerState.Message = "";
-                });
-                player.MediaFailed += (_, args) => DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (_closed || !ReferenceEquals(_videoPlayer, player)) return;
-                    ViewerState.Message = $"无法播放此视频，文件可能损坏或系统缺少解码器。\n{args.ErrorMessage}";
-                    StopVideo();
-                });
-                _videoSource = MediaSource.CreateFromStorageFile(file);
-                ViewerVideo.SetMediaPlayer(player);
                 ViewerVideo.Visibility = Visibility.Visible;
-                player.Source = _videoSource;
+                await player.OpenAsync(item.Path, ct);
             }
             else
             {
+                var file = await StorageFile.GetFileFromPathAsync(item.Path).AsTask(ct);
+                ct.ThrowIfCancellationRequested();
                 double ratio = await MediaProbe.TryGetAspectRatioAsync(item.Path, item.Kind, ct) ?? 1;
                 ct.ThrowIfCancellationRequested();
                 // 首次打开时覆盖层可能尚未布局，先确定视口，避免用零尺寸生成低清图片。
@@ -484,15 +484,8 @@ public sealed partial class MainWindow : Window
     {
         var player = _videoPlayer;
         _videoPlayer = null;
-        if (player is not null)
-        {
-            player.Pause();
-            player.Source = null;
-            ViewerVideo.SetMediaPlayer(null);
-            player.Dispose();
-        }
-        _videoSource?.Dispose();
-        _videoSource = null;
+        DetachVideoControls(player);
+        player?.Dispose();
         ViewerVideo.IsFullWindow = false;
         ViewerVideo.Visibility = Visibility.Collapsed;
     }
@@ -503,6 +496,12 @@ public sealed partial class MainWindow : Window
         if (!_closed) SetViewerFullScreen(false);
         _panOrigin = null;
         ViewerImage.ReleasePointerCaptures();
+        // 返回浏览区时高亮刚才看的那一项，方便接着找。
+        if (!IsFilmstrip && ViewerState.CurrentItem is { } viewed)
+        {
+            SelectItem(viewed);
+            BringItemIntoView(viewed);
+        }
         ViewerState.Close();
         StopVideo();
         ClearViewerImage();
@@ -543,10 +542,9 @@ public sealed partial class MainWindow : Window
             Grid.SetRow(Viewer, 1);
             Grid.SetRowSpan(Viewer, 2);
         }
-        ViewerFullScreenIcon.Glyph = fullScreen ? "\uE73F" : "\uE740";
-        FullScreenExitButton.Visibility = fullScreen ? Visibility.Visible : Visibility.Collapsed;
+        ViewerFullScreenIcon.Glyph = FluentIcons.Glyph(fullScreen ? "IconExitFullScreen" : "IconFullScreen");
         PlaceViewer();
-        FilmstripFullScreenButton.Visibility = IsFilmstrip && !fullScreen ? Visibility.Visible : Visibility.Collapsed;
+        UpdateViewerOverlays();
         string label = fullScreen ? "退出全屏" : "全屏";
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ViewerFullScreenButton, label);
         ToolTipService.SetToolTip(ViewerFullScreenButton, $"{label} (F11)");
@@ -623,6 +621,21 @@ public sealed partial class MainWindow : Window
                 return;
             }
         }
+        if (control && e.Key == VirtualKey.E && Viewer.Visibility == Visibility.Visible && ViewerState.CurrentItem?.IsVideo == true)
+        {
+            e.Handled = true;
+            await CaptureVideoFrameAsync();
+            return;
+        }
+        // 与 Windows 照片一致的图片缩放快捷键：Ctrl+0 适应窗口，Ctrl+= / Ctrl+- 放大缩小。
+        if (control && Viewer.Visibility == Visibility.Visible && ViewerState.CurrentItem is { IsVideo: false }
+            && e.Key is VirtualKey.Number0 or VirtualKey.NumberPad0 or (VirtualKey)187 or (VirtualKey)189 or VirtualKey.Add or VirtualKey.Subtract)
+        {
+            e.Handled = true;
+            if (e.Key is VirtualKey.Number0 or VirtualKey.NumberPad0) FitImageToViewport();
+            else ZoomBy(e.Key is (VirtualKey)187 or VirtualKey.Add ? 1.25 : 1 / 1.25);
+            return;
+        }
         if (e.Key != VirtualKey.Escape
             && ((Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
                 | Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu))
@@ -647,6 +660,79 @@ public sealed partial class MainWindow : Window
                     else if (IsFilmstrip) await SetDisplayModeAsync(GalleryDisplayMode.Masonry);
                     else CloseViewer();
                     break;
+                case VirtualKey.Delete:
+                    e.Handled = true;
+                    await DeleteFocusedItemAsync(IsShiftDown(), e.OriginalSource as DependencyObject);
+                    break;
+                case VirtualKey.Space when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    ToggleVideoPlayback();
+                    break;
+                case VirtualKey.M when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    ToggleMute();
+                    break;
+                // 视频快捷键尽量对齐 PotPlayer；逐帧用 , . 以免和横排模式的 A/D 目录跳转冲突。
+                case VirtualKey.Enter:
+                    e.Handled = true;
+                    SetViewerFullScreen(_presenterBeforeFullScreen is null);
+                    break;
+                case VirtualKey.I:
+                    e.Handled = true;
+                    SetDetailsOpen(!_detailsOpen);
+                    break;
+                case VirtualKey.Up when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    ChangeVolume(5);
+                    break;
+                case VirtualKey.Down when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    ChangeVolume(-5);
+                    break;
+                case VirtualKey.C when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    ChangeRate(1);
+                    break;
+                case VirtualKey.X when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    ChangeRate(-1);
+                    break;
+                case VirtualKey.Z when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    ChangeRate(0);
+                    break;
+                case (VirtualKey)188 when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    StepVideoFrame(false);
+                    break;
+                case (VirtualKey)190 when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    StepVideoFrame(true);
+                    break;
+                case (VirtualKey)219 when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    SetLoopPoint(true);
+                    break;
+                case (VirtualKey)221 when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    SetLoopPoint(false);
+                    break;
+                case (VirtualKey)220 when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    ClearLoop();
+                    break;
+                case VirtualKey.L when !IsFilmstrip:
+                    e.Handled = true;
+                    SetPlaylistOpen(!_playlistOpen);
+                    break;
+                case VirtualKey.Left when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    SeekVideo(TimeSpan.FromSeconds(-5));
+                    break;
+                case VirtualKey.Right when ViewerState.CurrentItem?.IsVideo == true:
+                    e.Handled = true;
+                    SeekVideo(TimeSpan.FromSeconds(5));
+                    break;
                 case VirtualKey.Left:
                 case VirtualKey.PageUp:
                     e.Handled = true;
@@ -670,6 +756,10 @@ public sealed partial class MainWindow : Window
                     CancelGesture();
                     GalleryState.CancelSearch();
                 }
+                break;
+            case VirtualKey.Delete:
+                e.Handled = true;
+                await DeleteFocusedItemAsync(IsShiftDown(), e.OriginalSource as DependencyObject);
                 break;
             case VirtualKey.F5:
                 if (GalleryState.CurrentFolder is not null)

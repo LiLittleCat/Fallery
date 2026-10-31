@@ -12,6 +12,11 @@ public sealed partial class MainWindow
 
     public Visibility ToVisibility(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ToCollapsedVisibility(bool visible) => visible ? Visibility.Collapsed : Visibility.Visible;
+    // 浏览时标题栏透出 Mica；查看器打开时与深色查看器背景连成一片。
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush _viewerChromeBrush = new(Microsoft.UI.ColorHelper.FromArgb(255, 22, 23, 25));
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush _transparentBrush = new(Microsoft.UI.Colors.Transparent);
+    public Microsoft.UI.Xaml.Media.Brush ViewerChromeBackground(bool open, Fallery.Models.GalleryDisplayMode mode) =>
+        open && mode != Fallery.Models.GalleryDisplayMode.Filmstrip ? _viewerChromeBrush : _transparentBrush;
     public ElementTheme ViewerChromeTheme(bool open, Fallery.Models.GalleryDisplayMode mode) =>
         open && mode != Fallery.Models.GalleryDisplayMode.Filmstrip ? ElementTheme.Dark : ElementTheme.Default;
 
@@ -29,8 +34,9 @@ public sealed partial class MainWindow
         };
         GalleryState.ItemsChanged += () =>
         {
+            if (_selectedItem is not null && !GalleryState.Items.Contains(_selectedItem)) _selectedItem = null;
             Gallery.ItemsSource = GalleryState.Items;
-            ViewerState.SetPlaylist(GalleryState.MediaItems);
+            if (!AdoptLaunchPlaylist()) ViewerState.SetPlaylist(GalleryState.MediaItems);
             GalleryScroller.ChangeView(null, 0, null, disableAnimation: true);
             UpdateGalleryVisibility();
         };
@@ -42,7 +48,8 @@ public sealed partial class MainWindow
             FolderTree.SelectedNode = null;
             _currentFolderNode = null;
             _ = SynchronizeTreeAsync(folder, ct);
-            if (IsFilmstrip) _ = ShowInViewerAsync(0);
+            // 打开方式启动时查看器已在播放该文件，横排模式不要再跳回第一项。
+            if (IsFilmstrip && !ViewerState.IsOpen) _ = ShowInViewerAsync(0);
         };
         GalleryState.PropertyChanged += (_, args) =>
         {

@@ -78,3 +78,8 @@ $RECYCLE.BIN/
 
 # ── Claude Code 本地设置 ──
 .claude/settings.local.json
+
+# 本地开发计划，不提交
+/plan.md
+/PLAN.md
+

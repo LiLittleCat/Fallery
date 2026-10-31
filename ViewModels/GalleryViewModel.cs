@@ -8,6 +8,8 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
 {
     private readonly Stack<string> _history = new();
     private readonly Stack<string> _forwardHistory = new();
+    private readonly List<string> _recentFolders = [];
+    public const int RecentFolderLimit = 20;
     // 只保留有限目录的模型；图片引用在离开目录时释放，由独立像素预算管理。
     private readonly BoundedCache<string, List<MediaItem>> _directories = new(20_000, 32);
     private CancellationTokenSource? _loadCts;
@@ -40,9 +42,13 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool ShowFileNames { get; set; } = true;
     [ObservableProperty]
+    public partial bool ShowCards { get; set; } = true;
+    [ObservableProperty]
     public partial MediaFilter Filter { get; set; }
     [ObservableProperty]
     public partial bool ShowSubfolders { get; set; } = true;
+    [ObservableProperty]
+    public partial bool ShowHidden { get; set; }
     public bool CanGoBack => !IsScanning && _history.Count > 0;
     public string? PreviousFolder => _history.TryPeek(out var folder) ? folder : null;
     public bool CanGoForward => !IsScanning && _forwardHistory.Count > 0;
@@ -50,6 +56,23 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     public string? ParentFolder => CurrentFolder is null ? null : Path.GetDirectoryName(CurrentFolder);
     public bool CanGoUp => !IsScanning && ParentFolder is not null;
     public bool IsSearching => _searchCts is not null;
+    /// <summary>最近成功打开的目录，新的在前；与后退/前进栈分开，跨进程保留。</summary>
+    public IReadOnlyList<string> RecentFolders => _recentFolders;
+
+    public void RestoreRecentFolders(IEnumerable<string> folders)
+    {
+        _recentFolders.Clear();
+        foreach (var folder in folders.Reverse()) AddRecentFolder(folder);
+    }
+
+    public void ClearRecentFolders() => _recentFolders.Clear();
+
+    private void AddRecentFolder(string folder)
+    {
+        _recentFolders.RemoveAll(f => string.Equals(f, folder, StringComparison.OrdinalIgnoreCase));
+        _recentFolders.Insert(0, folder);
+        if (_recentFolders.Count > RecentFolderLimit) _recentFolders.RemoveRange(RecentFolderLimit, _recentFolders.Count - RecentFolderLimit);
+    }
 
     public async Task<bool> NavigateAsync(string folder, bool pushHistory = true, bool refresh = false, bool forward = false)
     {
@@ -69,7 +92,8 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
         {
             var filter = Filter;
             bool showSubfolders = ShowSubfolders;
-            var files = await Task.Run(() => FolderScanner.ScanEntries(folder, cts.Token, filter, showSubfolders), cts.Token);
+            bool showHidden = ShowHidden;
+            var files = await Task.Run(() => FolderScanner.ScanEntries(folder, cts.Token, filter, showSubfolders, showHidden), cts.Token);
             while (true)
             {
                 var field = SortField;
@@ -100,6 +124,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
                 _forwardHistory.Clear();
             }
             CurrentFolder = folder;
+            AddRecentFolder(folder);
             var segments = new List<FolderEntry>();
             for (var directory = new DirectoryInfo(folder); directory is not null; directory = directory.Parent)
                 segments.Insert(0, new(directory.FullName, directory.Parent is null ? directory.FullName.TrimEnd('\\') : directory.Name));
@@ -176,6 +201,19 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
         ItemsChanged?.Invoke();
     }
 
+    /// <summary>删除后只从当前列表移除该项，不整页重扫，也不打乱排序。</summary>
+    public bool RemoveItem(string path)
+    {
+        int index = Items.FindIndex(i => string.Equals(i.Path, path, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return false;
+        var next = new List<MediaItem>(Items);
+        next.RemoveAt(index);
+        ReplaceItems(next);
+        if (CurrentFolder is { } folder) _directories.Set(folder.ToUpperInvariant(), next, Math.Max(1, next.Count));
+        UpdateStatus();
+        return true;
+    }
+
     public async Task ApplySortAsync()
     {
         int version = ++_sortVersion;
@@ -224,7 +262,8 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
         try
         {
             var filter = Filter;
-            var target = await Task.Run(() => FolderNavigator.FindAdjacent(current, forward, cts.Token, filter: filter), cts.Token);
+            bool showHidden = ShowHidden;
+            var target = await Task.Run(() => FolderNavigator.FindAdjacent(current, forward, cts.Token, filter: filter, showHidden: showHidden), cts.Token);
             cts.Token.ThrowIfCancellationRequested();
             if (_disposed) return null;
             if (target is null) Status = forward ? "已经是最后一个媒体目录" : "已经是第一个媒体目录";

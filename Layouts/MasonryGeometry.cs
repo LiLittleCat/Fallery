@@ -12,6 +12,70 @@ public sealed class MasonryGeometry
     public double ExtentHeight { get; }
     private readonly double[] _maxBottoms;
 
+    private MasonryGeometry(TileBounds[] bounds)
+    {
+        Bounds = bounds;
+        _maxBottoms = new double[bounds.Length];
+        double maxBottom = 0;
+        for (int i = 0; i < bounds.Length; i++) _maxBottoms[i] = maxBottom = Math.Max(maxBottom, bounds[i].Bottom);
+        ExtentHeight = maxBottom;
+    }
+
+    /// <summary>
+    /// 自适应行：每行图片等高并铺满整行宽度，保持各自比例；目标行高取缩略图大小。
+    /// 断行时比较放入与不放入下一张哪种行高更接近目标，最后一行不放大。
+    /// </summary>
+    public static MasonryGeometry Justified(int count, double width, double targetHeight, double spacing, Func<int, double> ratioAt,
+        double imageInset = 0, double captionHeight = 0)
+    {
+        width = double.IsFinite(width) ? Math.Max(0, width) : 240;
+        targetHeight = double.IsFinite(targetHeight) ? Math.Max(1, targetHeight) : 240;
+        spacing = double.IsFinite(spacing) ? Math.Max(0, spacing) : 6;
+        imageInset = double.IsFinite(imageInset) ? Math.Max(0, imageInset) : 0;
+        captionHeight = double.IsFinite(captionHeight) ? Math.Max(0, captionHeight) : 0;
+        var bounds = new TileBounds[count];
+        var ratios = new double[count];
+        for (int i = 0; i < count; i++)
+        {
+            double ratio = ratioAt(i);
+            ratios[i] = double.IsFinite(ratio) && ratio > 0 ? Math.Clamp(ratio, 0.25, 4) : 1;
+        }
+
+        // 行内图片部分可用的宽度；内边距和间距不随缩放变化。
+        double ImageWidth(int start, int end) => width - spacing * (end - start - 1) - imageInset * 2 * (end - start);
+        double RowHeight(int start, int end, double ratioSum) => Math.Max(1, ImageWidth(start, end)) / ratioSum;
+
+        double y = 0;
+        int rowStart = 0;
+        while (rowStart < count)
+        {
+            int end = rowStart + 1;
+            double ratioSum = ratios[rowStart];
+            while (end < count && RowHeight(rowStart, end, ratioSum) > targetHeight)
+            {
+                double withNext = RowHeight(rowStart, end + 1, ratioSum + ratios[end]);
+                double current = RowHeight(rowStart, end, ratioSum);
+                if (Math.Abs(Math.Log(withNext / targetHeight)) > Math.Abs(Math.Log(current / targetHeight))) break;
+                ratioSum += ratios[end++];
+            }
+            double height = RowHeight(rowStart, end, ratioSum);
+            bool lastRow = end == count && height > targetHeight;
+            if (lastRow) height = targetHeight;
+            double x = 0;
+            for (int i = rowStart; i < end; i++)
+            {
+                double tileWidth = height * ratios[i] + imageInset * 2;
+                // 末项吸收浮点误差，整行右缘与容器对齐。
+                if (!lastRow && i == end - 1) tileWidth = Math.Max(0, width - x);
+                bounds[i] = new TileBounds(x, y, tileWidth, height + imageInset * 2 + captionHeight);
+                x += tileWidth + spacing;
+            }
+            y += height + imageInset * 2 + captionHeight + spacing;
+            rowStart = end;
+        }
+        return new MasonryGeometry(bounds);
+    }
+
     public MasonryGeometry(int count, double width, double desiredWidth, double spacing, Func<int, double> ratioAt,
         double imageInset = 0, double captionHeight = 0)
     {

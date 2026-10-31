@@ -5,7 +5,7 @@ namespace Fallery.Services;
 public static class FolderNavigator
 {
     public static string? FindAdjacent(string current, bool forward, CancellationToken ct = default, string? boundary = null,
-        MediaFilter filter = MediaFilter.All)
+        MediaFilter filter = MediaFilter.All, bool showHidden = false)
     {
         current = Normalize(current);
         boundary = Normalize(boundary ?? Path.GetPathRoot(current)!);
@@ -25,11 +25,11 @@ public static class FolderNavigator
                 foreach (var child in Directory.EnumerateDirectories(path, "*", new EnumerationOptions
                 {
                     IgnoreInaccessible = true,
-                    AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReparsePoint,
+                    AttributesToSkip = FolderScanner.TraversalSkip(showHidden),
                 }))
                 {
                     ct.ThrowIfCancellationRequested();
-                    children.Add(Normalize(child));
+                    if (!FolderScanner.IsExcludedDirectory(child)) children.Add(Normalize(child));
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
@@ -68,7 +68,7 @@ public static class FolderNavigator
              candidate = forward ? Next(candidate) : Previous(candidate))
         {
             ct.ThrowIfCancellationRequested();
-            if (FolderScanner.HasMedia(candidate, ct, filter)) return candidate;
+            if (FolderScanner.HasMedia(candidate, ct, filter, showHidden)) return candidate;
         }
         ct.ThrowIfCancellationRequested();
         return null;

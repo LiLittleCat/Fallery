@@ -52,6 +52,8 @@ public sealed partial class MediaItem : ObservableObject
     public partial bool ThumbnailFailed { get; set; }
 
     /// <summary>在 UI 线程调用。元素被回收后再完成的加载会被丢弃。</summary>
+    public const int MinCoverPixels = 128;
+
     public async Task EnsureThumbnailAsync(uint size)
     {
         if ((Thumbnail is not null && _thumbnailSize >= size)
@@ -78,7 +80,7 @@ public sealed partial class MediaItem : ObservableObject
             if (IsFolder)
             {
                 // 文件夹时间戳不能反映封面文件被覆盖，重新验证少量候选的文件版本。
-                candidates = await Task.Run(() => FolderScanner.FindFolderPreviews(Path, ct, File.PreviewFilter), ct);
+                candidates = await Task.Run(() => FolderScanner.FindFolderPreviews(Path, ct, File.PreviewFilter, File.PreviewHidden), ct);
                 ct.ThrowIfCancellationRequested();
             }
             var covers = new List<BitmapImage>(3);
@@ -88,6 +90,10 @@ public sealed partial class MediaItem : ObservableObject
                 {
                     var version = candidate.Version ?? await Task.Run(() => FileVersion.Read(candidate.Path), ct);
                     ct.ThrowIfCancellationRequested();
+                    // 图标之类的小图放大成封面会发糊，宁可显示文件夹图标；读不出尺寸的仍交给系统缩略图。
+                    if (IsFolder && candidate.Kind == MediaKind.Image
+                        && await Task.Run(() => MediaProbe.TryGetImageSizeAsync(candidate.Path, ct), ct) is { } pixels
+                        && pixels.Width < MinCoverPixels && pixels.Height < MinCoverPixels) continue;
                     var bitmap = MediaCache.GetThumbnail(version, size);
                     if (bitmap is null)
                     {

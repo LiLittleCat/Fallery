@@ -14,6 +14,8 @@
     <UseWinUI>true</UseWinUI>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Program.cs 自定义入口实现单实例转发 -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <DefaultItemExcludes>$(DefaultItemExcludes);work/**;Tests/**;logo/**</DefaultItemExcludes>
 
     <!-- 非打包 + 自包含：输出目录直接拷走就能运行 -->
@@ -26,6 +28,8 @@
     <!-- 窗口标题栏和任务栏图标在运行时从输出目录读取 -->
     <Content Include="Assets\Fallery.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\FalleryTitleBar.scale-*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- 精简的 Fluent UI System Icons，由 tools/build_icons.py 生成 -->
+    <Content Include="Assets\Fonts\*.ttf;Assets\Fonts\LICENSE-FluentSystemIcons.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

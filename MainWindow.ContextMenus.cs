@@ -46,13 +46,13 @@ public sealed partial class MainWindow
         {
             if (element is not TreeViewItem container || FolderTree.NodeFromContainer(container) is not { Content: FolderEntry entry } node) continue;
             e.Handled = true;
-            ShowItemMenu(container, e.TryGetPosition(container, out var point) ? point : null, entry.Path, true, node);
+            ShowItemMenu(container, e.TryGetPosition(container, out var point) ? point : null, entry.Path, true, node, !FolderTree.RootNodes.Contains(node));
             return;
         }
         if (!e.TryGetPosition(FolderTree, out _) && FolderTree.SelectedNode is { Content: FolderEntry selected } selectedNode)
         {
             e.Handled = true;
-            ShowItemMenu(FolderTree, null, selected.Path, true, selectedNode);
+            ShowItemMenu(FolderTree, null, selected.Path, true, selectedNode, !FolderTree.RootNodes.Contains(selectedNode));
         }
     }
 
@@ -63,21 +63,31 @@ public sealed partial class MainWindow
         ShowItemMenu(Viewer, e.TryGetPosition(Viewer, out var point) ? point : null, item.Path, false);
     }
 
-    private void ShowItemMenu(FrameworkElement target, Point? point, string path, bool folder, TreeViewNode? node = null)
+    private void ShowItemMenu(FrameworkElement target, Point? point, string path, bool folder, TreeViewNode? node = null, bool allowDelete = true)
     {
         CloseItemMenu();
-        var menu = BuildItemMenu(path, folder, node);
+        var menu = BuildItemMenu(path, folder, node, allowDelete);
         _itemMenu = menu;
         menu.Closed += (_, _) => { if (ReferenceEquals(_itemMenu, menu)) _itemMenu = null; };
         menu.ShowAt(target, new FlyoutShowOptions { Position = point });
     }
 
-    private MenuFlyout BuildItemMenu(string path, bool folder, TreeViewNode? node = null)
+    private MenuFlyout BuildItemMenu(string path, bool folder, TreeViewNode? node = null, bool allowDelete = true)
     {
         var menu = new MenuFlyout();
         void Add(string text, string key, Func<Task> action)
         {
-            var entry = new MenuFlyoutItem { Text = text, Tag = key };
+            string icon = key switch
+            {
+                "open" => folder ? "IconFolder" : "IconOpen",
+                "expand" => node?.IsExpanded == true ? "IconCollapse" : "IconExpand",
+                "reveal" => "IconOpenFolder",
+                "copy-path" => "IconCopy",
+                "copy-file" => "IconCopyFile",
+                "delete" => "IconDelete",
+                _ => "IconRefresh",
+            };
+            var entry = new MenuFlyoutItem { Text = text, Tag = key, Icon = FluentIcons.Create(icon) };
             entry.Click += async (_, _) =>
             {
                 try { await action(); }
@@ -132,6 +142,14 @@ public sealed partial class MainWindow
                 }
                 await NavigateAsync(path, refresh: true);
             });
+        // 与资源管理器一致：按住 Shift 点击为永久删除；磁盘根目录不提供删除。
+        if (allowDelete && System.IO.Path.GetPathRoot(path) is { } root
+            && !string.Equals(System.IO.Path.TrimEndingDirectorySeparator(path), System.IO.Path.TrimEndingDirectorySeparator(root), StringComparison.OrdinalIgnoreCase))
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+            Add("删除", "delete", () => DeleteWithConfirmationAsync(path, folder, IsShiftDown()));
+            ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Delete";
+        }
         return menu;
     }
 

@@ -16,8 +16,15 @@ public sealed record AppSettings
     public bool Descending { get; init; }
     public GalleryDisplayMode DisplayMode { get; init; }
     public bool ShowFileNames { get; init; } = true;
+    public bool ShowCards { get; init; } = true;
     public MediaFilter Filter { get; init; }
     public bool ShowSubfolders { get; init; } = true;
+    public bool ShowHidden { get; init; }
+    public double Volume { get; init; } = 100;
+    public bool Muted { get; init; }
+    public bool PlaylistOpen { get; init; }
+    public bool DetailsOpen { get; init; }
+    public string[] RecentFolders { get; init; } = [];
 
     public AppSettings Normalize() => this with
     {
@@ -30,6 +37,9 @@ public sealed record AppSettings
         SortField = Enum.IsDefined(SortField) ? SortField : MediaSortField.Name,
         DisplayMode = Enum.IsDefined(DisplayMode) ? DisplayMode : GalleryDisplayMode.Masonry,
         Filter = Enum.IsDefined(Filter) ? Filter : MediaFilter.All,
+        Volume = double.IsFinite(Volume) ? Math.Clamp(Volume, 0, 100) : 100,
+        RecentFolders = (RecentFolders ?? []).Select(NormalizeFolder).OfType<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToArray(),
     };
 
     private static string? NormalizeFolder(string? path)

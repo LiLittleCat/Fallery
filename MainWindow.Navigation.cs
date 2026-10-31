@@ -35,7 +35,7 @@ public sealed partial class MainWindow
             AddressSegments.Children.Add(name);
             var children = new Button
             {
-                Content = new FontIcon { Glyph = "\uE76C", FontSize = 10 }, Tag = entry,
+                Content = Controls.FluentIcons.Create("IconChevronRight", 10), Tag = entry,
                 Style = style, Padding = new Thickness(3, 2, 3, 2), MinWidth = 18, MinHeight = 28,
             };
             ToolTipService.SetToolTip(children, $"{entry.Name} 的子文件夹");
@@ -166,14 +166,15 @@ public sealed partial class MainWindow
         var status = new TextBlock { Text = "正在读取子文件夹…", Margin = new Thickness(8) };
         var list = new ListView
         {
-            SelectionMode = ListViewSelectionMode.None, IsItemClickEnabled = true,
-            DisplayMemberPath = nameof(FolderEntry.Name), MaxHeight = 360, Visibility = Visibility.Collapsed,
+            SelectionMode = ListViewSelectionMode.None, IsItemClickEnabled = true, MaxHeight = 420, Visibility = Visibility.Collapsed,
+            ItemTemplate = (DataTemplate)Root.Resources["AddressMenuItemTemplate"],
+            ItemContainerStyle = (Style)Root.Resources["AddressMenuItemStyle"],
         };
         AutomationProperties.SetName(list, "子文件夹");
-        var content = new Grid { Width = 300 };
+        var content = new Grid { Width = 260 };
         content.Children.Add(status);
         content.Children.Add(list);
-        var flyout = new Flyout { Content = content };
+        var flyout = new Flyout { Content = content, FlyoutPresenterStyle = (Style)Root.Resources["AddressMenuPresenterStyle"] };
         _addressFlyout = flyout;
         flyout.Closed += (_, _) =>
         {
@@ -190,7 +191,8 @@ public sealed partial class MainWindow
         try
         {
             string? parent = (button.Tag as FolderEntry)?.Path;
-            var children = await Task.Run(() => FolderAddress.GetChildren(parent, cts.Token), cts.Token);
+            bool showHidden = GalleryState.ShowHidden;
+            var children = await Task.Run(() => FolderAddress.GetChildren(parent, cts.Token, showHidden), cts.Token);
             cts.Token.ThrowIfCancellationRequested();
             list.ItemsSource = children;
             list.Visibility = children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -203,6 +205,42 @@ public sealed partial class MainWindow
             if (!cts.IsCancellationRequested) status.Text = "无法读取此目录，请检查权限或连接。";
         }
         finally { if (ReferenceEquals(_addressMenuCts, cts)) _addressMenuCts = null; }
+    }
+
+    private void AddressHistory_Click(object sender, RoutedEventArgs e)
+    {
+        if (_closed || _closing) return;
+        CloseAddressMenu();
+        EndAddressEdit(cancelRequest: false);
+        var menu = new MenuFlyout { Placement = FlyoutPlacementMode.BottomEdgeAlignedRight };
+        foreach (var folder in GalleryState.RecentFolders)
+        {
+            string name = System.IO.Path.GetFileName(folder) is { Length: > 0 } leaf ? leaf : folder;
+            var item = new MenuFlyoutItem
+            {
+                Text = string.Equals(name, folder, StringComparison.Ordinal) ? name : $"{name}  —  {folder}",
+                Icon = Controls.FluentIcons.Create("IconFolderFilled", filled: true), Tag = folder,
+            };
+            if (string.Equals(folder, GalleryState.CurrentFolder, StringComparison.OrdinalIgnoreCase)) item.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
+            ToolTipService.SetToolTip(item, folder);
+            item.Click += async (_, _) => await NavigateAsync(folder);
+            menu.Items.Add(item);
+        }
+        if (menu.Items.Count == 0) menu.Items.Add(new MenuFlyoutItem { Text = "暂无访问记录", IsEnabled = false });
+        else
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var clear = new MenuFlyoutItem { Text = "清除历史记录", Icon = Controls.FluentIcons.Create("IconDelete") };
+            clear.Click += (_, _) =>
+            {
+                GalleryState.ClearRecentFolders();
+                QueueSettingsSave();
+            };
+            menu.Items.Add(clear);
+        }
+        _addressFlyout = menu;
+        menu.Closed += (_, _) => { if (ReferenceEquals(_addressFlyout, menu)) _addressFlyout = null; };
+        menu.ShowAt(AddressFrame);
     }
 
     private void CloseAddressMenu()

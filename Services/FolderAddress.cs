@@ -21,16 +21,22 @@ public static class FolderAddress
         return Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
     }
 
-    public static List<FolderEntry> GetChildren(string? folder, CancellationToken ct = default)
+    public static List<FolderEntry> GetChildren(string? folder, CancellationToken ct = default, bool showHidden = false)
     {
         ct.ThrowIfCancellationRequested();
         if (folder is null) return FolderScanner.GetRoots(ct);
         var result = new List<FolderEntry>();
-        var options = new EnumerationOptions { AttributesToSkip = FileAttributes.Hidden | FileAttributes.System, IgnoreInaccessible = false };
+        var skip = FileAttributes.System | (showHidden ? 0 : FileAttributes.Hidden);
+        var options = new EnumerationOptions { AttributesToSkip = skip, IgnoreInaccessible = false };
         foreach (var directory in new DirectoryInfo(folder).EnumerateDirectories("*", options))
         {
             ct.ThrowIfCancellationRequested();
             result.Add(new(directory.FullName, directory.Name));
+        }
+        if (showHidden)
+        {
+            var visible = FolderScanner.ParallelTest(result.Select(e => e.Path).ToList(), FolderScanner.IsVisibleHiddenEntry, ct);
+            result = result.Where((_, i) => visible[i]).ToList();
         }
         result.Sort((a, b) => FolderScanner.CompareNames(a.Name, b.Name));
         ct.ThrowIfCancellationRequested();

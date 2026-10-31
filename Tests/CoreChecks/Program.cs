@@ -91,7 +91,8 @@ Check(entries.Where(e => e.Kind == MediaKind.Folder).Select(e => e.Name).Sequenc
 }), "文件夹卡片必须过滤无媒体目录，并保留含媒体的子目录");
 Check(entries.Where(e => e.Kind != MediaKind.Folder).SequenceEqual(media), "混排不能改变媒体播放列表或递归展开子目录文件");
 var previews = FolderScanner.FindFolderPreviews(fixture);
-Check(previews.Count == 4 && previews.All(media.Contains), "封面候选应限量且跳过隐藏、系统及非媒体文件");
+Check(previews.Count == 6 && previews.Take(5).All(media.Contains) && previews[5].Name == "nested.jpg",
+    "封面候选先当前层再子目录，跳过隐藏、系统及非媒体文件");
 Check(FolderScanner.FindFolderPreviews(Path.Combine(fixture, "folder2")).Single().Name == "nested.jpg", "图片文件夹封面候选错误");
 Check(FolderScanner.FindFolderPreviews(Path.Combine(fixture, "empty")).Count == 0, "空目录不应有封面候选");
 Check(FolderScanner.FindFolderPreviews(Path.Combine(fixture, "missing")).Count == 0, "失效目录封面应安全回退");
@@ -165,6 +166,135 @@ using (var canceledNav = new CancellationTokenSource())
 }
 Expect<ArgumentException>(() => FolderNavigator.FindAdjacent(fixture, true, boundary: navRoot), "遍历不能越过指定根目录");
 Check(FolderNavigator.FindAdjacent(Path.Combine(navRoot, "album3-empty"), true, boundary: navRoot) == navPaths[^1], "空目录也应能跳到下一个媒体目录");
+
+var hiddenRoot = Directory.CreateDirectory(Path.Combine(fixture, "hidden-items")).FullName;
+File.WriteAllText(Path.Combine(hiddenRoot, "visible.jpg"), "fixture");
+File.WriteAllText(Path.Combine(hiddenRoot, "secret.jpg"), "fixture");
+File.SetAttributes(Path.Combine(hiddenRoot, "secret.jpg"), FileAttributes.Hidden);
+File.WriteAllText(Path.Combine(hiddenRoot, "protected.jpg"), "fixture");
+File.SetAttributes(Path.Combine(hiddenRoot, "protected.jpg"), FileAttributes.Hidden | FileAttributes.System);
+var hiddenMedia = Directory.CreateDirectory(Path.Combine(hiddenRoot, ".album"));
+File.WriteAllText(Path.Combine(hiddenMedia.FullName, "photo.jpg"), "fixture");
+hiddenMedia.Attributes |= FileAttributes.Hidden;
+var hiddenDeep = Directory.CreateDirectory(Path.Combine(hiddenRoot, ".deep", "inner"));
+File.WriteAllText(Path.Combine(hiddenDeep.FullName, "clip.mp4"), "fixture");
+File.SetAttributes(Path.Combine(hiddenRoot, ".deep"), FileAttributes.Hidden);
+var hiddenEmpty = Directory.CreateDirectory(Path.Combine(hiddenRoot, ".cache", "nested"));
+File.WriteAllText(Path.Combine(hiddenEmpty.FullName, "notes.txt"), "fixture");
+File.SetAttributes(Path.Combine(hiddenRoot, ".cache"), FileAttributes.Hidden);
+var visibleWithHiddenMedia = Directory.CreateDirectory(Path.Combine(hiddenRoot, "plain", ".inside"));
+File.WriteAllText(Path.Combine(visibleWithHiddenMedia.FullName, "photo.jpg"), "fixture");
+visibleWithHiddenMedia.Attributes |= FileAttributes.Hidden;
+Directory.CreateDirectory(Path.Combine(hiddenRoot, "plain-empty"));
+var protectedFolder = Directory.CreateDirectory(Path.Combine(hiddenRoot, "protected-folder"));
+File.WriteAllText(Path.Combine(protectedFolder.FullName, "photo.jpg"), "fixture");
+protectedFolder.Attributes |= FileAttributes.Hidden | FileAttributes.System;
+Check(FolderScanner.Scan(hiddenRoot).Select(m => m.Name).SequenceEqual(new[] { "visible.jpg" }), "默认不显示隐藏媒体文件");
+Check(FolderScanner.Scan(hiddenRoot, showHidden: true).Select(m => m.Name).SequenceEqual(new[] { "secret.jpg", "visible.jpg" }),
+    "显示隐藏项目时包含隐藏媒体，但仍跳过系统受保护文件");
+Check(FolderScanner.ScanEntries(hiddenRoot).Where(e => e.Kind == MediaKind.Folder).Select(e => e.Name).SequenceEqual(Array.Empty<string>()),
+    "默认不显示隐藏目录，也不把只含隐藏媒体的普通目录当作媒体目录");
+var hiddenEntries = FolderScanner.ScanEntries(hiddenRoot, showHidden: true);
+Check(hiddenEntries.Where(e => e.Kind == MediaKind.Folder).Select(e => e.Name).SequenceEqual(new[] { ".album", ".deep", "plain" }),
+    "显示隐藏项目时只列出含媒体的目录，空隐藏目录与系统目录不显示");
+Check(hiddenEntries.Where(e => e.Kind == MediaKind.Folder).All(e => e.PreviewHidden), "文件夹封面查找必须沿用隐藏项目选项");
+Check(FolderScanner.FindFolderPreviews(Path.Combine(hiddenRoot, "plain"), showHidden: true).Count == 1
+    && FolderScanner.FindFolderPreviews(Path.Combine(hiddenRoot, "plain")).Count == 0, "封面查找按选项进入隐藏子目录");
+Check(FolderScanner.GetChildFolders(hiddenRoot).Select(c => Path.GetFileName(c.Path)).SequenceEqual(new[] { "plain", "plain-empty" }),
+    "文件树默认只列普通目录");
+var hiddenTree = FolderScanner.GetChildFolders(hiddenRoot, showHidden: true);
+Check(hiddenTree.Select(c => Path.GetFileName(c.Path)).SequenceEqual(new[] { ".album", ".deep", "plain", "plain-empty" }),
+    "文件树显示隐藏项目时只加入含媒体的隐藏目录，普通目录保持完整导航");
+Check(hiddenTree.Select(c => c.HasChildren).SequenceEqual(new[] { false, true, true, false }), "隐藏子目录的展开箭头状态错误");
+Check(!FolderScanner.HasSubfolders(Path.Combine(hiddenRoot, "plain")) && FolderScanner.HasSubfolders(Path.Combine(hiddenRoot, "plain"), showHidden: true),
+    "只有含媒体的隐藏子目录才让节点可展开");
+Check(FolderAddress.GetChildren(hiddenRoot, showHidden: true).Select(c => c.Name).SequenceEqual(new[] { ".album", ".deep", "plain", "plain-empty" }),
+    "地址菜单显示隐藏项目时同样过滤无媒体的隐藏目录");
+Check(FolderNavigator.FindAdjacent(Path.Combine(hiddenRoot, "plain-empty"), false, boundary: hiddenRoot) == hiddenRoot,
+    "默认 A/D 遍历跳过隐藏目录");
+Check(FolderNavigator.FindAdjacent(hiddenRoot, true, boundary: hiddenRoot, showHidden: true) == hiddenMedia.FullName
+    && FolderNavigator.FindAdjacent(hiddenMedia.FullName, true, boundary: hiddenRoot, showHidden: true) == hiddenDeep.FullName
+    && FolderNavigator.FindAdjacent(hiddenDeep.FullName, true, boundary: hiddenRoot, showHidden: true) == visibleWithHiddenMedia.FullName,
+    "显示隐藏项目时 A/D 进入含媒体的隐藏目录，跳过无媒体隐藏目录");
+
+Check(!FolderScanner.ContainsMediaWithin(hiddenEmpty.FullName, MediaFilter.All, true, default), "限时检查在时限内应如实返回无媒体");
+Check(FolderScanner.ContainsMediaWithin(hiddenEmpty.FullName, MediaFilter.All, true, default, TimeSpan.Zero),
+    "超过时限的目录按可能含媒体保留，不能拖住整页");
+using (var canceledProbe = new CancellationTokenSource())
+{
+    canceledProbe.Cancel();
+    Expect<OperationCanceledException>(() => FolderScanner.ContainsMediaWithin(hiddenRoot, MediaFilter.All, true, canceledProbe.Token),
+        "外部取消不能被当作超时吞掉");
+    Expect<OperationCanceledException>(() => FolderScanner.ScanEntries(hiddenRoot, canceledProbe.Token, showHidden: true), "并发检查子目录必须响应取消");
+    Expect<OperationCanceledException>(() => FolderScanner.GetChildFolders(hiddenRoot, canceledProbe.Token, showHidden: true), "并发加载树节点必须响应取消");
+}
+
+var devRoot = Directory.CreateDirectory(Path.Combine(fixture, "dev-dirs")).FullName;
+foreach (var dir in new[] { @"project\node_modules\pkg", @"project\src", @".npm\_cacache", "node_modules", "album" })
+    Directory.CreateDirectory(Path.Combine(devRoot, dir));
+File.WriteAllText(Path.Combine(devRoot, @"project\node_modules\pkg\logo.png"), "fixture");
+File.WriteAllText(Path.Combine(devRoot, @".npm\_cacache\icon.png"), "fixture");
+File.SetAttributes(Path.Combine(devRoot, ".npm"), FileAttributes.Hidden);
+File.WriteAllText(Path.Combine(devRoot, @"node_modules\icon.png"), "fixture");
+File.WriteAllText(Path.Combine(devRoot, @"album\photo.jpg"), "fixture");
+Check(FolderScanner.IsExcludedDirectory(@"C:\x\Node_Modules\") && !FolderScanner.IsExcludedDirectory(@"C:\x\build"), "排除名单按目录名且不区分大小写");
+Check(FolderScanner.ScanEntries(devRoot, showHidden: true).Where(e => e.Kind == MediaKind.Folder).Select(e => e.Name).SequenceEqual(new[] { "album" }),
+    "依赖和缓存目录不扫描，仅含其中图标的项目目录也不显示");
+Check(FolderScanner.GetChildFolders(devRoot, showHidden: true).Select(c => Path.GetFileName(c.Path)).SequenceEqual(new[] { "album", "node_modules", "project" }),
+    "文件树保留普通目录导航，但隐藏的开发缓存目录不显示");
+Check(FolderNavigator.FindAdjacent(Path.Combine(devRoot, "album"), true, boundary: devRoot, showHidden: true) is null, "A/D 遍历不进入依赖目录");
+Check(FolderScanner.Scan(Path.Combine(devRoot, "node_modules")).Count == 1, "明确打开的排除目录仍可查看当前层媒体");
+
+var launchFile = Path.Combine(fixture, "image1.jpg");
+Check(StartupArguments.Split("\"C:\\Program Files\\Fallery\\Fallery.exe\" \"E:\\照片 空格\\a.mp4\" --flag")
+    .SequenceEqual(new[] { @"C:\Program Files\Fallery\Fallery.exe", @"E:\照片 空格\a.mp4", "--flag" }), "命令行拆分要处理引号、空格和中文");
+Check(StartupArguments.FindPath(new[] { @"C:\Fallery.exe", "--verbose", launchFile }) == launchFile, "启动参数应跳过 exe 和开关，取第一个存在的路径");
+Check(StartupArguments.FindPath($"\"C:\\x\\Fallery.exe\" \"{launchFile}\"") == launchFile, "重定向的整行命令也要解析出文件");
+Check(StartupArguments.FindPath(new[] { Path.Combine(fixture, "missing.jpg") }) is null && StartupArguments.FindPath((string?)null) is null,
+    "不存在的路径和空命令行不能当作启动文件");
+using (var registryRoot = Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"Software\FalleryCoreChecks\{Guid.NewGuid():N}"))
+{
+    try
+    {
+        FileAssociation.Register(@"C:\Apps\Fallery\Fallery.exe", new[] { ".mp4", "JPG" }, registryRoot);
+        Check(FileAssociation.RegisteredExecutable(registryRoot) == @"C:\Apps\Fallery\Fallery.exe", "注册后应能读回 exe 路径");
+        using (var command = registryRoot.OpenSubKey(@"Classes\Fallery.Media\shell\open\command"))
+            Check(command?.GetValue("") as string == "\"C:\\Apps\\Fallery\\Fallery.exe\" \"%1\"", "打开命令必须带引号传入文件路径");
+        using (var progIds = registryRoot.OpenSubKey(@"Classes\.jpg\OpenWithProgids"))
+            Check(progIds?.GetValueNames().Contains(FileAssociation.ProgId) == true, "扩展名统一小写并挂到打开方式列表");
+        using (var caps = registryRoot.OpenSubKey(@"Fallery\Capabilities\FileAssociations"))
+            Check(caps?.GetValue(".mp4") as string == FileAssociation.ProgId, "默认应用能力表应列出支持的扩展名");
+        FileAssociation.Unregister(new[] { ".mp4", ".jpg" }, registryRoot);
+        using (var progIds = registryRoot.OpenSubKey(@"Classes\.jpg\OpenWithProgids"))
+            Check(FileAssociation.RegisteredExecutable(registryRoot) is null && progIds?.GetValueNames().Contains(FileAssociation.ProgId) != true,
+                "取消注册要清掉应用、ProgID 和扩展名挂载");
+    }
+    finally { Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\FalleryCoreChecks", throwOnMissingSubKey: false); }
+}
+
+var resumePath = Path.Combine(fixture, "resume", "resume.json");
+var resumeVersion = new FileVersion(@"C:\VIDEOS\A.MP4", 1000, 42);
+var resume = new Fallery.Services.Playback.ResumeStore(resumePath);
+await resume.SaveAsync(resumeVersion, TimeSpan.FromSeconds(90), TimeSpan.FromMinutes(10));
+Check(await new Fallery.Services.Playback.ResumeStore(resumePath).GetAsync(resumeVersion) == TimeSpan.FromSeconds(90), "播放进度应写盘并能被新实例读回");
+Check(await resume.GetAsync(resumeVersion with { ModifiedTicks = 43 }) is null, "文件被替换后不能沿用旧进度");
+await resume.SaveAsync(resumeVersion, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(10));
+Check(await resume.GetAsync(resumeVersion) is null, "开头附近不记录进度");
+await resume.SaveAsync(resumeVersion, TimeSpan.FromSeconds(597), TimeSpan.FromMinutes(10));
+Check(await resume.GetAsync(resumeVersion) is null, "看到结尾附近视为看完，下次从头播放");
+for (int i = 0; i < Fallery.Services.Playback.ResumeStore.Limit + 20; i++)
+    await resume.SaveAsync(new FileVersion($@"C:\V\{i}.MP4", 1, 1), TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(5));
+Check(await resume.GetAsync(new FileVersion(@"C:\V\0.MP4", 1, 1)) is null
+    && await resume.GetAsync(new FileVersion($@"C:\V\{Fallery.Services.Playback.ResumeStore.Limit + 19}.MP4", 1, 1)) is not null,
+    "进度记录有上限，淘汰最久未写入的");
+
+Check(MediaDetailsReader.FormatSize(512) == "512 字节" && MediaDetailsReader.FormatSize(451_482) == "440.9 KB"
+    && MediaDetailsReader.FormatSize(8_178_892) == "7.8 MB" && MediaDetailsReader.FormatSize(3L << 30) == "3 GB", "文件大小应按 Windows 习惯换算单位");
+Check(MediaDetailsReader.FormatOf(@"C:\a\b.jpeg") == "JPEG" && MediaDetailsReader.FormatOf("clip.Mp4") == "MP4", "格式取扩展名并大写");
+var basicDetails = MediaDetailsReader.Basic(launchFile, MediaKind.Image);
+Check(basicDetails.Format == "JPG" && basicDetails.Length == new FileInfo(launchFile).Length && basicDetails.Resolution == ""
+    && basicDetails.Groups.Any(g => g.Rows.Any(r => r.Value == fixture)), "基础信息不读文件内容，包含格式、大小和所在文件夹");
+Check(MediaDetailsReader.Basic(Path.Combine(fixture, "missing.mp4"), MediaKind.Video).Length == 0, "缺失文件的基础信息不能抛异常");
 
 MediaFile SortFile(string name, long length, long ticks) => new(Path.Combine(fixture, name), MediaKind.Image)
 { Version = new FileVersion(Path.Combine(fixture, name), length, ticks), CreatedTicks = ticks, TakenTicks = ticks };
@@ -251,6 +381,34 @@ foreach (var width in new[] { 0d, 100, 800, 1400, 3840 })
     Check(ratioReads == readsAfterBuild, "滚动不能重新读取宽高比");
     Check(!layout.GetVisibleIndices(0, 0).Any(), "零高度视口应为空");
 }
+foreach (var width in new[] { 0d, 100, 800, 1400, 3840 })
+{
+    var rows = MasonryGeometry.Justified(ratios.Length, width, 180, 6, i => ratios[i], 6, 22);
+    Check(rows.Bounds.All(b => double.IsFinite(b.Bottom) && b.Width >= 0 && b.Height >= 0 && b.X >= 0), "自适应行坐标出现非有限值");
+    var grouped = rows.Bounds.Select((b, i) => (b, i)).GroupBy(t => t.b.Y).ToList();
+    Check(grouped.All(row => row.Select(t => t.b.Height).Distinct().Count() == 1), "自适应行内图块必须等高");
+    Check(grouped.Zip(grouped.Skip(1)).All(pair => Math.Abs(pair.First.First().b.Bottom + 6 - pair.Second.Key) < 0.001), "自适应行之间应只隔一个间距");
+    if (width >= 800)
+    {
+        Check(grouped.SkipLast(1).All(row => Math.Abs(row.Last().b.X + row.Last().b.Width - width) < 0.01), "除最后一行外每行都要铺满宽度");
+        Check(grouped.SkipLast(1).All(row => row.Zip(row.Skip(1)).All(p => Math.Abs(p.First.b.X + p.First.b.Width + 6 - p.Second.b.X) < 0.01)),
+            "自适应行内图块应只隔一个间距");
+        var row0 = grouped[1].ToList();
+        double imageHeight = row0[0].b.Height - 12 - 22;
+        Check(row0.SkipLast(1).All(t => Math.Abs((t.b.Width - 12) / imageHeight - Math.Clamp(double.IsFinite(ratios[t.i]) && ratios[t.i] > 0 ? ratios[t.i] : 1, 0.25, 4)) < 0.001),
+            "自适应行必须保持图片原始比例");
+    }
+    for (int i = 0; i < 100; i++)
+    {
+        double y = random.NextDouble() * (rows.ExtentHeight + 1000) - 500;
+        double height = random.Next(1, 2000);
+        var expected = Enumerable.Range(0, ratios.Length).Where(j => rows.Bounds[j].Y < y + height && rows.Bounds[j].Bottom > y);
+        Check(rows.GetVisibleIndices(y, height).SequenceEqual(expected), "自适应行的可见区查询错误");
+    }
+}
+var lastRow = MasonryGeometry.Justified(3, 1200, 200, 10, _ => 1.5);
+Check(lastRow.Bounds.All(b => Math.Abs(b.Height - 200) < 0.001) && lastRow.Bounds[^1].X + lastRow.Bounds[^1].Width < 1200,
+    "未排满的最后一行保持目标高度，不能拉伸铺满");
 var empty = new MasonryGeometry(0, 800, 240, 6, _ => throw new InvalidOperationException());
 Check(new MasonryGeometry(1, 240, 240, 8, _ => 2, 6, 22).Bounds[0].Height == 148,
     "标题行和内边距必须计入卡片高度，不能压缩图片比例");

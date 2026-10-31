@@ -50,7 +50,7 @@ public partial class App : Application
             root.Measure(new Windows.Foundation.Size(1100, 720));
             root.Arrange(new Windows.Foundation.Rect(0, 0, 1100, 720));
             root.UpdateLayout();
-            Check(((ComboBox)root.FindName("ThemeSelector")).SelectedIndex == 2, "实际主题控件没有恢复");
+            Check((int)Get("_themeIndex")! == 2, "实际主题控件没有恢复");
             Check(((Slider)root.FindName("ThumbSize")).Value == 320, "实际缩略图控件没有恢复");
             var folder = Path.Combine(workspace, "work", "validation", "experience", "01-图片");
             await Invoke("NavigateAsync", folder, false, false);
@@ -113,7 +113,7 @@ public partial class App : Application
             typeof(MainWindow).GetMethod("ShowFileNames_Click", flags)!.Invoke(window, new object[] { namesToggle, new RoutedEventArgs() });
             root.UpdateLayout();
             var nameless = (Fallery.Controls.MediaTile)galleryControl.TryGetElement(0);
-            Check(((TextBlock)nameless.FindName("MediaName")).Visibility == Visibility.Collapsed
+            Check(((Grid)nameless.FindName("MediaCaption")).Visibility == Visibility.Collapsed
                 && ((RowDefinition)nameless.FindName("CaptionRow")).Height.Value == 0,
                 "隐藏文件名必须同时移除标题占位高度");
             await Invoke("SetDisplayModeAsync", GalleryDisplayMode.Filmstrip);
@@ -128,7 +128,7 @@ public partial class App : Application
             root.UpdateLayout();
             var selectedTile = (Fallery.Controls.MediaTile)galleryControl.TryGetElement(1);
             Check(window.ViewerState.CurrentIndex == 1
-                && ((Border)selectedTile.FindName("SelectionOutline")).Visibility == Visibility.Visible,
+                && selectedTile.IsSelected,
                 "切换大图后底部缩略图必须同步选中状态");
             var capturedViewSettings = (AppSettings)typeof(MainWindow).GetMethod("CaptureSettings", flags)!.Invoke(window, null)!;
             Check(capturedViewSettings.DisplayMode == GalleryDisplayMode.Filmstrip && !capturedViewSettings.ShowFileNames,
@@ -163,7 +163,7 @@ public partial class App : Application
             Check(items.Select(i => i.Name).SequenceEqual(new[] { "image1.jpg", "image2.jpg" }), "实际排序操作未更新数据顺序");
             Check(items.All(original.Contains), "排序不能重建媒体模型丢掉缓存");
             Check(window.ViewerState.Playlist.SequenceEqual(items), "查看器播放顺序未与排序同步");
-            ((ComboBox)root.FindName("ThemeSelector")).SelectedIndex = 1;
+            typeof(MainWindow).GetMethod("ApplyTheme", flags)!.Invoke(window, new object[] { 1 });
             root.UpdateLayout();
             Check(window.AppWindow.TitleBar.PreferredTheme == Microsoft.UI.Windowing.TitleBarTheme.Light,
                 "亮色模式的系统窗口按钮未同步");
@@ -190,7 +190,7 @@ public partial class App : Application
             Check(((TitleBar)root.FindName("AppTitleBar")).ActualTheme == ElementTheme.Light
                 && ((Grid)root.FindName("GalleryToolbar")).Visibility == Visibility.Visible,
                 "关闭深色查看器后必须恢复亮色导航栏");
-            ((ComboBox)root.FindName("ThemeSelector")).SelectedIndex = 2;
+            typeof(MainWindow).GetMethod("ApplyTheme", flags)!.Invoke(window, new object[] { 2 });
             window.ViewerState.SetPlaylist(window.GalleryState.MediaItems);
             Check(items.All(i => i.Version is { } key && MediaCache.AspectRatios.TryGet(key, out _)),
                 "目录探测没有把宽高比保留在内存");
@@ -237,7 +237,7 @@ public partial class App : Application
                 "设置面板应提供可保存或取消的主题和视图选项");
             await Invoke("ApplyPreferencesAsync", 1, GalleryDisplayMode.LargeIcons, false, 280d);
             Check(window.GalleryState.DisplayMode == GalleryDisplayMode.LargeIcons && !window.GalleryState.ShowFileNames
-                && ((ComboBox)root.FindName("ThemeSelector")).SelectedIndex == 1 && ((Slider)root.FindName("ThumbSize")).Value == 280,
+                && (int)Get("_themeIndex")! == 1 && ((Slider)root.FindName("ThumbSize")).Value == 280,
                 "设置保存必须应用到现有控件和视图");
             await Invoke("ApplyPreferencesAsync", 2, GalleryDisplayMode.Masonry, true, 320d);
             window.GalleryState.SortField = MediaSortField.Name;
@@ -338,7 +338,7 @@ public partial class App : Application
                 && ReferenceEquals(((ItemsRepeater)root.FindName("Gallery")).ItemsSource, itemsBeforeClear),
                 "清除缓存后必须重新绑定现有卡片而非留下空白");
             Check(MediaCache.AspectRatios.Count == 0, "清除入口没有清理内存宽高比");
-            ((ComboBox)root.FindName("ThemeSelector")).SelectedIndex = 1;
+            typeof(MainWindow).GetMethod("ApplyTheme", flags)!.Invoke(window, new object[] { 1 });
             ((Slider)root.FindName("ThumbSize")).Value = 360;
             var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             window.Closed += (_, _) => closed.TrySetResult();

@@ -31,7 +31,8 @@ public partial class App : Application
             var mediaName = (TextBlock)tile.FindName("MediaName");
             var footer = (Border)tile.FindName("FolderFooter");
             var placeholder = (FontIcon)tile.FindName("FolderPlaceholder");
-            var badge = (Border)tile.FindName("VideoBadge");
+            // 显示文件名时视频标记位于文件名末尾。
+            var badge = (FontIcon)tile.FindName("VideoMark");
             var image = (Image)tile.FindName("PreviewImage");
             var failure = (TextBlock)tile.FindName("FailureText");
             MediaItem? previous = null;

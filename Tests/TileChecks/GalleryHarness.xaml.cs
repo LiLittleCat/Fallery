@@ -57,7 +57,8 @@ public sealed partial class GalleryHarness : UserControl
                     {
                         if (Gallery.TryGetElement(i) is not MediaTile tile) continue;
                         check(ReferenceEquals(tile.Item, _items[i]), $"列表回收后绑定丢失: round={round}, pass={pass}, index={i}");
-                        check(((Border)tile.FindName("VideoBadge")).Visibility == Visibility.Visible, "已实现的视频卡片角标丢失");
+                        check(((FontIcon)tile.FindName("VideoMark")).Visibility == Visibility.Visible
+                            || ((Border)tile.FindName("VideoBadge")).Visibility == Visibility.Visible, "已实现的视频卡片标记丢失");
                     }
                 }
             }

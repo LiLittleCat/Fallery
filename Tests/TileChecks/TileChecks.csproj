@@ -18,6 +18,8 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.*" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.*" />
     <Page Include="../../Controls/MediaTile.xaml" Link="Controls/MediaTile.xaml" />
+    <Page Include="../../Themes/Icons.xaml" Link="Themes/Icons.xaml" />
+    <Content Include="../../Assets/Fonts/*.ttf" Link="Assets/Fonts/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../../Controls/MediaTile.xaml.cs" Link="Controls/MediaTile.xaml.cs" />
     <Compile Include="../../Models/MediaFile.cs" Link="Models/MediaFile.cs" />
     <Compile Include="../../Models/MediaItem.cs" Link="Models/MediaItem.cs" />
@@ -26,6 +28,7 @@
     <Compile Include="../../Services/BoundedCache.cs" Link="Services/BoundedCache.cs" />
     <Compile Include="../../Services/MediaCache.cs" Link="Services/MediaCache.cs" />
     <Compile Include="../../Services/VideoThumbnail.cs" Link="Services/VideoThumbnail.cs" />
+    <Compile Include="../../Services/MediaProbe.cs" Link="Services/MediaProbe.cs" />
     <Compile Include="../../Layouts/MasonryLayout.cs" Link="Layouts/MasonryLayout.cs" />
     <Compile Include="../../Layouts/MasonryGeometry.cs" Link="Layouts/MasonryGeometry.cs" />
   </ItemGroup>
