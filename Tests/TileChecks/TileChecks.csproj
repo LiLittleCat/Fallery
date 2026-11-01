@@ -27,6 +27,7 @@
     <Compile Include="../../Services/FolderScanner.cs" Link="Services/FolderScanner.cs" />
     <Compile Include="../../Services/BoundedCache.cs" Link="Services/BoundedCache.cs" />
     <Compile Include="../../Services/MediaCache.cs" Link="Services/MediaCache.cs" />
+    <Compile Include="../../Services/ThumbnailDiskCache.cs" Link="Services/ThumbnailDiskCache.cs" />
     <Compile Include="../../Services/VideoThumbnail.cs" Link="Services/VideoThumbnail.cs" />
     <Compile Include="../../Services/MediaProbe.cs" Link="Services/MediaProbe.cs" />
     <Compile Include="../../Layouts/MasonryLayout.cs" Link="Layouts/MasonryLayout.cs" />

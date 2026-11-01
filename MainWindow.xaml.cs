@@ -60,6 +60,7 @@ public sealed partial class MainWindow : Window
         InitializeHoverPreview();
         InitializeFullScreenControls();
         InitializeViewerInfo();
+        InitializeViewerSidePanel();
         RefreshAddressBar();
         if (monitorFolderChanges) InitializeFolderMonitoring();
     }
@@ -98,10 +99,16 @@ public sealed partial class MainWindow : Window
         {
             var roots = await Task.Run(() => FolderScanner.GetRoots(_lifetimeCts.Token));
             if (_closed) return;
+            int rootIndex = 0;
             foreach (var entry in roots)
-                if (!IsTreeFolderExcluded(entry.Path) && !FolderTree.RootNodes.Any(node =>
+            {
+                if (IsTreeFolderExcluded(entry.Path)) continue;
+                if (!FolderTree.RootNodes.Any(node =>
                     node.Content is FolderEntry existing && string.Equals(existing.Path, entry.Path, StringComparison.OrdinalIgnoreCase)))
-                    FolderTree.RootNodes.Add(CreateNode(entry.Path, entry.Name, entry.ModifiedTicks));
+                    // 恢复被排除的快捷入口时也插回顶部，不追加到磁盘之后。
+                    FolderTree.RootNodes.Insert(Math.Min(rootIndex, FolderTree.RootNodes.Count), CreateNode(entry.Path, entry.Name, entry.ModifiedTicks));
+                rootIndex++;
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -229,7 +236,7 @@ public sealed partial class MainWindow : Window
             ct.ThrowIfCancellationRequested();
             var target = NormalizeFolderPath(folder);
             if (IsTreeFolderExcluded(target)) { ClearCurrentTreeSelection(); return; }
-            // “图片”与盘符可能指向同一目录树，优先使用最接近目标的根节点。
+            // “图片”“桌面”与盘符可能指向同一目录树，优先使用最接近目标的根节点。
             var node = FolderTree.RootNodes
                 .Where(n => n.Content is FolderEntry entry && IsSameOrChildFolder(target, entry.Path))
                 .OrderByDescending(n => ((FolderEntry)n.Content).Path.Length)
@@ -413,7 +420,8 @@ public sealed partial class MainWindow : Window
         get
         {
             double scale = Root.XamlRoot?.RasterizationScale ?? 1.0;
-            return (uint)Math.Clamp(ThumbSize.Value * scale, 128, 1024);
+            double logicalSize = IsFilmstrip ? FilmstripTileWidth : ThumbSize.Value;
+            return (uint)Math.Clamp(logicalSize * scale, 128, MediaItem.MaxThumbnailPixels);
         }
     }
 
@@ -472,6 +480,7 @@ public sealed partial class MainWindow : Window
         if ((GalleryState.IsScanning && !allowWhileScanning) || index < 0 || index >= ViewerState.Playlist.Count || _closed || _closing) return;
         StopHoverPreview();
         CaptureBrowseWindowPlacement();
+        bool imageToImage = ViewerState.CurrentItem?.IsVideo == false && !ViewerState.Playlist[index].IsVideo;
         var request = ViewerState.BeginOpen(index);
         if (request is null) return;
         var ct = request.Token;
@@ -479,8 +488,8 @@ public sealed partial class MainWindow : Window
 
         _panOrigin = null;
         ViewerImage.ReleasePointerCaptures();
-        StopVideo();
-        ClearViewerImage();
+        StopVideo(keepRotationButtonEnabled: imageToImage);
+        ClearViewerImage(keepImageButtonsEnabled: imageToImage);
         ImageScroller.Visibility = item.IsVideo ? Visibility.Collapsed : Visibility.Visible;
         UpdateViewerOverlays();
         _ = LoadViewerDetailsAsync(item);
@@ -520,10 +529,11 @@ public sealed partial class MainWindow : Window
                 ct.ThrowIfCancellationRequested();
 
                 ViewerImage.Source = bitmap;
-                RotateMediaButton.IsEnabled = true;
+                SetImageTransformButtonsEnabled(true);
                 ImageScroller.Visibility = Visibility.Visible;
                 ViewerState.Message = "";
                 FitImageToViewport();
+                _ = DiscoverMotionPhotoAsync(item, ct);
             }
         }
         catch (OperationCanceledException) { }
@@ -532,15 +542,16 @@ public sealed partial class MainWindow : Window
             if (!_closed && !ct.IsCancellationRequested)
             {
                 StopVideo();
+                SetImageTransformButtonsEnabled(false);
                 ViewerState.Message = $"无法打开此文件，文件可能损坏或系统缺少解码器。\n{ex.Message}";
             }
         }
     }
 
-    private void StopVideo()
+    private void StopVideo(bool keepRotationButtonEnabled = false)
     {
         FitVideoWindowButton.IsEnabled = false;
-        RotateMediaButton.IsEnabled = false;
+        if (!keepRotationButtonEnabled) RotateMediaButton.IsEnabled = false;
         var player = _videoPlayer;
         _videoPlayer = null;
         DetachVideoControls(player);
@@ -574,12 +585,17 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void ClearViewerImage()
+    private void ClearViewerImage(bool keepImageButtonsEnabled = false)
     {
+        ResetMotionPhoto();
         // GIF 自带播放时钟，切换后立即停止，避免等待对象回收才释放动画资源。
         if (ViewerImage.Source is BitmapImage bitmap) bitmap.Stop();
         ViewerImage.Source = null;
-        ResetViewerRotation();
+        _viewerDetails = null;
+        _imageFitMode = true;
+        _imageFitPending = true;
+        UpdateZoomIndicators();
+        ResetViewerRotation(keepImageButtonsEnabled);
     }
 
     private void ViewerFullScreen_Click(object sender, RoutedEventArgs e) =>
@@ -617,8 +633,12 @@ public sealed partial class MainWindow : Window
     /// <summary>尺寸由 Viewbox 跟随视口约束，切图和窗口变化时只重置缩放。</summary>
     private void FitImageToViewport()
     {
+        _imageFitMode = true;
+        _imageFitPending = true;
+        UpdateZoomIndicators();
         if (ImageScroller.ActualWidth <= 0 || ImageScroller.ActualHeight <= 0) return; // 还没完成布局，等 SizeChanged
         ImageScroller.ChangeView(0, 0, 1f, disableAnimation: true);
+        if (Math.Abs(ImageScroller.ZoomFactor - 1) <= 0.0001) _imageFitPending = false;
     }
 
     private void ImageScroller_SizeChanged(object sender, SizeChangedEventArgs e) => FitImageToViewport();
@@ -667,6 +687,14 @@ public sealed partial class MainWindow : Window
             & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
         bool alt = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu)
             & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
+        if (control && !alt && !IsShiftDown() && e.Key is VirtualKey.C or VirtualKey.V)
+        {
+            if (_deleting || _pickingFolder || _itemMenu is not null || _addressFlyout is not null
+                || IsClipboardTextTarget(e.OriginalSource as DependencyObject)) return;
+            e.Handled = true;
+            await HandleFileClipboardKeyAsync(e.Key, e.OriginalSource as DependencyObject);
+            return;
+        }
         if (!ViewerState.IsOpen || IsFilmstrip)
         {
             if ((control && e.Key == VirtualKey.L) || (alt && e.Key == VirtualKey.D)

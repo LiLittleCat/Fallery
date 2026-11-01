@@ -18,7 +18,10 @@ public static class MediaDetailsReader
     [
         "System.Photo.DateTaken", "System.Photo.CameraManufacturer", "System.Photo.CameraModel", "System.Photo.FNumber",
         "System.Photo.ExposureTime", "System.Photo.ISOSpeed", "System.Photo.FocalLength", "System.Image.HorizontalResolution",
-        "System.Image.BitDepth",
+        "System.Image.BitDepth", "System.Photo.LensManufacturer", "System.Photo.LensModel",
+        "System.Photo.FocalLengthInFilm", "System.Photo.ExposureBias", "System.Photo.ExposureProgramText",
+        "System.Photo.MeteringModeText", "System.Photo.WhiteBalanceText", "System.Photo.FlashText",
+        "System.GPS.Altitude", "System.GPS.AltitudeRef",
     ];
     private static readonly string[] VideoKeys = ["System.Video.FrameRate", "System.Video.TotalBitrate", "System.Media.DateEncoded", "System.Audio.SampleRate"];
 
@@ -80,20 +83,12 @@ public static class MediaDetailsReader
                 var dpi = extra.TryGetValue("System.Image.HorizontalResolution", out var d) && d is double dpiValue && dpiValue > 0 ? $"{dpiValue:0} dpi" : null;
                 var depth = extra.TryGetValue("System.Image.BitDepth", out var b) && b is uint bits && bits > 0 ? $"{bits} 位" : null;
                 if (dpi is not null || depth is not null) rows.Add(("dpi / 位深", string.Join("  ", new[] { dpi, depth }.OfType<string>())));
-                var camera = new List<(string, string)>();
-                if (extra.TryGetValue("System.Photo.DateTaken", out var taken) && taken is DateTimeOffset date && date.Year > 1601)
-                    camera.Add(("拍摄日期", date.LocalDateTime.ToString("yyyy年M月d日 HH:mm", CultureInfo.CurrentCulture)));
-                string model = string.Join(" ", new[] { Text(extra, "System.Photo.CameraManufacturer"), Text(extra, "System.Photo.CameraModel") }.OfType<string>().Distinct());
-                if (model.Length > 0) camera.Add(("相机", model));
-                var exposure = new List<string>();
-                if (extra.TryGetValue("System.Photo.FNumber", out var f) && f is double fNumber && fNumber > 0) exposure.Add($"f/{fNumber:0.#}");
-                if (extra.TryGetValue("System.Photo.ExposureTime", out var e) && e is double seconds && seconds > 0)
-                    exposure.Add(seconds >= 1 ? $"{seconds:0.#} 秒" : $"1/{Math.Round(1 / seconds)} 秒");
-                if (extra.TryGetValue("System.Photo.ISOSpeed", out var iso) && iso is ushort isoSpeed && isoSpeed > 0) exposure.Add($"ISO {isoSpeed}");
-                if (extra.TryGetValue("System.Photo.FocalLength", out var focal) && focal is double millimeters && millimeters > 0) exposure.Add($"{millimeters:0.#} mm");
-                if (exposure.Count > 0) camera.Add(("拍摄参数", string.Join("  ", exposure)));
+                await PhotoMetadata.FillLensAsync(file, extra, ct);
+                var camera = PhotoMetadata.CameraRows(extra);
+                var location = PhotoMetadata.LocationRows(extra, image.Latitude, image.Longitude);
                 var groups = new List<(string, IReadOnlyList<(string, string)>)> { basic.Groups[0], ("图像", rows) };
                 if (camera.Count > 0) groups.Add(("拍摄", camera));
+                if (location.Count > 0) groups.Add(("地理位置", location));
                 groups.Add(basic.Groups[1]);
                 return basic with { Width = width, Height = height, Groups = groups };
             }
@@ -101,9 +96,6 @@ public static class MediaDetailsReader
         catch (OperationCanceledException) { throw; }
         catch (Exception) { return basic; }
     }
-
-    private static string? Text(IDictionary<string, object> values, string key) =>
-        values.TryGetValue(key, out var value) && value is string text && !string.IsNullOrWhiteSpace(text) ? text.Trim() : null;
 
     public static string FormatOf(string path) => Path.GetExtension(path).TrimStart('.').ToUpperInvariant();
 

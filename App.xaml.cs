@@ -13,6 +13,16 @@ public partial class App : Application
     public App(string? startupPath = null)
     {
         _startupPath = startupPath;
+        UnhandledException += (_, e) =>
+        {
+            try
+            {
+                string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fallery");
+                Directory.CreateDirectory(folder);
+                File.AppendAllText(Path.Combine(folder, "errors.log"), $"{DateTimeOffset.Now:O}\n{e.Message}\n{e.Exception}\n\n");
+            }
+            catch { /* 诊断写入失败不能掩盖原异常。 */ }
+        };
         InitializeComponent();
     }
 

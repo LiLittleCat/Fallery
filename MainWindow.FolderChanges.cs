@@ -61,7 +61,7 @@ public sealed partial class MainWindow
             _pendingFolderChange = null;
             return;
         }
-        if (_refreshingFolderChanges || GalleryState.IsScanning || _deleting)
+        if (_refreshingFolderChanges || GalleryState.IsScanning || _deleting || _pasting)
         {
             sender.Start();
             return;

@@ -5,7 +5,7 @@ using Microsoft.UI.Xaml.Media;
 
 namespace Fallery.Controls;
 
-/// <summary>代码里创建的图标同样走 Themes/Icons.xaml，避免回落到随系统变化的 Segoe 图标字体。</summary>
+/// <summary>代码图标使用打包的 Hugeicons 字体；保留旧类型名以兼容已有调用。</summary>
 public static class FluentIcons
 {
     public static string Glyph(string key) => (string)Application.Current.Resources[key];
@@ -18,15 +18,17 @@ public static class FluentIcons
     };
 }
 
-/// <summary>文件树节点图标种类：磁盘、图片库和普通文件夹分别显示，与资源管理器的习惯一致。</summary>
+/// <summary>文件树节点图标种类：磁盘、图片、桌面和普通文件夹分别显示。</summary>
 public sealed partial class FolderIconConverter : IValueConverter
 {
     private static readonly string Pictures = Path.TrimEndingDirectorySeparator(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
+    private static readonly string Desktop = Path.TrimEndingDirectorySeparator(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
 
     public static string KindOf(string path)
     {
         var trimmed = Path.TrimEndingDirectorySeparator(path);
         if (string.Equals(trimmed, Path.TrimEndingDirectorySeparator(Path.GetPathRoot(path) ?? ""), StringComparison.OrdinalIgnoreCase)) return "Drive";
+        if (string.Equals(trimmed, Desktop, StringComparison.OrdinalIgnoreCase)) return "Desktop";
         return string.Equals(trimmed, Pictures, StringComparison.OrdinalIgnoreCase) ? "Pictures" : "Folder";
     }
 

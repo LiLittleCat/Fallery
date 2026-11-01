@@ -24,8 +24,7 @@ public sealed partial class MainWindow
             ImageZoomPanel.Visibility = Visibility.Collapsed;
             VideoControls.Measure(new Size(1280, double.PositiveInfinity));
             ViewerBar.Measure(new Size(1280, double.PositiveInfinity));
-            double chromeWidth = Math.Max(0, AppWindow.Size.Width - (client.Right - client.Left))
-                + PlaylistColumn.Width.Value * scale;
+            double chromeWidth = Math.Max(0, AppWindow.Size.Width - (client.Right - client.Left));
             double chromeHeight = Math.Max(0, AppWindow.Size.Height - (client.Bottom - client.Top))
                 + (AppTitleBar.ActualHeight + VideoControls.DesiredSize.Height + ViewerBar.DesiredSize.Height) * scale;
             return ResizeWindowForVideo(16d / 9, 1280 * scale, chromeWidth, chromeHeight);

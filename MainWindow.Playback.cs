@@ -61,7 +61,7 @@ public sealed partial class MainWindow
     /// <summary>创建播放内核并接好界面；以后更换内核只替换这里的实现类。</summary>
     private IPlayer CreatePlayer(MediaItem item, CancellationToken ct)
     {
-        IPlayer player = new WindowsMediaPlayer(ViewerVideo);
+        IPlayer player = CreatePlayer(ViewerVideo, enableSystemTransportControls: true);
         _videoItem = item;
         _loopStart = _loopEnd = null;
         player.Volume = _volume;
@@ -388,7 +388,7 @@ public sealed partial class MainWindow
     {
         _playlistOpen = open;
         if (open) _detailsOpen = false;
-        ApplyViewerSidePanel(resizeWindow: true);
+        ApplyViewerSidePanel();
         QueueSettingsSave();
     }
 
@@ -453,6 +453,7 @@ public sealed partial class MainWindow
         VideoControls.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
         VideoAudioPanel.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
         ImageZoomPanel.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
+        RotateImageLeftButton.Visibility = FlipImageToggle.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
         FitVideoWindowButton.IsEnabled = video && _videoPlayer is { VideoWidth: > 0, VideoHeight: > 0 };
         ViewerFullScreenIcon.Glyph = FluentIcons.Glyph(fullScreen ? "IconExitFullScreen" : "IconFullScreen");
         ApplyFullScreenControls();

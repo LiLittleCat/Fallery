@@ -75,6 +75,8 @@ public partial class App : Application
             var source = Path.Combine(workspace, "work/validation/media/image1.jpg");
             var fixture = Path.Combine(workspace, "work/validation/cachechecks", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(fixture);
+            var diskRoot = Path.Combine(fixture, "thumbnail-cache");
+            MediaCache.Disk = new ThumbnailDiskCache(diskRoot);
             var photo = Path.Combine(fixture, "photo.jpg");
             File.Copy(source, photo);
             var version = FileVersion.Read(photo)!.Value;
@@ -99,6 +101,41 @@ public partial class App : Application
             var larger = returned.Thumbnail;
             Check(larger is not null && !ReferenceEquals(larger, bitmap), "放大应加载更清晰的图片");
             Check(ReferenceEquals(MediaCache.GetThumbnail(version, 128), larger), "缩小时应复用较大的缓存");
+            await returned.EnsureThumbnailAsync(1024);
+            larger = returned.Thumbnail;
+            Check(larger is not null && larger.PixelWidth > 0 && larger.PixelHeight > 0
+                && Math.Max(larger.PixelWidth, larger.PixelHeight) <= MediaItem.MaxThumbnailPixels,
+                "超大缩略图请求解码后的长边不得超过 512 像素");
+            returned.ReleaseThumbnail();
+            var cappedReturn = new MediaItem(photo, MediaKind.Image, version);
+            var cappedWarmLoad = cappedReturn.EnsureThumbnailAsync(1024);
+            Check(cappedWarmLoad.IsCompletedSuccessfully && ReferenceEquals(cappedReturn.Thumbnail, larger),
+                "超过上限的请求返回目录时也必须同步复用缓存，不能反复加载");
+            cappedReturn.ReleaseThumbnail();
+            Check(await MediaCache.Disk.ReadAsync(version, 512, default) is { Length: > 0 },
+                "生成的压缩缩略图必须写入磁盘缓存");
+            MediaCache.Clear();
+            MediaCache.Disk = new ThumbnailDiskCache(diskRoot);
+            Check(await MediaCache.Disk.ReadAsync(version, 512, default) is { Length: > 0 },
+                "重建缓存实例后必须能读取上次保存的缩略图");
+            await returned.EnsureThumbnailAsync(512);
+            larger = returned.Thumbnail;
+            Check(larger is not null && Math.Max(larger.PixelWidth, larger.PixelHeight) <= 512,
+                "只有磁盘缓存时仍须正常解码受限尺寸的图片");
+            returned.ReleaseThumbnail();
+            MediaCache.Clear();
+            foreach (var cachedFile in Directory.EnumerateFiles(diskRoot, "*.thumb"))
+            {
+                var corrupt = new byte[32];
+                BitConverter.GetBytes(0x31544846u).CopyTo(corrupt, 0);
+                BitConverter.GetBytes(512u).CopyTo(corrupt, 4);
+                File.WriteAllBytes(cachedFile, corrupt);
+            }
+            await returned.EnsureThumbnailAsync(512);
+            larger = returned.Thumbnail;
+            Check(larger is not null && !returned.ThumbnailFailed,
+                "磁盘图片损坏时必须自动丢弃并从源文件恢复");
+            await ThumbnailDiskCacheChecks.RunAsync(fixture, Check);
             var folder = new MediaItem(fixture, MediaKind.Folder);
             await folder.EnsureThumbnailAsync(128);
             Check(ReferenceEquals(folder.Thumbnail, larger), "文件夹封面应复用媒体缓存");

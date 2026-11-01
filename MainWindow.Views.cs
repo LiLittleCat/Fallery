@@ -8,6 +8,7 @@ namespace Fallery;
 
 public sealed partial class MainWindow
 {
+    private const double FilmstripTileWidth = 120;
     private readonly StackLayout _filmstripLayout = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
     private bool IsFilmstrip => GalleryState.DisplayMode == GalleryDisplayMode.Filmstrip;
 
@@ -115,7 +116,7 @@ public sealed partial class MainWindow
 
     private void ConfigureTile(MediaTile tile)
     {
-        tile.Width = IsFilmstrip ? 120 : double.NaN;
+        tile.Width = IsFilmstrip ? FilmstripTileWidth : double.NaN;
         tile.Height = IsFilmstrip ? GalleryState.ShowFileNames ? 132 : 110 : double.NaN;
         // 只有网格和横排的格子比例与图片不一致，需要完整显示；瀑布流与自适应行按原比例铺满。
         tile.SetPresentation(GalleryState.ShowFileNames, GalleryState.DisplayMode is GalleryDisplayMode.LargeIcons or GalleryDisplayMode.Filmstrip,
@@ -151,6 +152,8 @@ public sealed partial class MainWindow
 
     private async void Tile_Tapped(object sender, TappedRoutedEventArgs e)
     {
+        // 点击卡片后让键盘操作跟随浏览区，避免焦点仍留在之前的文件树节点。
+        if (sender is MediaTile tile) tile.Focus(FocusState.Pointer);
         if (!IsFilmstrip)
         {
             if (sender is MediaTile { Item: { } selected }) SelectItem(selected);

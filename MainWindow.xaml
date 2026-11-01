@@ -22,6 +22,30 @@
                         <SolidColorBrush x:Key="DividerBrush" Color="#19FFFFFF" />
                     </ResourceDictionary>
                 </ResourceDictionary.ThemeDictionaries>
+                <!-- 图标开关用中性底色和图标明暗区分状态，保留原生 ToggleButton 的交互与焦点处理。 -->
+                <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="{ThemeResource SubtleFillColorSecondary}" />
+                <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="{ThemeResource SubtleFillColorTertiary}" />
+                <SolidColorBrush x:Key="ToggleButtonBackgroundDisabled" Color="Transparent" />
+                <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="{ThemeResource SubtleFillColorSecondary}" />
+                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="{ThemeResource ControlFillColorSecondary}" />
+                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="{ThemeResource SubtleFillColorTertiary}" />
+                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedDisabled" Color="{ThemeResource SubtleFillColorSecondary}" />
+                <SolidColorBrush x:Key="ToggleButtonForeground" Color="{ThemeResource TextFillColorTertiary}" />
+                <SolidColorBrush x:Key="ToggleButtonForegroundPointerOver" Color="{ThemeResource TextFillColorTertiary}" />
+                <SolidColorBrush x:Key="ToggleButtonForegroundPressed" Color="{ThemeResource TextFillColorSecondary}" />
+                <SolidColorBrush x:Key="ToggleButtonForegroundDisabled" Color="{ThemeResource TextFillColorDisabled}" />
+                <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="{ThemeResource TextFillColorPrimary}" />
+                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="{ThemeResource TextFillColorPrimary}" />
+                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="{ThemeResource TextFillColorSecondary}" />
+                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedDisabled" Color="{ThemeResource TextFillColorDisabled}" />
+                <Style x:Key="IconToggleButtonStyle" TargetType="ToggleButton" BasedOn="{StaticResource DefaultToggleButtonStyle}">
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Padding" Value="7" />
+                    <Setter Property="MinWidth" Value="30" />
+                    <Setter Property="MinHeight" Value="30" />
+                    <Setter Property="CornerRadius" Value="5" />
+                </Style>
                 <Style x:Key="IconButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
                     <Setter Property="Background" Value="Transparent" />
                     <Setter Property="BorderThickness" Value="0" />
@@ -32,6 +56,24 @@
                 </Style>
                 <controls:FolderIconConverter x:Key="FolderIconConverter" />
                 <controls:NonEmptyTextVisibilityConverter x:Key="NonEmptyTextVisibilityConverter" />
+                <Style x:Key="DetailsLabelStyle" TargetType="TextBlock">
+                    <Setter Property="FontSize" Value="12" />
+                    <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Style>
+                <Style x:Key="DetailsValueStyle" TargetType="TextBlock">
+                    <Setter Property="FontSize" Value="13" />
+                    <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                    <Setter Property="TextWrapping" Value="Wrap" />
+                    <Setter Property="LineHeight" Value="20" />
+                    <Setter Property="IsTextSelectionEnabled" Value="True" />
+                </Style>
+                <Style x:Key="DetailsCardStyle" TargetType="Border">
+                    <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}" />
+                    <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="CornerRadius" Value="10" />
+                    <Setter Property="Padding" Value="14" />
+                </Style>
                 <DataTemplate x:Key="PlaylistTextTemplate" x:DataType="models:MediaItem">
                     <TextBlock Text="{x:Bind Name}" FontSize="12" TextWrapping="Wrap" MaxLines="2" Margin="0,8"
                                TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTipService.ToolTip="{x:Bind Name}" />
@@ -92,8 +134,8 @@
                   Background="Transparent" Foreground="{ThemeResource TextFillColorPrimaryBrush}">
             <TitleBar.Resources>
                 <HorizontalAlignment x:Key="TitleBarContentHorizontalAlignment">Stretch</HorizontalAlignment>
-                <x:Double x:Key="TitleBarIconMaxWidth">24</x:Double>
-                <x:Double x:Key="TitleBarIconMaxHeight">24</x:Double>
+                <x:Double x:Key="TitleBarIconMaxWidth">20</x:Double>
+                <x:Double x:Key="TitleBarIconMaxHeight">20</x:Double>
                 <Thickness x:Key="TitleBarIconMargin">0,0,10,0</Thickness>
                 <!-- 工具栏按钮禁用时只变灰图标，不显示底色块，否则后退/前进看起来像留了很大的内边距。 -->
                 <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent" />
@@ -320,8 +362,7 @@
                                 ToolTipService.ToolTip="在当前目录新建文件夹" AutomationProperties.Name="新建文件夹">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconNewFolder}" />
                         </Button>
-                        <ToggleButton x:Name="TreeModifiedToggle" Style="{StaticResource DefaultToggleButtonStyle}" Click="TreeModified_Click"
-                                      MinWidth="30" MinHeight="30" Padding="7" BorderThickness="0" CornerRadius="5"
+                        <ToggleButton x:Name="TreeModifiedToggle" Style="{StaticResource IconToggleButtonStyle}" Click="TreeModified_Click"
                                       ToolTipService.ToolTip="显示文件夹修改时间" AutomationProperties.Name="显示文件夹修改时间">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortModified}" />
                         </ToggleButton>
@@ -361,6 +402,8 @@
                                               Visibility="{Binding Content, Converter={StaticResource FolderIconConverter}, ConverterParameter=Drive}" />
                                     <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconPictures}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                                               Visibility="{Binding Content, Converter={StaticResource FolderIconConverter}, ConverterParameter=Pictures}" />
+                                    <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconDesktop}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                              Visibility="{Binding Content, Converter={StaticResource FolderIconConverter}, ConverterParameter=Desktop}" />
                                 </Grid>
                                 <Grid Grid.Column="1" VerticalAlignment="Center" Margin="0,3">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -377,6 +420,7 @@
                                   HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
                                   AutomationProperties.Name="调整文件树宽度" ToolTipService.ToolTip="拖动调整文件树宽度" />
             <Border x:Name="GallerySurface" Grid.Column="2"
+                    ContextRequested="Gallery_ContextRequested"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,1,0,1" CornerRadius="8,0,0,8">
                 <Grid x:Name="GalleryContent">
                     <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -408,18 +452,14 @@
             </StackPanel>
         </Grid>
 
-        <!-- 查看器：画面与共用右侧面板；底部控制栏跟随画面列。 -->
+        <!-- 查看器：共用右侧面板覆盖画面，不占用画面和底部控制栏的布局空间。 -->
         <Grid x:Name="Viewer" Grid.Row="1" Grid.RowSpan="2" Visibility="{x:Bind ToVisibility(ViewerState.IsOpen), Mode=OneWay}" Background="Transparent" RequestedTheme="Dark">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition x:Name="PlaylistColumn" Width="0" />
-            </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <Grid x:Name="ViewerStage" Grid.Column="0">
+            <Grid x:Name="ViewerStage" Grid.Column="0" SizeChanged="ViewerStage_SizeChanged">
                 <ScrollViewer x:Name="ImageScroller" ViewChanged="ImageScroller_ViewChanged" ZoomMode="Enabled" MinZoomFactor="0.1" MaxZoomFactor="20"
                               HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                               HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
@@ -442,6 +482,26 @@
                     <MediaPlayerElement x:Name="ViewerVideo" Visibility="Collapsed" AreTransportControlsEnabled="False"
                                         AutoPlay="False" Stretch="Uniform" Background="Transparent" />
                 </controls:AspectFitPanel>
+                <controls:AspectFitPanel x:Name="MotionSurface" Visibility="Collapsed" IsHitTestVisible="False" Background="Transparent">
+                    <MediaPlayerElement x:Name="MotionVideo" AreTransportControlsEnabled="False" AutoPlay="False"
+                                        Stretch="Uniform" RenderTransformOrigin="0.5,0.5" />
+                </controls:AspectFitPanel>
+                <Border x:Name="MotionPhotoControls" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Margin="20" Background="#B32F2118" CornerRadius="12" Padding="4">
+                    <StackPanel Orientation="Horizontal" Spacing="2">
+                        <Button x:Name="MotionPhotoButton" Click="MotionPhoto_Click" Background="Transparent" BorderThickness="0"
+                                Padding="12,8" CornerRadius="8" Foreground="White" AutomationProperties.Name="播放实况照片">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconPlayMedia}" Foreground="White" />
+                                <TextBlock x:Name="MotionPhotoText" Text="实况" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="MotionSoundButton" Click="MotionSound_Click" Style="{StaticResource IconButtonStyle}"
+                                VerticalAlignment="Center" Margin="4,0" Foreground="White">
+                            <FontIcon x:Name="MotionSoundIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconVolume}" Foreground="White" />
+                        </Button>
+                    </StackPanel>
+                </Border>
                 <TextBlock x:Name="ViewerMessage" Visibility="{x:Bind ToVisibility(ViewerState.HasMessage), Mode=OneWay}" Text="{x:Bind ViewerState.Message, Mode=OneWay}" TextWrapping="Wrap"
                            MaxWidth="640" Margin="64,24" HorizontalAlignment="Center" VerticalAlignment="Center"
                            TextAlignment="Center" Foreground="White" IsHitTestVisible="False" />
@@ -498,7 +558,6 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                     <StackPanel x:Name="ViewerMetadata" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Rectangle Width="1" Height="16" Margin="6,0" Fill="#33FFFFFF" VerticalAlignment="Center" />
                     <TextBlock x:Name="ViewerFormatText" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     <FontIcon x:Name="ViewerResolutionIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconResolution}" FontSize="13"
@@ -517,7 +576,7 @@
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFit}" />
                     </Button>
                     <DropDownButton Style="{StaticResource IconDropDownStyle}" ToolTipService.ToolTip="缩放比例" AutomationProperties.Name="缩放比例">
-                        <TextBlock x:Name="ZoomPercentText" Text="100%" FontSize="12" MinWidth="40" TextAlignment="Center" />
+                        <TextBlock x:Name="ZoomPercentText" Text="适应窗口 · —" FontSize="12" MinWidth="112" TextAlignment="Center" />
                         <DropDownButton.Flyout><MenuFlyout x:Name="ZoomMenu" Placement="Top" /></DropDownButton.Flyout>
                     </DropDownButton>
                     <Button Style="{StaticResource IconButtonStyle}" Click="ZoomOut_Click" ToolTipService.ToolTip="缩小 (Ctrl+-)" AutomationProperties.Name="缩小">
@@ -572,18 +631,24 @@
                         </DropDownButton.Flyout>
                     </DropDownButton>
                 </StackPanel>
-                    <Button x:Name="RotateMediaButton" Style="{StaticResource IconButtonStyle}" Click="RotateMedia_Click" IsEnabled="False"
-                            ToolTipService.ToolTip="顺时针旋转 90°（当前 0°）" AutomationProperties.Name="顺时针旋转 90°（当前 0°）">
-                        <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconRotate}" />
+                    <Button x:Name="RotateImageLeftButton" Style="{StaticResource IconButtonStyle}" Click="RotateImageLeft_Click" IsEnabled="False"
+                            ToolTipService.ToolTip="向左旋转 90°" AutomationProperties.Name="向左旋转 90°">
+                        <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconRotateLeft}" />
                     </Button>
+                    <Button x:Name="RotateMediaButton" Style="{StaticResource IconButtonStyle}" Click="RotateMedia_Click" IsEnabled="False"
+                            ToolTipService.ToolTip="向右旋转 90°" AutomationProperties.Name="向右旋转 90°">
+                        <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconRotateRight}" />
+                    </Button>
+                    <ToggleButton x:Name="FlipImageToggle" Style="{StaticResource IconToggleButtonStyle}" Click="FlipImage_Click" IsEnabled="False"
+                                  ToolTipService.ToolTip="水平翻转" AutomationProperties.Name="水平翻转">
+                        <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFlipHorizontal}" />
+                    </ToggleButton>
                 </StackPanel>
-                <ToggleButton x:Name="DetailsToggle" Grid.Column="2" Style="{StaticResource DefaultToggleButtonStyle}" Padding="7" MinWidth="30" MinHeight="30"
-                                  BorderThickness="0" CornerRadius="5" Click="DetailsToggle_Click"
+                <ToggleButton x:Name="DetailsToggle" Grid.Column="2" Style="{StaticResource IconToggleButtonStyle}" Click="DetailsToggle_Click"
                                   ToolTipService.ToolTip="详细信息 (I)" AutomationProperties.Name="详细信息">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconInfo}" />
                     </ToggleButton>
-                <ToggleButton x:Name="PlaylistToggle" Grid.Column="3" Style="{StaticResource DefaultToggleButtonStyle}" Padding="7" MinWidth="30" MinHeight="30"
-                              BorderThickness="0" CornerRadius="5" Click="PlaylistToggle_Click"
+                <ToggleButton x:Name="PlaylistToggle" Grid.Column="3" Style="{StaticResource IconToggleButtonStyle}" Click="PlaylistToggle_Click"
                               ToolTipService.ToolTip="播放列表 (L)" AutomationProperties.Name="播放列表">
                     <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconPlaylist}" />
                 </ToggleButton>
@@ -593,51 +658,39 @@
                 </Button>
             </Grid>
 
-            <!-- 同一个右侧面板：普通窗口向外扩展，最大化或全屏时覆盖画面。 -->
-            <Grid x:Name="ViewerSidePanel" Grid.Column="0" Grid.ColumnSpan="2" Width="300" HorizontalAlignment="Right" Visibility="Collapsed">
-                <Grid x:Name="DetailsPanel" Visibility="Collapsed" Background="#1B1C1F" BorderBrush="#26FFFFFF" BorderThickness="1,0,0,0">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                    <Grid Padding="16,10,6,6">
+            <!-- 共用悬浮外壳与画面四边留出间距，内容面板保持透明以露出圆角。 -->
+            <Grid x:Name="ViewerSidePanel" Grid.Row="0" Width="300"
+                  HorizontalAlignment="Right" Visibility="Collapsed" Margin="12"
+                  Background="#202123" BorderBrush="#20FFFFFF" BorderThickness="1" CornerRadius="12">
+                <Grid.Shadow><ThemeShadow x:Name="ViewerPanelShadow" /></Grid.Shadow>
+                <Grid x:Name="DetailsPanel" Visibility="Collapsed">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Grid Padding="16,14,10,10">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="详细信息" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Text="详细信息" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
                         <Button Grid.Column="1" Style="{StaticResource IconButtonStyle}" Click="DetailsToggle_Click"
                                 ToolTipService.ToolTip="收起详细信息 (I)" AutomationProperties.Name="收起详细信息">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconPanelRight}" />
                         </Button>
                     </Grid>
-                    <ScrollViewer Grid.Row="1" Padding="16,0,16,8" VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="DetailsContent" Spacing="14" />
+                    <ScrollViewer Grid.Row="1" Padding="16,16,16,8" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
+                        <StackPanel x:Name="DetailsContent" />
                     </ScrollViewer>
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6" Padding="12,8,12,12">
-                        <Button Click="DetailsCopyPath_Click" Padding="10,5">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconCopy}" FontSize="14" />
-                                <TextBlock Text="复制路径" FontSize="12" />
-                            </StackPanel>
-                        </Button>
-                        <Button Click="DetailsReveal_Click" Padding="10,5">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconOpenFolder}" FontSize="14" />
-                                <TextBlock Text="打开所在位置" FontSize="12" />
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
                 </Grid>
 
 
-                <Grid x:Name="PlaylistPanel" Visibility="Collapsed" Background="#1B1C1F"
-                      BorderBrush="#26FFFFFF" BorderThickness="1,0,0,0">
+                <Grid x:Name="PlaylistPanel" Visibility="Collapsed">
                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                    <Grid Padding="14,10,6,6">
+                    <Grid Padding="16,14,10,10">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="播放列表" FontSize="14" FontWeight="SemiBold" />
+                            <TextBlock Text="播放列表" FontSize="18" FontWeight="SemiBold" />
                             <TextBlock Text="{x:Bind ViewerState.Counter, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
                             <ToggleButton x:Name="PlaylistThumbnailsToggle" IsChecked="True" Click="PlaylistThumbnails_Click"
-                                          Style="{StaticResource DefaultToggleButtonStyle}" Padding="7" MinWidth="30" MinHeight="30"
-                                          BorderThickness="0" CornerRadius="5" ToolTipService.ToolTip="隐藏缩略图" AutomationProperties.Name="隐藏缩略图">
+                                          Style="{StaticResource IconToggleButtonStyle}" ToolTipService.ToolTip="隐藏缩略图" AutomationProperties.Name="隐藏缩略图">
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconImage}" />
                             </ToggleButton>
                             <Button Style="{StaticResource IconButtonStyle}" Click="PlaylistToggle_Click"
@@ -646,7 +699,7 @@
                             </Button>
                         </StackPanel>
                     </Grid>
-                    <ListView x:Name="PlaylistView" Grid.Row="1" SelectionMode="Single" IsItemClickEnabled="True" Padding="0,0,0,8"
+                    <ListView x:Name="PlaylistView" Grid.Row="1" SelectionMode="Single" IsItemClickEnabled="True" Margin="6,0,6,8" Padding="0,0,0,4"
                               ItemClick="PlaylistView_ItemClick" ContainerContentChanging="PlaylistView_ContainerContentChanging">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="models:MediaItem">

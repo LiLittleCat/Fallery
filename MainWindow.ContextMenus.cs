@@ -63,10 +63,22 @@ public sealed partial class MainWindow
         ShowItemMenu(Viewer, e.TryGetPosition(Viewer, out var point) ? point : null, item.Path, false);
     }
 
+    private void Gallery_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        if (_gesturePointer is not null || GalleryState.CurrentFolder is not { } path) return;
+        bool positioned = e.TryGetPosition(GallerySurface, out var point);
+        e.Handled = true;
+        if (positioned && Environment.TickCount64 - _lastRightRelease < 500) return;
+        ShowItemMenu(GallerySurface, positioned ? point : null, path, true, allowDelete: false);
+    }
+
     private void ShowItemMenu(FrameworkElement target, Point? point, string path, bool folder, TreeViewNode? node = null, bool allowDelete = true)
     {
         StopHoverPreview();
         CloseItemMenu();
+        if (node is not null) FolderTree.SelectedNode = node;
+        else if (GalleryState.Items.FirstOrDefault(item => string.Equals(item.Path, path, StringComparison.OrdinalIgnoreCase)) is { } selected)
+            SelectItem(selected);
         var menu = BuildItemMenu(path, folder, node, allowDelete);
         _itemMenu = menu;
         menu.Closed += (_, _) => { if (ReferenceEquals(_itemMenu, menu)) _itemMenu = null; };
@@ -85,6 +97,7 @@ public sealed partial class MainWindow
                 "reveal" => "IconOpenFolder",
                 "copy-path" => "IconCopy",
                 "copy-file" => "IconCopyFile",
+                "paste" => "IconPaste",
                 "delete" => "IconDelete",
                 "exclude" => "IconFilter",
                 _ => "IconRefresh",
@@ -126,15 +139,12 @@ public sealed partial class MainWindow
             GalleryState.Status = "已复制完整路径";
             return Task.CompletedTask;
         });
-        Add(folder ? "复制文件夹" : "复制文件", "copy-file", async () =>
-        {
-            IStorageItem item = folder ? await StorageFolder.GetFolderFromPathAsync(path) : await StorageFile.GetFileFromPathAsync(path);
-            var data = new DataPackage { RequestedOperation = DataPackageOperation.Copy };
-            data.SetStorageItems(new[] { item });
-            Clipboard.SetContent(data);
-            Clipboard.Flush();
-            GalleryState.Status = "已复制，可在资源管理器中粘贴";
-        });
+        Add(folder ? "复制文件夹" : "复制文件", "copy-file", () => CopyFileAsync(path, folder));
+        ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+C";
+        string? destination = folder ? path : System.IO.Path.GetDirectoryName(path);
+        Add("粘贴", "paste", () => destination is null ? Task.CompletedTask : PasteFilesAsync(destination));
+        ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+V";
+        ((MenuFlyoutItem)menu.Items[^1]).IsEnabled = destination is not null && !_pasting && ClipboardHasFiles();
         if (folder)
             Add("刷新此目录", "refresh", async () =>
             {

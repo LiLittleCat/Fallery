@@ -106,7 +106,7 @@ public sealed partial class MainWindow
         var association = BuildAssociationSection();
         var clear = new Button { Content = "清除缩略图缓存" };
         var feedback = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap };
-        clear.Click += async (_, _) => { await ClearCacheAsync(); feedback.Text = "已清除，预览会按需重新加载。"; };
+        clear.Click += async (_, _) => { await ClearCacheAsync(); feedback.Text = GalleryState.Status; };
         var content = new StackPanel { Spacing = 16, MinWidth = 320 };
         foreach (var element in new UIElement[] { theme, mode, names, cards, size, association, clear, feedback }) content.Children.Add(element);
         var dialog = new ContentDialog

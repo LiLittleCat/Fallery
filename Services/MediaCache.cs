@@ -5,6 +5,8 @@ namespace Fallery.Services;
 
 public static class MediaCache
 {
+    internal static ThumbnailDiskCache Disk { get; set; } = new(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fallery", "Thumbnails", "v1"));
     // 这是缓存引用的解码像素预算，不包含可见控件、GPU 和运行时的内存。
     private static readonly BoundedCache<FileVersion, CachedThumbnail> Thumbnails = new(128L * 1024 * 1024, 512);
     public static BoundedCache<FileVersion, double> AspectRatios { get; } = new(20_000, 20_000);

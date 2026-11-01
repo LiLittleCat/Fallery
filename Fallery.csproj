@@ -28,8 +28,8 @@
     <!-- 窗口标题栏和任务栏图标在运行时从输出目录读取 -->
     <Content Include="Assets\Fallery.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\FalleryTitleBar.scale-*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <!-- 精简的 Fluent UI System Icons，由 tools/build_icons.py 生成 -->
-    <Content Include="Assets\Fonts\*.ttf;Assets\Fonts\LICENSE-FluentSystemIcons.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- 精简的 Hugeicons Stroke Rounded，由 tools/build_icons.py 生成 -->
+    <Content Include="Assets\Fonts\*.ttf;Assets\Fonts\LICENSE-Hugeicons.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

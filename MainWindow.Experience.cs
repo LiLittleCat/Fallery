@@ -59,6 +59,7 @@ public sealed partial class MainWindow
         _settingsTimer.Tick += SettingsTimer_Tick;
         Root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(Root_MouseNavigationPressed), true);
         ViewerStage.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(ViewerStage_PointerWheelChanged), true);
+        ImageScroller.Loaded += ImageScroller_WheelLoaded;
         GallerySurface.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(Gallery_PointerPressed), true);
         GallerySurface.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(Gallery_PointerMoved), true);
         GallerySurface.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(Gallery_PointerReleased), true);

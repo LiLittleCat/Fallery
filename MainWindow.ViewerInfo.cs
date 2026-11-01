@@ -1,10 +1,8 @@
 using Fallery.Models;
 using Fallery.Services;
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace Fallery;
@@ -16,6 +14,8 @@ public sealed partial class MainWindow
     private MediaDetails? _viewerDetails;
     private bool _detailsOpen;
     private bool _updatingZoomSlider;
+    private bool _imageFitMode = true;
+    private bool _imageFitPending;
 
     private void InitializeViewerInfo()
     {
@@ -44,7 +44,14 @@ public sealed partial class MainWindow
             if (!cts.IsCancellationRequested && !_closed && ReferenceEquals(ViewerState.CurrentItem, item)) ShowViewerDetails(details);
         }
         catch (OperationCanceledException) { }
-        finally { if (ReferenceEquals(_detailsCts, cts)) _detailsCts = null; }
+        finally
+        {
+            if (ReferenceEquals(_detailsCts, cts))
+            {
+                _detailsCts = null;
+                if (!_closed) UpdateZoomIndicators();
+            }
+        }
     }
 
     private void ShowViewerDetails(MediaDetails details)
@@ -56,22 +63,7 @@ public sealed partial class MainWindow
         ViewerSizeText.Text = details.Size;
         UpdateZoomIndicators();
 
-        DetailsContent.Children.Clear();
-        var secondary = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
-        foreach (var (group, rows) in details.Groups)
-        {
-            if (rows.Count == 0) continue;
-            var section = new StackPanel { Spacing = 8 };
-            section.Children.Add(new TextBlock { Text = group, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = secondary });
-            foreach (var (label, value) in rows)
-            {
-                var row = new StackPanel { Spacing = 1 };
-                row.Children.Add(new TextBlock { Text = label, FontSize = 12, Foreground = secondary });
-                row.Children.Add(new TextBlock { Text = value, FontSize = 13, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
-                section.Children.Add(row);
-            }
-            DetailsContent.Children.Add(section);
-        }
+        RenderViewerDetails(details);
     }
 
     private void DetailsToggle_Click(object sender, RoutedEventArgs e) => SetDetailsOpen(!_detailsOpen);
@@ -80,7 +72,7 @@ public sealed partial class MainWindow
     {
         _detailsOpen = open;
         if (open) _playlistOpen = false;
-        ApplyViewerSidePanel(resizeWindow: true);
+        ApplyViewerSidePanel();
         QueueSettingsSave();
     }
 
@@ -123,13 +115,17 @@ public sealed partial class MainWindow
 
     private void ZoomTo(double factor)
     {
+        StopMotionPlayback();
+        _imageFitMode = false;
+        _imageFitPending = false;
         factor = Math.Clamp(factor, ImageScroller.MinZoomFactor, ImageScroller.MaxZoomFactor);
         double old = ImageScroller.ZoomFactor;
         // 以视口中心为锚点缩放，避免画面跳到左上角。
         double centerX = (ImageScroller.HorizontalOffset + ImageScroller.ViewportWidth / 2) / old;
         double centerY = (ImageScroller.VerticalOffset + ImageScroller.ViewportHeight / 2) / old;
-        ImageScroller.ChangeView(Math.Max(0, centerX * factor - ImageScroller.ViewportWidth / 2),
-            Math.Max(0, centerY * factor - ImageScroller.ViewportHeight / 2), (float)factor, disableAnimation: true);
+        if (!ImageScroller.ChangeView(Math.Max(0, centerX * factor - ImageScroller.ViewportWidth / 2),
+            Math.Max(0, centerY * factor - ImageScroller.ViewportHeight / 2), (float)factor, disableAnimation: true))
+            UpdateZoomIndicators();
     }
 
     private void ZoomToPercent(double percent)
@@ -142,14 +138,27 @@ public sealed partial class MainWindow
 
     private void UpdateZoomIndicators()
     {
-        double fit = FitScale();
-        ZoomPercentText.Text = fit > 0 ? $"{Math.Round(ImageScroller.ZoomFactor * fit * 100)}%" : "适应";
+        // 等原图尺寸就绪再显示比例，避免先按解码预览尺寸算一次、随后跳成另一比例。
+        bool dimensionsReady = _viewerDetails is { Width: > 0, Height: > 0 } || _detailsCts is null;
+        double fit = ViewerImage.Source is not null && dimensionsReady ? FitScale() : 0;
+        double factor = _imageFitPending ? 1 : ImageScroller.ZoomFactor;
+        string percent = fit > 0 ? $"{Math.Round(factor * fit * 100)}%" : "—";
+        ZoomPercentText.Text = _imageFitMode ? $"适应窗口 · {percent}" : percent;
         _updatingZoomSlider = true;
-        ZoomSlider.Value = Math.Log2(ImageScroller.ZoomFactor);
+        ZoomSlider.Value = Math.Log2(factor);
         _updatingZoomSlider = false;
     }
 
-    private void ImageScroller_ViewChanged(object? sender, ScrollViewerViewChangedEventArgs e) => UpdateZoomIndicators();
+    private void ImageScroller_ViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+    {
+        bool atFit = Math.Abs(ImageScroller.ZoomFactor - 1) <= 0.0001;
+        if (_imageFitPending)
+        {
+            if (atFit) _imageFitPending = false;
+        }
+        else if (!atFit) _imageFitMode = false; // Ctrl＋滚轮和触控缩放也切换为百分比显示。
+        UpdateZoomIndicators();
+    }
     private void ZoomFit_Click(object sender, RoutedEventArgs e) => FitImageToViewport();
     private void ZoomIn_Click(object sender, RoutedEventArgs e) => ZoomBy(1.25);
     private void ZoomOut_Click(object sender, RoutedEventArgs e) => ZoomBy(1 / 1.25);

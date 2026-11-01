@@ -131,31 +131,30 @@ public static class FolderScanner
     }
 
     private static List<MediaFile> FindFolderPreviews(string folder, int limit, CancellationToken ct, MediaFilter filter, bool showHidden)
+        => EnumerateFolderPreviews(folder, ct, filter, showHidden).Take(limit).ToList();
+
+    public static IEnumerable<MediaFile> EnumerateFolderPreviews(string folder, CancellationToken ct = default,
+        MediaFilter filter = MediaFilter.All, bool showHidden = false)
     {
         ct.ThrowIfCancellationRequested();
-        var previews = new List<MediaFile>();
+        bool accessible;
         try
         {
-            if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0) return previews;
+            accessible = (File.GetAttributes(folder) & FileAttributes.ReparsePoint) == 0;
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { return previews; }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { accessible = false; }
+        if (!accessible) yield break;
         var pending = new Stack<string>();
         pending.Push(folder);
         while (pending.TryPop(out var current))
         {
             ct.ThrowIfCancellationRequested();
-            try
+            // 枚举也是惰性的，拿到足够封面后不再访问后面的目录。
+            foreach (var file in EnumeratePreviewFiles(current, showHidden, ct))
             {
-                // 先取当前层，再按子目录自然顺序查找；找到足够候选就停止，不解码整棵树。
-                foreach (var file in new DirectoryInfo(current).EnumerateFiles("*", TopLevel(showHidden)))
-                {
-                    ct.ThrowIfCancellationRequested();
-                    if (GetMediaKind(file.FullName) is { } kind && MatchesFilter(kind, filter))
-                        previews.Add(new(file.FullName, kind) { Version = FileVersion.FromInfo(file), CreatedTicks = GetCreatedTicks(file) });
-                    if (previews.Count == limit) { ct.ThrowIfCancellationRequested(); return previews; }
-                }
+                if (GetMediaKind(file.FullName) is { } kind && MatchesFilter(kind, filter))
+                    yield return new(file.FullName, kind) { Version = FileVersion.FromInfo(file), CreatedTicks = GetCreatedTicks(file) };
             }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
             try
             {
                 var directories = new List<string>();
@@ -171,7 +170,26 @@ public static class FolderScanner
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
         }
         ct.ThrowIfCancellationRequested();
-        return previews;
+    }
+
+    private static IEnumerable<FileInfo> EnumeratePreviewFiles(string folder, bool showHidden, CancellationToken ct)
+    {
+        IEnumerator<FileInfo>? iterator = null;
+        try { iterator = new DirectoryInfo(folder).EnumerateFiles("*", TopLevel(showHidden)).GetEnumerator(); }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { }
+        if (iterator is null) yield break;
+        using (iterator)
+        {
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                FileInfo? next;
+                try { next = iterator.MoveNext() ? iterator.Current : null; }
+                catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { next = null; }
+                if (next is null) yield break;
+                yield return next;
+            }
+        }
     }
 
     public static IEnumerable<string> SupportedExtensions => ImageExtensions.Concat(VideoExtensions);
@@ -230,6 +248,8 @@ public static class FolderScanner
         var roots = new List<FolderEntry>();
         var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
         if (Directory.Exists(pictures)) roots.Add(new(pictures, "图片") { ModifiedTicks = ReadFolderModifiedTicks(pictures) });
+        var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        if (Directory.Exists(desktop)) roots.Add(new(desktop, "桌面") { ModifiedTicks = ReadFolderModifiedTicks(desktop) });
         foreach (var drive in DriveInfo.GetDrives())
         {
             ct.ThrowIfCancellationRequested();

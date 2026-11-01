@@ -295,6 +295,9 @@ var basicDetails = MediaDetailsReader.Basic(launchFile, MediaKind.Image);
 Check(basicDetails.Format == "JPG" && basicDetails.Length == new FileInfo(launchFile).Length && basicDetails.Resolution == ""
     && basicDetails.Groups.Any(g => g.Rows.Any(r => r.Value == fixture)), "基础信息不读文件内容，包含格式、大小和所在文件夹");
 Check(MediaDetailsReader.Basic(Path.Combine(fixture, "missing.mp4"), MediaKind.Video).Length == 0, "缺失文件的基础信息不能抛异常");
+await PhotoMetadataChecks.RunAsync(Path.Combine(fixture, "exif"), Check);
+await FilePasteChecks.RunAsync(Path.Combine(fixture, "paste"), Check);
+await MotionPhotoChecks.RunAsync(Path.Combine(fixture, "motion"), Check);
 
 MediaFile SortFile(string name, long length, long ticks) => new(Path.Combine(fixture, name), MediaKind.Image)
 { Version = new FileVersion(Path.Combine(fixture, name), length, ticks), CreatedTicks = ticks, TakenTicks = ticks };

@@ -53,9 +53,12 @@ public sealed partial class MediaItem : ObservableObject
 
     /// <summary>在 UI 线程调用。元素被回收后再完成的加载会被丢弃。</summary>
     public const int MinCoverPixels = 128;
+    public const uint MaxThumbnailPixels = 512;
 
     public async Task EnsureThumbnailAsync(uint size)
     {
+        // 在查缓存前统一限幅，避免大尺寸请求反复升级同一张缩略图、挤掉最近目录。
+        size = Math.Clamp(size, 1u, MaxThumbnailPixels);
         if ((Thumbnail is not null && _thumbnailSize >= size)
             || (_thumbnailCts is not null && _pendingSize >= size)) return;
         _thumbnailCts?.Cancel();
@@ -76,16 +79,15 @@ public sealed partial class MediaItem : ObservableObject
         {
             await ThumbnailSlots.WaitAsync(ct);
             acquired = true;
-            List<MediaFile> candidates = [new(Path, Kind) { Version = Version }];
-            if (IsFolder)
-            {
-                // 文件夹时间戳不能反映封面文件被覆盖，重新验证少量候选的文件版本。
-                candidates = await Task.Run(() => FolderScanner.FindFolderPreviews(Path, ct, File.PreviewFilter, File.PreviewHidden), ct);
-                ct.ThrowIfCancellationRequested();
-            }
+            IEnumerable<MediaFile> candidates = IsFolder
+                ? FolderScanner.EnumerateFolderPreviews(Path, ct, File.PreviewFilter, File.PreviewHidden).Take(8)
+                : [new(Path, Kind) { Version = Version }];
+            using var candidateIterator = candidates.GetEnumerator();
             var covers = new List<BitmapImage>(3);
-            foreach (var candidate in candidates)
+            // 逐个取得候选，三张可用封面就停止，不为凑齐八个候选继续扫描后代。
+            while (await Task.Run(candidateIterator.MoveNext, ct))
             {
+                var candidate = candidateIterator.Current;
                 try
                 {
                     var version = candidate.Version ?? await Task.Run(() => FileVersion.Read(candidate.Path), ct);
@@ -97,7 +99,7 @@ public sealed partial class MediaItem : ObservableObject
                     var bitmap = MediaCache.GetThumbnail(version, size);
                     if (bitmap is null)
                     {
-                        bitmap = await LoadThumbnailBitmapAsync(candidate.Path, candidate.Kind, size, ct);
+                        bitmap = await LoadThumbnailBitmapAsync(candidate.Path, candidate.Kind, version, size, ct);
                         ct.ThrowIfCancellationRequested();
                         var afterLoad = await Task.Run(() => FileVersion.Read(candidate.Path), ct);
                         ct.ThrowIfCancellationRequested();
@@ -140,8 +142,21 @@ public sealed partial class MediaItem : ObservableObject
         }
     }
 
-    private static async Task<BitmapImage?> LoadThumbnailBitmapAsync(string path, MediaKind kind, uint size, CancellationToken ct)
+    private static async Task<BitmapImage?> LoadThumbnailBitmapAsync(string path, MediaKind kind, FileVersion? version, uint size, CancellationToken ct)
     {
+        var disk = MediaCache.Disk;
+        int generation = disk.Generation;
+        if (version is { } key && await disk.ReadAsync(key, size, ct) is { } data)
+        {
+            try
+            {
+                using var memory = new MemoryStream(data);
+                using var cachedStream = memory.AsRandomAccessStream();
+                return await DecodeThumbnailAsync(cachedStream, size, ct);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception) { await disk.RemoveAsync(key); }
+        }
         // 卡片回收会取消请求；系统取图长时间无响应时也应结束等待并显示失败状态。
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(20));
@@ -153,14 +168,32 @@ public sealed partial class MediaItem : ObservableObject
                 ThumbnailOptions.ResizeThumbnail).AsTask(ct);
             ct.ThrowIfCancellationRequested();
             if (thumb is not null && thumb.Size > 0 && thumb.Type == ThumbnailType.Image)
-                return await DecodeThumbnailAsync(thumb, size, ct);
+                return await DecodeAndStoreAsync(thumb);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception) when (kind == MediaKind.Video) { }
         ct.ThrowIfCancellationRequested();
         if (kind != MediaKind.Video) return null;
         using var frame = await VideoThumbnail.GetFirstFrameAsync(file, size, ct);
-        return await DecodeThumbnailAsync(frame, size, ct);
+        return await DecodeAndStoreAsync(frame);
+
+        async Task<BitmapImage> DecodeAndStoreAsync(IRandomAccessStream stream)
+        {
+            var bitmap = await DecodeThumbnailAsync(stream, size, ct);
+            if (version is { } current && stream.Size is > 0 and <= ThumbnailDiskCache.MaxEntryBytes)
+            {
+                stream.Seek(0);
+                using var reader = new DataReader(stream.GetInputStreamAt(0));
+                uint length = (uint)stream.Size;
+                if (await reader.LoadAsync(length).AsTask(ct) == length)
+                {
+                    var encoded = new byte[length];
+                    reader.ReadBytes(encoded);
+                    await disk.StoreAsync(current, size, encoded, generation, ct);
+                }
+            }
+            return bitmap;
+        }
     }
 
     private static async Task<BitmapImage> DecodeThumbnailAsync(IRandomAccessStream thumb, uint size, CancellationToken ct)

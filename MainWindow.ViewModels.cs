@@ -77,18 +77,25 @@ public sealed partial class MainWindow
         finally { if (ReferenceEquals(_treeSelectionCts, cts)) _treeSelectionCts = null; }
     }
 
-    private void ClearCache_Click(object sender, RoutedEventArgs e) => ClearCacheAsync();
+    private async void ClearCache_Click(object sender, RoutedEventArgs e) => await ClearCacheAsync();
 
-    private Task ClearCacheAsync()
+    private async Task ClearCacheAsync()
     {
-        if (_closed || _closing) return Task.CompletedTask;
+        if (_closed || _closing) return;
         GalleryState.Cancel();
         ReleaseGalleryThumbnails();
         Gallery.ItemsSource = null;
         GalleryState.ClearCachedDirectories();
         MediaCache.Clear();
-        Gallery.ItemsSource = GalleryState.Items;
-        GalleryState.Status = "内存缓存已清除，预览会按需重新加载";
-        return Task.CompletedTask;
+        try
+        {
+            await MediaCache.Disk.ClearAsync();
+            GalleryState.Status = "内存和磁盘缓存已清除，预览会按需重新加载";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            GalleryState.Status = "内存缓存已清除，部分磁盘缓存暂时无法删除";
+        }
+        finally { if (!_closed && !_closing) Gallery.ItemsSource = GalleryState.Items; }
     }
 }

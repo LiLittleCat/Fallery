@@ -32,8 +32,9 @@ public partial class App : Application
             var workspace = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../.."));
             var settingsPath = Path.Combine(workspace, "work", "validation", "experience-checks", "settings.json");
             var store = new AppSettingsStore(settingsPath);
+            // 隐藏宿主也会真实播放测试视频，测试配置必须从首次加载起静音。
             await store.SaveAsync(new AppSettings { Width = 1100, Height = 720, VideoWindowDefaultsApplied = true, Theme = 2, ThumbnailSize = 320,
-                SidebarWidth = 300, SortField = MediaSortField.Size, Descending = true });
+                SidebarWidth = 300, SortField = MediaSortField.Size, Descending = true, Muted = true, Volume = 0 });
             // 直接实例化生产窗口，不激活、不发送输入，设置写入隔离的测试目录。
             window = new MainWindow(store, monitorFolderChanges: false);
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -148,9 +149,16 @@ public partial class App : Application
             await Invoke("GoBackAsync");
             Check(window.ViewerState.CurrentIndex == 0, "横排模式返回目录后应自动打开首项");
             var imageMenu = (MenuFlyout)typeof(MainWindow).GetMethod("BuildItemMenu", flags)!.Invoke(window, new object?[] { items[0].Path, false, null, true })!;
-            Check(imageMenu.Items.OfType<MenuFlyoutItem>().Select(i => i.Tag).SequenceEqual(new[] { "open", "reveal", "copy-path", "copy-file", "delete" }),
+            Check(imageMenu.Items.OfType<MenuFlyoutItem>().Select(i => i.Tag).SequenceEqual(new[] { "open", "reveal", "copy-path", "copy-file", "paste", "delete" }),
                 "媒体菜单应提供打开、定位、复制和删除入口");
             var treeMenu = (MenuFlyout)typeof(MainWindow).GetMethod("BuildItemMenu", flags)!.Invoke(window, new object?[] { folder, true, firstNode, true })!;
+            Check(treeMenu.Items.OfType<MenuFlyoutItem>().Any(i => Equals(i.Tag, "paste") && i.KeyboardAcceleratorTextOverride == "Ctrl+V"),
+                "文件夹菜单应提供粘贴及快捷键提示");
+            bool TextOwnsClipboard(DependencyObject element) => (bool)typeof(MainWindow).GetMethod("IsClipboardTextTarget",
+                BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [element])!;
+            Check(TextOwnsClipboard(new TextBox()) && TextOwnsClipboard(new RichEditBox())
+                && TextOwnsClipboard(new TextBlock { IsTextSelectionEnabled = true }) && !TextOwnsClipboard(new Button()),
+                "文本编辑和详情文字选择必须保留原生复制粘贴，普通按钮不能屏蔽文件快捷键");
             Check(treeMenu.Items.OfType<MenuFlyoutItem>().Any(i => Equals(i.Tag, "expand"))
                 && treeMenu.Items.OfType<MenuFlyoutItem>().Any(i => Equals(i.Tag, "refresh")), "文件树菜单缺少展开或刷新入口");
             Check(treeMenu.Items.OfType<MenuFlyoutItem>().Any(i => Equals(i.Tag, "exclude"))
@@ -188,6 +196,8 @@ public partial class App : Application
             Check(window.ViewerState.CurrentIndex == 1, "快速滚轮事件应节流，不能连续跳过多项");
             await Invoke("NavigateViewerWheelAsync", -120, wheelTime + 240);
             Check(window.ViewerState.CurrentItem?.IsVideo == true, "滚轮应从图片切换到视频");
+            Check(Get("_videoPlayer") is Fallery.Services.Playback.IPlayer { IsMuted: true, Volume: 0 },
+                "隐藏测试窗口的真实视频播放器必须静音且音量为零");
             await Invoke("NavigateViewerWheelAsync", -120, wheelTime + 440);
             Check(window.ViewerState.CurrentIndex == 2, "末项继续向下不能越界或循环");
             await Invoke("NavigateViewerWheelAsync", 120, wheelTime + 640);
@@ -195,6 +205,31 @@ public partial class App : Application
                 "滚轮向上应从视频返回上一张图片");
             bool AllowsWheel(bool modified, bool horizontal) => (bool)typeof(MainWindow).GetMethod("CanNavigateViewerWheel", flags)!.Invoke(window, [modified, horizontal])!;
             Check(!AllowsWheel(true, false) && !AllowsWheel(false, true), "组合键缩放及横向滚轮不能触发媒体切换");
+            var wheelScroller = (ScrollViewer)root.FindName("ImageScroller");
+            wheelScroller.ChangeView(0, 0, 10f, disableAnimation: true);
+            await Task.Delay(100);
+            root.UpdateLayout();
+            Check(wheelScroller.ZoomFactor > 1 && !AllowsWheel(false, false), "图片放大超过适应窗口后滚轮不能切图");
+            bool PanWheel(int delta, Windows.System.VirtualKeyModifiers modifiers) =>
+                (bool)typeof(MainWindow).GetMethod("TryPanViewerWheel", flags)!.Invoke(window, [delta, modifiers, false])!;
+            Check(PanWheel(-120, Windows.System.VirtualKeyModifiers.None), "放大图片必须消费纵向滚轮");
+            await Task.Delay(100);
+            Check(wheelScroller.VerticalOffset > 0, "放大图片向下滚轮必须向下平移");
+            double wheelVerticalOffset = wheelScroller.VerticalOffset;
+            Check(PanWheel(-120, Windows.System.VirtualKeyModifiers.Shift), "放大图片必须消费 Shift 滚轮");
+            await Task.Delay(100);
+            Check(wheelScroller.HorizontalOffset > 0 && Math.Abs(wheelScroller.VerticalOffset - wheelVerticalOffset) < 1,
+                $"Shift 滚轮只能水平移动图片：X={wheelScroller.HorizontalOffset}/{wheelScroller.ScrollableWidth}, Y={wheelScroller.VerticalOffset}, 原Y={wheelVerticalOffset}");
+            Check(!PanWheel(-120, Windows.System.VirtualKeyModifiers.Control), "Ctrl 滚轮应继续交给原生缩放");
+            wheelScroller.ChangeView(wheelScroller.ScrollableWidth, wheelScroller.ScrollableHeight, null, disableAnimation: true);
+            await Task.Delay(100);
+            Check(PanWheel(-120, Windows.System.VirtualKeyModifiers.None), "滚到图片边缘仍须消费滚轮");
+            await Invoke("NavigateViewerWheelAsync", -120, wheelTime + 800);
+            Check(window.ViewerState.CurrentIndex == 1, "放大后直接滚轮路由及边缘不能切换图片");
+            typeof(MainWindow).GetMethod("FitImageToViewport", flags)!.Invoke(window, null);
+            await Task.Delay(100);
+            Check(AllowsWheel(false, false) && !PanWheel(-120, Windows.System.VirtualKeyModifiers.None),
+                "恢复适应窗口后必须回到滚轮切图");
             Set("_settingsDialog", new ContentDialog());
             Check(!AllowsWheel(false, false), "弹窗打开时滚轮不能切换底层媒体");
             Set("_settingsDialog", null!);
@@ -261,6 +296,7 @@ public partial class App : Application
             var panelStage = (Grid)root.FindName("ViewerStage");
             double stageWidth = panelStage.ActualWidth, stageHeight = panelStage.ActualHeight;
             var originalSize = window.AppWindow.Size;
+            var originalPanelWindowPosition = window.AppWindow.Position;
             var stableControls = new[] { "VideoControls", "ViewerBar", "VideoSeek", "DetailsToggle", "PlaylistToggle", "ViewerFullScreenButton" }
                 .Select(name => (FrameworkElement)root.FindName(name)).ToArray();
             Windows.Foundation.Rect ControlBounds(FrameworkElement element) => element.TransformToVisual(root)
@@ -278,13 +314,15 @@ public partial class App : Application
             root.UpdateLayout();
             var expandedSize = window.AppWindow.Size;
             CheckStableControls("展开播放列表");
-            var dockedPanel = (Grid)root.FindName("ViewerSidePanel");
-            Check(Math.Abs(ControlBounds(dockedPanel).Bottom - ControlBounds(stableControls[1]).Bottom) < 1,
-                "停靠面板应延伸至独立侧栏底部");
+            var sharedPanel = (Grid)root.FindName("ViewerSidePanel");
+            Check(Grid.GetRowSpan(sharedPanel) == 1
+                && ControlBounds(sharedPanel).Bottom <= ControlBounds(stableControls[0]).Top + 1,
+                "普通窗口的面板也应浮在画面内，不延伸到底部控制栏");
             Check(Math.Abs(panelStage.ActualWidth - stageWidth) < 1 && Math.Abs(panelStage.ActualHeight - stageHeight) < 1,
                 "展开播放列表不能改变画面尺寸");
-            Check(expandedSize.Width > originalSize.Width && expandedSize.Height == originalSize.Height,
-                "普通窗口应只向右扩展宽度");
+            Check(expandedSize.Width == originalSize.Width && expandedSize.Height == originalSize.Height
+                && window.AppWindow.Position.Equals(originalPanelWindowPosition),
+                "普通窗口展开面板不能改变窗口宽高或位置");
             typeof(MainWindow).GetMethod("SetDetailsOpen", flags)!.Invoke(window, [true]);
             root.UpdateLayout();
             Check(((Grid)root.FindName("DetailsPanel")).Visibility == Visibility.Visible
@@ -293,15 +331,14 @@ public partial class App : Application
                 && ((ToggleButton)root.FindName("PlaylistToggle")).IsChecked == false,
                 "切换详细信息应关闭播放列表并同步按钮");
             Check(window.AppWindow.Size.Width == expandedSize.Width && Math.Abs(panelStage.ActualWidth - stageWidth) < 1,
-                "面板内容切换不能再次扩展窗口或改变画面");
+                "面板内容切换不能改变窗口或画面");
             CheckStableControls("切换详细信息");
             typeof(MainWindow).GetMethod("SetDetailsOpen", flags)!.Invoke(window, [false]);
             await Task.Delay(50);
             root.UpdateLayout();
             Check(window.AppWindow.Size.Width == originalSize.Width && window.AppWindow.Size.Height == originalSize.Height
-                && Math.Abs(panelStage.ActualWidth - stageWidth) < 1, "收起面板应恢复窗口宽度，画面不变");
+                && Math.Abs(panelStage.ActualWidth - stageWidth) < 1, "收起面板不能改变窗口宽度，画面不变");
             CheckStableControls("收起详细信息");
-            Set("_dockViewerPanel", false);
             Set("_playlistOpen", true);
             typeof(MainWindow).GetMethod("ApplyPlaylistLayout", flags)!.Invoke(window, null);
             root.UpdateLayout();
@@ -309,13 +346,14 @@ public partial class App : Application
                 "浮层面板不能占据画面布局空间");
             var overlayPanel = (Grid)root.FindName("ViewerSidePanel");
             var panelBounds = overlayPanel.TransformToVisual(panelStage).TransformBounds(new Windows.Foundation.Rect(0, 0, overlayPanel.ActualWidth, overlayPanel.ActualHeight));
-            Check(Math.Abs(panelBounds.Right - panelStage.ActualWidth) < 1 && panelBounds.Left < panelStage.ActualWidth,
-                "浮层应靠画面右侧向内展开");
+            Check(Math.Abs(panelBounds.Right - (panelStage.ActualWidth - overlayPanel.Margin.Right)) < 1
+                && panelBounds.Left >= overlayPanel.Margin.Left - 1 && panelBounds.Top >= overlayPanel.Margin.Top - 1
+                && panelBounds.Bottom <= panelStage.ActualHeight - overlayPanel.Margin.Bottom + 1,
+                "悬浮面板应靠右向内展开，四边保留间距且不越出画面");
             CheckStableControls("浮层展开");
             Check(ControlBounds(overlayPanel).Bottom <= ControlBounds(stableControls[0]).Top + 1,
                 "浮层不能遮挡进度条和底部面板开关");
             typeof(MainWindow).GetMethod("SetPlaylistOpen", flags)!.Invoke(window, [false]);
-            Set("_dockViewerPanel", true);
             Set("_presenterBeforeFullScreen", window.AppWindow.Presenter);
             typeof(MainWindow).GetMethod("ResetFullScreenControls", flags)!.Invoke(window, null);
             root.UpdateLayout();
@@ -660,16 +698,81 @@ public partial class App : Application
                     && Math.Abs(rotatedBounds.Height - rotationPanel.ActualHeight) < 1,
                     $"图片旋转 {degrees}° 应保留图源并使用旋转后的完整布局边界");
             }
+            void ImageAction(string method)
+            {
+                typeof(MainWindow).GetMethod(method, flags)!.Invoke(window, [root, new RoutedEventArgs()]);
+                root.UpdateLayout();
+            }
+            Microsoft.UI.Xaml.Media.Matrix ImageMatrix() => ((Microsoft.UI.Xaml.Media.MatrixTransform)rotatingImage.RenderTransform).Matrix;
+            ImageAction("RotateImageLeft_Click");
+            Check(rotationPanel.QuarterTurns == 3, "图片左转应逆时针旋转 90°");
+            ImageAction("RotateMedia_Click");
+            Check(rotationPanel.QuarterTurns == 0, "左转再右转应恢复原方向");
+            for (int turn = 0; turn < 4; turn++)
+            {
+                var beforeFlip = ImageMatrix();
+                ImageAction("FlipImage_Click");
+                var mirrored = ImageMatrix();
+                var flipBounds = rotatingImage.TransformToVisual(rotationPanel).TransformBounds(
+                    new Windows.Foundation.Rect(0, 0, rotatingImage.ActualWidth, rotatingImage.ActualHeight));
+                Check(rotationPanel.IsMirrored && ((ToggleButton)root.FindName("FlipImageToggle")).IsChecked == true
+                    && mirrored.M11 == -beforeFlip.M11 && mirrored.M21 == -beforeFlip.M21
+                    && mirrored.M12 == beforeFlip.M12 && mirrored.M22 == beforeFlip.M22
+                    && Math.Abs(mirrored.OffsetX - (rotationPanel.ActualWidth - beforeFlip.OffsetX)) < 1,
+                    $"{turn * 90}° 时翻转必须按画面水平方向镜像并同步开关");
+                Check(Math.Abs(flipBounds.X) < 1 && Math.Abs(flipBounds.Y) < 1
+                    && Math.Abs(flipBounds.Width - rotationPanel.ActualWidth) < 1
+                    && Math.Abs(flipBounds.Height - rotationPanel.ActualHeight) < 1,
+                    "镜像后的四角必须保持在完整布局边界内");
+                ImageAction("RotateMedia_Click");
+                var turnedMirror = ImageMatrix();
+                Check(turnedMirror.M11 == -mirrored.M12 && turnedMirror.M12 == mirrored.M11
+                    && turnedMirror.M21 == -mirrored.M22 && turnedMirror.M22 == mirrored.M21,
+                    "镜像后点击右转仍应使当前画面顺时针旋转");
+                ImageAction("RotateImageLeft_Click");
+                ImageAction("FlipImage_Click");
+                Check(!rotationPanel.IsMirrored && rotationPanel.QuarterTurns == turn
+                    && ImageMatrix().Equals(beforeFlip) && ReferenceEquals(rotatingImage.Source, originalImageSource),
+                    "镜像后的左右旋转与再次翻转必须可逆，且不替换图源");
+                ImageAction("RotateMedia_Click");
+            }
+            ImageAction("FlipImage_Click");
             typeof(MainWindow).GetMethod("RotateViewerMedia", flags)!.Invoke(window, null);
-            await Invoke("ShowInViewerAsync", 1, false);
-            Check(rotationPanel.QuarterTurns == 0 && (int)Get("_viewerQuarterTurns")! == 0,
-                "切换图片必须恢复 0°，不能沿用上一张的方向");
+            var transformButtons = new[] { "RotateImageLeftButton", "RotateMediaButton", "FlipImageToggle" }
+                .Select(name => (Control)root.FindName(name)).ToArray();
+            int disabledTransitions = 0;
+            var transformTokens = transformButtons.Select(button => button.RegisterPropertyChangedCallback(Control.IsEnabledProperty,
+                (sender, _) => { if (!((Control)sender).IsEnabled) disabledTransitions++; })).ToArray();
+            var switchingImage = Invoke("ShowInViewerAsync", 1, false);
+            Check(rotatingImage.Source is null && transformButtons.All(button => button.IsEnabled),
+                "切图解码期间三个变换按钮应保持亮度，不经过禁用状态");
+            ImageAction("RotateMedia_Click");
+            ((ToggleButton)root.FindName("FlipImageToggle")).IsChecked = true;
+            ImageAction("FlipImage_Click");
+            Check(rotationPanel.QuarterTurns == 0 && !rotationPanel.IsMirrored
+                && ((ToggleButton)root.FindName("FlipImageToggle")).IsChecked == false,
+                "加载时点击变换按钮不能修改方向或留下虚假的翻转选中态");
+            await switchingImage;
+            Check(disabledTransitions == 0 && transformButtons.All(button => button.IsEnabled),
+                "图片切换全过程不得让旋转/翻转图标先变灰再变亮");
+            for (int i = 0; i < transformButtons.Length; i++)
+                transformButtons[i].UnregisterPropertyChangedCallback(Control.IsEnabledProperty, transformTokens[i]);
+            Check(rotationPanel.QuarterTurns == 0 && (int)Get("_viewerQuarterTurns")! == 0
+                && !rotationPanel.IsMirrored && ((ToggleButton)root.FindName("FlipImageToggle")).IsChecked == false,
+                "切换图片必须恢复 0° 和未翻转，不能沿用上一张的方向");
+            window.ViewerState.SetPlaylist([new MediaItem(Path.Combine(folder, "missing-transform-check.jpg"), MediaKind.Image)]);
+            await Invoke("ShowInViewerAsync", 0, false);
+            Check(transformButtons.All(button => !button.IsEnabled) && window.ViewerState.HasMessage,
+                "图片加载失败时仍应禁用三个变换按钮并显示错误");
             window.ViewerState.SetPlaylist([new MediaItem(Path.Combine(workspace, "work", "validation", "media", "motion.gif"), MediaKind.Image)]);
             await Invoke("ShowInViewerAsync", 0, false);
-            var gifSource = (Microsoft.UI.Xaml.Media.Imaging.BitmapImage)rotatingImage.Source;
+            var gifSource = (Microsoft.UI.Xaml.Media.Imaging.BitmapImage)rotatingImage.Source!;
             typeof(MainWindow).GetMethod("RotateViewerMedia", flags)!.Invoke(window, null);
             Check(ReferenceEquals(rotatingImage.Source, gifSource) && gifSource.AutoPlay && rotationPanel.QuarterTurns == 1,
                 "旋转 GIF 不能替换图源或关闭动画");
+            ImageAction("FlipImage_Click");
+            Check(ReferenceEquals(rotatingImage.Source, gifSource) && gifSource.AutoPlay && rotationPanel.IsMirrored,
+                "翻转 GIF 不能替换图源或关闭动画");
             typeof(MainWindow).GetMethod("CloseViewer", flags)!.Invoke(window, null);
             var seekPlayer = new MouseSeekPlayer();
             var sideButtonVideo = new MediaItem(Path.Combine(workspace, "work", "validation", "media", "video.mp4"), MediaKind.Video);
@@ -1051,6 +1154,39 @@ public partial class App : Application
             await Invoke("RestoreExcludedTreeFolderAsync", excludedRootPath);
             Check(tree.RootNodes.Any(node => node.Content is FolderEntry entry && entry.Path == excludedRootPath), "取消排除根入口必须恢复导航");
             static bool IsAncestor(string ancestor, string path) => path.StartsWith(ancestor.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
+            if (Environment.GetEnvironmentVariable("FALLERY_MOTION_SAMPLE") is { Length: > 0 } motionSample)
+            {
+                Set("_muted", true);
+                Set("_volume", 0d);
+                var stillPath = Path.Combine(workspace, "work", "validation", "media", "image1.jpg");
+                window.ViewerState.SetPlaylist([
+                    new MediaItem(motionSample, MediaKind.Image, FileVersion.Read(motionSample)),
+                    new MediaItem(stillPath, MediaKind.Image, FileVersion.Read(stillPath))]);
+                await Invoke("ShowInViewerAsync", 0, false);
+                async Task WaitMotion(Func<bool> condition)
+                {
+                    var until = DateTime.UtcNow.AddSeconds(10);
+                    while (!condition() && DateTime.UtcNow < until) await Task.Delay(20);
+                    Check(condition(), "实况状态未在时限内就绪：" + window.ViewerState.Message);
+                }
+                await WaitMotion(() => Get("_motionClip") is MotionPhotoClip);
+                Check(((Border)root.FindName("MotionPhotoControls")).Visibility == Visibility.Visible
+                    && Get("_motionPlayer") is null, "实况按钮应仅在识别后显示，不能自动播放");
+                var motionTask = (Task)typeof(MainWindow).GetMethod("PlayMotionPhotoAsync", flags)!.Invoke(window, null)!;
+                await WaitMotion(() => Get("_motionPlayer") is Fallery.Services.Playback.IPlayer { IsPlaying: true, VideoWidth: > 0 });
+                Check(Get("_motionPlayer") is Fallery.Services.Playback.IPlayer { IsMuted: true, Volume: 0 },
+                    "实况自动检查必须从启动到结束静音");
+                string motionTemporary = (string)Get("_motionTemporaryFile")!;
+                await motionTask.WaitAsync(TimeSpan.FromSeconds(15));
+                Check(Get("_motionPlayer") is null && ((ScrollViewer)root.FindName("ImageScroller")).Opacity == 1
+                    && !File.Exists(motionTemporary), "实况播完应恢复照片、释放播放器并删除临时视频");
+                var canceledMotion = (Task)typeof(MainWindow).GetMethod("PlayMotionPhotoAsync", flags)!.Invoke(window, null)!;
+                await Invoke("ShowInViewerAsync", 1, false);
+                await canceledMotion.WaitAsync(TimeSpan.FromSeconds(10));
+                Check(Get("_motionPlayer") is null && ((Border)root.FindName("MotionPhotoControls")).Visibility == Visibility.Collapsed,
+                    "切换普通照片必须取消实况提取和播放并隐藏入口");
+                typeof(MainWindow).GetMethod("CloseViewer", flags)!.Invoke(window, null);
+            }
             typeof(MainWindow).GetMethod("ApplyTheme", flags)!.Invoke(window, new object[] { 1 });
             ((Slider)root.FindName("ThumbSize")).Value = 360;
             var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

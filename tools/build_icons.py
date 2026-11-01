@@ -1,203 +1,182 @@
-"""从 Fluent UI System Icons 抽取 Fallery 用到的图标，生成精简字体和 Themes/Icons.xaml。
+"""生成 Hugeicons 免费 Stroke Rounded 子集；不要手改生成字体或 Icons.xaml。
 
-字体随程序分发，Win10 / Win11 显示一致；系统的 Segoe Fluent Icons 不允许再分发。
-用法（需要 uv）：uv run --with fonttools tools/build_icons.py
-新增图标时在 ICONS 中加一行后重新运行，不要手动编辑生成的文件。
+用法：uv run --python 3.11 --with fonttools tools/build_icons.py
 """
-
-import json
+import hashlib
 import pathlib
+import re
 import urllib.request
-
 from fontTools import subset
-from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont
 
-# 固定提交，保证重新生成时字形不变。
-COMMIT = "9eb184e96268d3293462f9d9d19225b4c7b07774"
-BASE = f"https://raw.githubusercontent.com/microsoft/fluentui-system-icons/{COMMIT}/fonts/"
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-CACHE = ROOT / "work" / "fluent-icons"
+CACHE = ROOT / "work" / "hugeicons"
+# 固定校验值，避免上游变更后图标名称和字形不匹配。
+SOURCES = {
+    "hgi-stroke-rounded.ttf": ("https://use.hugeicons.com/font/hgi-stroke-rounded.ttf", "5b6b2fcb68e07374e601e1389ecd294182cf15ea65903d66a8a2484125db060f"),
+    "icons.css": ("https://use.hugeicons.com/font/icons.css", "11c954c5cdb07676d462f9a2cda2dbb252fb9f4cf7372c0d0ee02611ff9049a8"),
+    "LICENSE": ("https://raw.githubusercontent.com/hugeicons/hugeicons/main/LICENSE", "1658d8213209df7b9b86dfc05d724ede48d00dbc27abc15976ec7adec9601cde"),
+}
 
-# 资源键, Fluent 图标名（不含 ic_fluent_ 前缀和样式后缀）, 样式
+# 资源键与 Hugeicons 功能名称；Filled 旧键仅保留兼容。
 ICONS = [
-    ("IconSidebar", "panel_left_20", "regular"),
-    ("IconBack", "arrow_left_20", "regular"),
-    ("IconForward", "arrow_right_20", "regular"),
-    ("IconUp", "arrow_up_20", "regular"),
-    ("IconRefresh", "arrow_clockwise_20", "regular"),
-    ("IconOpenFolder", "folder_open_20", "regular"),
-    ("IconNewFolder", "folder_add_20", "regular"),
-    ("IconFolder", "folder_20", "regular"),
-    ("IconFolderFilled", "folder_20", "filled"),
-    ("IconFolderHidden", "folder_prohibited_20", "regular"),
-    ("IconDrive", "hard_drive_20", "regular"),
-    ("IconPictures", "image_multiple_20", "regular"),
-    ("IconSort", "arrow_sort_20", "regular"),
-    ("IconSortTaken", "camera_20", "regular"),
-    ("IconSortCreated", "calendar_add_20", "regular"),
-    ("IconSortModified", "calendar_edit_20", "regular"),
-    ("IconSortName", "text_sort_ascending_20", "regular"),
-    ("IconSortSize", "data_histogram_20", "regular"),
-    ("IconAscending", "arrow_sort_up_20", "regular"),
-    ("IconDescending", "arrow_sort_down_20", "regular"),
-    ("IconFilter", "filter_20", "regular"),
-    ("IconAllMedia", "image_multiple_20", "regular"),
-    ("IconImage", "image_20", "regular"),
-    ("IconVideo", "video_20", "regular"),
-    ("IconHiddenItems", "eye_20", "regular"),
-    ("IconView", "grid_20", "regular"),
-    ("IconJustified", "layout_row_two_split_top_20", "regular"),
-    ("IconMasonry", "board_20", "regular"),
-    ("IconLargeIcons", "layout_cell_four_20", "regular"),
-    ("IconFilmstrip", "fallery_gallery_20", "regular"),
-    ("IconFileNames", "text_case_title_20", "regular"),
-    ("IconCards", "card_ui_20", "regular"),
-    ("IconFullScreen", "full_screen_maximize_20", "regular"),
-    ("IconExitFullScreen", "full_screen_minimize_20", "regular"),
-    ("IconSettings", "settings_20", "regular"),
-    ("IconChevronRight", "chevron_right_12", "regular"),
-    ("IconPrevious", "chevron_left_24", "regular"),
-    ("IconNext", "chevron_right_24", "regular"),
-    ("IconPlay", "play_16", "filled"),
-    ("IconOpen", "open_20", "regular"),
-    ("IconExpand", "chevron_down_20", "regular"),
-    ("IconCollapse", "chevron_up_20", "regular"),
-    ("IconCopy", "copy_20", "regular"),
-    ("IconCopyFile", "document_copy_20", "regular"),
-    ("IconTheme", "dark_theme_20", "regular"),
-    ("IconPlayMedia", "play_20", "filled"),
-    ("IconPauseMedia", "pause_20", "filled"),
-    ("IconPreviousMedia", "previous_20", "filled"),
-    ("IconNextMedia", "next_20", "filled"),
-    ("IconVolume", "speaker_2_20", "regular"),
-    ("IconMute", "speaker_mute_20", "regular"),
-    ("IconPlaylist", "text_bullet_list_ltr_20", "regular"),
-    ("IconPanelRight", "panel_right_20", "regular"),
-    ("IconDelete", "delete_20", "regular"),
-    ("IconHistory", "history_20", "regular"),
-    ("IconBookmark", "bookmark_20", "regular"),
-    ("IconBookmarkFilled", "bookmark_20", "filled"),
-    ("IconMore", "more_horizontal_20", "regular"),
-    ("IconScreenshot", "screenshot_20", "regular"),
-    ("IconLoop", "arrow_repeat_all_20", "regular"),
-    ("IconInfo", "info_20", "regular"),
-    ("IconZoomIn", "zoom_in_20", "regular"),
-    ("IconZoomOut", "zoom_out_20", "regular"),
-    ("IconFit", "scale_fit_20", "regular"),
-    ("IconRotate", "rotate_right_20", "regular"),
-    ("IconResolution", "resize_image_20", "regular"),
-    ("IconFileSize", "document_20", "regular"),
+    ("IconSidebar", "sidebar-left"),
+    ("IconBack", "arrow-left-02"),
+    ("IconForward", "arrow-right-02"),
+    ("IconUp", "arrow-up-02"),
+    ("IconRefresh", "refresh"),
+    ("IconOpenFolder", "folder-open"),
+    ("IconNewFolder", "folder-add"),
+    ("IconFolder", "folder-01"),
+    ("IconFolderFilled", "folder-01"),
+    ("IconFolderHidden", "folder-block"),
+    ("IconDrive", "hard-drive"),
+    ("IconPictures", "image-02"),
+    ("IconDesktop", "computer"),
+    ("IconSort", "arrow-up-down"),
+    ("IconSortTaken", "camera-01"),
+    ("IconSortCreated", "calendar-add-01"),
+    ("IconSortModified", "calendar-clock"),
+    ("IconSortName", "sorting-a-z-01"),
+    ("IconSortSize", "sorting-02"),
+    ("IconAscending", "arrow-up-02"),
+    ("IconDescending", "arrow-down-02"),
+    ("IconFilter", "filter"),
+    ("IconAllMedia", "image-play"),
+    ("IconImage", "image-01"),
+    ("IconVideo", "video-01"),
+    ("IconHiddenItems", "view"),
+    ("IconView", "dashboard-square-01"),
+    ("IconJustified", "layout-07"),
+    ("IconMasonry", "dashboard-square-03"),
+    ("IconLargeIcons", "dashboard-square-01"),
+    ("IconFilmstrip", "fallery-gallery"),
+    ("IconFileNames", "text-font"),
+    ("IconCards", "square"),
+    ("IconFullScreen", "full-screen"),
+    ("IconExitFullScreen", "arrow-shrink"),
+    ("IconSettings", "settings-01"),
+    ("IconChevronRight", "arrow-right-01"),
+    ("IconPrevious", "arrow-left-01"),
+    ("IconNext", "arrow-right-01"),
+    ("IconPlay", "play"),
+    ("IconOpen", "link-square-02"),
+    ("IconExpand", "arrow-down-01"),
+    ("IconCollapse", "arrow-up-01"),
+    ("IconCopy", "copy-01"),
+    ("IconPaste", "clipboard-paste"),
+    ("IconCopyFile", "files-01"),
+    ("IconTheme", "sun-moon"),
+    ("IconPlayMedia", "play"),
+    ("IconPauseMedia", "pause"),
+    ("IconPreviousMedia", "previous"),
+    ("IconNextMedia", "next"),
+    ("IconVolume", "volume-high"),
+    ("IconMute", "volume-mute-02"),
+    ("IconPlaylist", "list"),
+    ("IconPanelRight", "sidebar-right"),
+    ("IconDelete", "delete-02"),
+    ("IconHistory", "history"),
+    ("IconBookmark", "bookmark-02"),
+    ("IconBookmarkFilled", "bookmark-check-02"),
+    ("IconMore", "more-horizontal"),
+    ("IconScreenshot", "camera-01"),
+    ("IconLoop", "repeat"),
+    ("IconInfo", "information-circle"),
+    ("IconZoomIn", "zoom-in"),
+    ("IconZoomOut", "zoom-out"),
+    ("IconFit", "fit-to-screen"),
+    ("IconRotate", "image-rotation-clockwise"),
+    ("IconRotateLeft", "rotate-ccw"),
+    ("IconRotateRight", "rotate-cw"),
+    ("IconFlipHorizontal", "image-flip-horizontal"),
+    ("IconResolution", "resize-field-rectangle"),
+    ("IconFileSize", "file-empty-01"),
 ]
 
 
-def fetch(name: str, url: str | None = None) -> pathlib.Path:
+def fetch(name: str) -> pathlib.Path:
     CACHE.mkdir(parents=True, exist_ok=True)
     target = CACHE / name
+    url, expected = SOURCES[name]
+    if target.exists():
+        data = target.read_bytes()
+    else:
+        with urllib.request.urlopen(url, timeout=30) as response:
+            data = response.read()
+    if hashlib.sha256(data).hexdigest() != expected:
+        raise ValueError(f"{name} 校验不匹配；请先核对上游版本和图标映射。")
     if not target.exists():
-        urllib.request.urlretrieve(url or BASE + name, target)
+        target.write_bytes(data)
     return target
 
 
 def add_gallery_glyph(font: TTFont, codes: dict[str, int]) -> None:
-    """上方大图与下方缩略图没有完全匹配的上游字形，组合两个 Fluent 图标保持视觉一致。"""
-    glyph_set = font.getGlyphSet()
-    cmap = font.getBestCmap()
+    # 保留大图＋缩略图的矩形和三点语义，采用同系列字形组合。
+    glyph_set, cmap = font.getGlyphSet(), font.getBestCmap()
     pen = TTGlyphPen(glyph_set)
     for source, transform in (
-        ("rectangle_landscape", (1, 0, 0, 0.9, 0, 90)),
-        ("more_horizontal", (0.8, 0, 0, 0.8, 50, -125)),
+        ("rectangle-horizontal", (1, 0, 0, 0.9, 0, 125)),
+        ("more-horizontal", (0.6, 0, 0, 0.6, 200, -175)),
     ):
-        glyph = cmap[codes[f"ic_fluent_{source}_20_regular"]]
-        glyph_set[glyph].draw(TransformPen(pen, transform))
+        glyph_set[cmap[codes[source]]].draw(TransformPen(pen, transform))
     name, code = "fallery_gallery", 0xE000
     font["glyf"][name] = pen.glyph()
-    font["hmtx"][name] = (500, 50)
+    font["hmtx"][name] = (1000, 0)
     if name not in font.getGlyphOrder():
         font.setGlyphOrder([*font.getGlyphOrder(), name])
     for table in font["cmap"].tables:
         if table.isUnicode():
             table.cmap[code] = name
-    codes["ic_fluent_fallery_gallery_20_regular"] = code
-
-
-def center_glyphs(font: TTFont) -> None:
-    """上游字体的字形都贴在占位框左缘，右侧留空；FontIcon 按占位宽度居中，图标会整体偏左。"""
-    glyf, hmtx = font["glyf"], font["hmtx"]
-    glyph_set = font.getGlyphSet()
-    centered = {}
-    # 复合字形会共享组件，逐个原地平移会互相叠加；先全部按原字体展平重绘，再统一替换。
-    for name in set(font.getBestCmap().values()):
-        pen = BoundsPen(glyph_set)
-        glyph_set[name].draw(pen)
-        if pen.bounds is None:
-            continue
-        advance, _ = hmtx[name]
-        # 用实际绘制的外沿居中；控制点包围盒会被曲线手柄撑大。
-        shift = round((advance - (pen.bounds[0] + pen.bounds[2])) / 2)
-        out = TTGlyphPen(glyph_set)
-        glyph_set[name].draw(TransformPen(out, (1, 0, 0, 1, shift, 0)))
-        centered[name] = (out.glyph(), advance)
-    for name, (glyph, advance) in centered.items():
-        glyph.recalcBounds(glyf)
-        glyf[name] = glyph
-        hmtx[name] = (advance, glyph.xMin)
+    codes["fallery-gallery"] = code
 
 
 def main() -> None:
+    codes = {name: int(code, 16) for name, code in re.findall(
+        r'\.hgi-stroke\.hgi-([\w-]+)::before\s*\{\s*content:\s*"\\([0-9a-fA-F]+)"',
+        fetch("icons.css").read_text(encoding="utf-8"))}
+    font = TTFont(fetch("hgi-stroke-rounded.ttf"))
+    add_gallery_glyph(font, codes)
+    picked = {codes[name] for _, name in ICONS}
+    options = subset.Options()
+    options.layout_features = []
+    options.name_IDs = ["*"]
+    options.notdef_outline = True
+    subsetter = subset.Subsetter(options)
+    subsetter.populate(unicodes=sorted(picked))
+    subsetter.subset(font)
+    assert picked <= font.getBestCmap().keys(), "缺少图标字形"
     fonts_dir = ROOT / "Assets" / "Fonts"
     fonts_dir.mkdir(parents=True, exist_ok=True)
-    resources = []
-    families = {}
-    for style in ("regular", "filled"):
-        title = style.capitalize()
-        source = fetch(f"FluentSystemIcons-{title}.ttf")
-        codes = json.loads(fetch(f"FluentSystemIcons-{title}.json").read_text(encoding="utf-8"))
-        font = TTFont(source)
-        if style == "regular":
-            add_gallery_glyph(font, codes)
-        picked = []
-        for key, name, icon_style in ICONS:
-            if icon_style != style:
-                continue
-            code = codes[f"ic_fluent_{name}_{style}"]
-            picked.append(code)
-            resources.append((key, code))
-        output = fonts_dir / f"FalleryIcons-{title}.ttf"
-        options = subset.Options()
-        options.layout_features = []
-        options.name_IDs = ["*"]
-        options.notdef_outline = True
-        subsetter = subset.Subsetter(options)
-        subsetter.populate(unicodes=sorted(set(picked)))
-        subsetter.subset(font)
-        center_glyphs(font)
-        font.save(output)
-        families[style] = TTFont(output)["name"].getDebugName(1)
-    license = fetch("LICENSE", f"https://raw.githubusercontent.com/microsoft/fluentui-system-icons/{COMMIT}/LICENSE")
-    (fonts_dir / "LICENSE-FluentSystemIcons.txt").write_bytes(license.read_bytes())
-
+    output = fonts_dir / "FalleryIcons-Hugeicons.ttf"
+    font.save(output)
+    family = font["name"].getDebugName(1)
+    (fonts_dir / "LICENSE-Hugeicons.txt").write_bytes(fetch("LICENSE").read_bytes())
     lines = [
         '<?xml version="1.0" encoding="utf-8"?>',
-        "<!-- 由 tools/build_icons.py 生成，不要手动编辑。 -->",
+        '<!-- 由 tools/build_icons.py 生成，Hugeicons Stroke Rounded；旧资源名保留兼容。 -->',
         '<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"',
         '                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">',
-        f'    <FontFamily x:Key="FluentIconFont">ms-appx:///Assets/Fonts/FalleryIcons-Regular.ttf#{families["regular"]}</FontFamily>',
-        f'    <FontFamily x:Key="FluentIconFilledFont">ms-appx:///Assets/Fonts/FalleryIcons-Filled.ttf#{families["filled"]}</FontFamily>',
+    ]
+    for key in ("FluentIconFont", "FluentIconFilledFont"):
+        lines.append(f'    <FontFamily x:Key="{key}">ms-appx:///Assets/Fonts/{output.name}#{family}</FontFamily>')
+    lines += [
         '    <Style x:Key="FluentIcon" TargetType="FontIcon">',
         '        <Setter Property="FontFamily" Value="{StaticResource FluentIconFont}" />',
         '        <Setter Property="FontSize" Value="16" />',
-        "    </Style>",
-        '    <Style x:Key="FluentIconFilled" TargetType="FontIcon" BasedOn="{StaticResource FluentIcon}">',
-        '        <Setter Property="FontFamily" Value="{StaticResource FluentIconFilledFont}" />',
-        "    </Style>",
+        '    </Style>',
+        '    <Style x:Key="FluentIconFilled" TargetType="FontIcon" BasedOn="{StaticResource FluentIcon}" />',
     ]
-    lines += [f'    <x:String x:Key="{key}">&#x{code:X};</x:String>' for key, code in resources]
-    lines.append("</ResourceDictionary>")
-    (ROOT / "Themes").mkdir(exist_ok=True)
+    for key, name in ICONS:
+        lines.append(f'    <x:String x:Key="{key}">&#x{codes[name]:X};</x:String> <!-- {name} -->')
+    lines.append('</ResourceDictionary>')
     (ROOT / "Themes" / "Icons.xaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # 精确移除旧生成文件，避免继续分发不再使用的字体。
+    for name in ("FalleryIcons-Regular.ttf", "FalleryIcons-Filled.ttf", "LICENSE-FluentSystemIcons.txt"):
+        (fonts_dir / name).unlink(missing_ok=True)
+    print(f"Generated {len(ICONS)} resources, {len(picked)} glyphs, {output.stat().st_size} bytes")
 
 
 if __name__ == "__main__":

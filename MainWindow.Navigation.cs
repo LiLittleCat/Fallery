@@ -28,7 +28,7 @@ public sealed partial class MainWindow
         {
             var name = new Button
             {
-                Content = new TextBlock { Text = entry.Name, FontSize = 13, MaxWidth = 200, TextTrimming = TextTrimming.CharacterEllipsis },
+                Content = new TextBlock { Text = entry.Name, FontSize = 13 },
                 Tag = entry, Style = style, Padding = new Thickness(5, 2, 5, 2), MinWidth = 0, MinHeight = 28,
             };
             ToolTipService.SetToolTip(name, entry.Path);
