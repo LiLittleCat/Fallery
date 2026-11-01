@@ -58,7 +58,11 @@ internal static class PhotoMetadata
         {
             using var stream = await file.OpenReadAsync().AsTask(ct);
             var decoder = await BitmapDecoder.CreateAsync(stream).AsTask(ct);
-            string root = decoder.DecoderInformation.CodecId == BitmapDecoder.JpegDecoderId ? "/app1/ifd/exif" : "/ifd/exif";
+            // TIFF 查询不能交给其他格式的扩展解码器：部分 WebP 会在原生元数据接口中卡死。
+            var codec = decoder.DecoderInformation.CodecId;
+            string? root = codec == BitmapDecoder.JpegDecoderId ? "/app1/ifd/exif"
+                : codec == BitmapDecoder.TiffDecoderId ? "/ifd/exif" : null;
+            if (root is null) return;
             foreach (var (key, tag) in new[] { ("System.Photo.LensManufacturer", 42035), ("System.Photo.LensModel", 42036) })
             {
                 if (Text(values, key) is not null) continue;

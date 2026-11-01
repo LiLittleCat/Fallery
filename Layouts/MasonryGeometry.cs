@@ -10,7 +10,13 @@ public sealed class MasonryGeometry
 {
     public TileBounds[] Bounds { get; }
     public double ExtentHeight { get; }
+    public const double DetailsRowHeight = 60;
+    public const double DetailsMinWidth = 820;
     private readonly double[] _maxBottoms;
+
+    public static MasonryGeometry Details(int count, double width) => new(
+        Enumerable.Range(0, count).Select(index => new TileBounds(0, index * DetailsRowHeight,
+            Math.Max(DetailsMinWidth, double.IsFinite(width) ? width : DetailsMinWidth), DetailsRowHeight)).ToArray());
 
     private MasonryGeometry(TileBounds[] bounds)
     {

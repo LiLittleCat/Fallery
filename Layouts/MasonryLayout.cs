@@ -36,6 +36,7 @@ public sealed class MasonryLayout : VirtualizingLayout
         }
     }
     public bool UniformTiles { get; set; }
+    public bool DetailsRows { get; set; }
     public bool JustifiedRows { get; set; }
     public bool ShowFileNames { get; set; } = true;
     public bool ShowCards { get; set; } = true;
@@ -92,6 +93,7 @@ public sealed class MasonryLayout : VirtualizingLayout
     {
         var state = (State)context.LayoutState;
         double width = double.IsFinite(availableSize.Width) ? Math.Max(0, availableSize.Width) : DesiredColumnWidth;
+        if (DetailsRows) width = Math.Max(MasonryGeometry.DetailsMinWidth, width);
 
         if (state.Version != _version || state.Width != width || state.Geometry.Bounds.Length != context.ItemCount)
         {
@@ -147,7 +149,7 @@ public sealed class MasonryLayout : VirtualizingLayout
         // 卡片内边距 5 + 描边 1；不显示卡片背景时图片贴满格子。
         double inset = ShowCards ? 6 : 0;
         // 自适应行把缩略图大小当作目标行高，按列宽的约四分之三取值，与其他视图的单张观感接近。
-        state.Geometry = JustifiedRows
+        state.Geometry = DetailsRows ? MasonryGeometry.Details(context.ItemCount, width) : JustifiedRows
             ? MasonryGeometry.Justified(context.ItemCount, width, DesiredColumnWidth * 0.75, Spacing, ratioAt, imageInset: inset, captionHeight: caption)
             : new MasonryGeometry(context.ItemCount, width, DesiredColumnWidth, Spacing, ratioAt, imageInset: inset, captionHeight: caption);
         state.Width = width;

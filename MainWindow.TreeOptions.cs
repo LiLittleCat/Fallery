@@ -18,6 +18,7 @@ public sealed partial class MainWindow
     {
         TreeSortNameItem.IsChecked = _treeSortField == MediaSortField.Name;
         TreeSortModifiedItem.IsChecked = _treeSortField == MediaSortField.Modified;
+        TreeSortCreatedItem.IsChecked = _treeSortField == MediaSortField.Created;
         TreeAscendingItem.IsChecked = !_treeDescending;
         TreeDescendingItem.IsChecked = _treeDescending;
         TreeTimeHiddenItem.IsChecked = !_treeShowModifiedTime;
@@ -55,7 +56,7 @@ public sealed partial class MainWindow
 
     private async Task SetTreeOptionsAsync(MediaSortField field, bool descending, bool showModifiedTime)
     {
-        if (_closed || _closing || field is not (MediaSortField.Name or MediaSortField.Modified)) return;
+        if (_closed || _closing || field is not (MediaSortField.Name or MediaSortField.Modified or MediaSortField.Created)) return;
         _treeSortField = field;
         _treeDescending = descending;
         _treeShowModifiedTime = showModifiedTime;
@@ -86,7 +87,7 @@ public sealed partial class MainWindow
         {
             var nodes = LoadedFolderNodes();
             var dates = new ConcurrentDictionary<string, (long? Modified, long? Created)>(StringComparer.OrdinalIgnoreCase);
-            if (_treeShowModifiedTime || _treeSortField == MediaSortField.Modified)
+            if (_treeShowModifiedTime || _treeSortField is MediaSortField.Modified or MediaSortField.Created)
             {
                 var paths = nodes.Select(node => ((FolderEntry)node.Content).Path).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 // 只读取已加载节点，不展开子树；网络目录的元数据也不能阻塞 UI。
@@ -105,8 +106,9 @@ public sealed partial class MainWindow
                 node.Content = entry with { ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField,
                     ModifiedTicks = hasDates ? ticks.Modified : entry.ModifiedTicks,
                     CreatedTicks = hasDates ? ticks.Created : entry.CreatedTicks };
-                SortTreeChildren(node);
             }
+            // 先更新全部节点的日期，再排同级节点；父节点先遍历到时不能拿子节点的旧日期排序。
+            foreach (var node in nodes) SortTreeChildren(node);
             SortTreeChildren(_favoritesRoot);
             FolderTree.SelectedNode = selected;
             FavoritesTree.SelectedNode = favorite;
@@ -137,10 +139,12 @@ public sealed partial class MainWindow
     private int CompareTreeEntries(FolderEntry left, FolderEntry right)
     {
         int result = 0;
-        if (_treeSortField == MediaSortField.Modified)
+        if (_treeSortField is MediaSortField.Modified or MediaSortField.Created)
         {
-            if (left.ModifiedTicks.HasValue != right.ModifiedTicks.HasValue) return left.ModifiedTicks.HasValue ? -1 : 1;
-            result = Nullable.Compare(left.ModifiedTicks, right.ModifiedTicks);
+            var leftTicks = _treeSortField == MediaSortField.Created ? left.CreatedTicks : left.ModifiedTicks;
+            var rightTicks = _treeSortField == MediaSortField.Created ? right.CreatedTicks : right.ModifiedTicks;
+            if (leftTicks.HasValue != rightTicks.HasValue) return leftTicks.HasValue ? -1 : 1;
+            result = Nullable.Compare(leftTicks, rightTicks);
         }
         if (result == 0) result = FolderScanner.CompareNames(left.Name, right.Name);
         return _treeDescending ? -Math.Sign(result) : result;
@@ -148,7 +152,12 @@ public sealed partial class MainWindow
 
     private async void NewFolder_Click(object sender, RoutedEventArgs e)
     {
-        if (_closed || _closing || _settingsDialog is not null || _deleting || _pasting || GalleryState.CurrentFolder is not { } parent) return;
+        if (GalleryState.CurrentFolder is { } parent) await ShowNewFolderDialogAsync(parent);
+    }
+
+    private async Task ShowNewFolderDialogAsync(string parent)
+    {
+        if (_closed || _closing || _settingsDialog is not null || _deleting || _pasting) return;
         StopHoverPreview();
         var input = new TextBox { Text = "新建文件夹", Header = "文件夹名称", MinWidth = 300, MaxLength = 255 };
         var error = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 420 };

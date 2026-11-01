@@ -6,9 +6,10 @@ using Microsoft.Windows.AppLifecycle;
 
 namespace Fallery;
 
-/// <summary>自定义入口：单实例。再次启动（含“打开方式”）时把路径交给已开着的窗口，自己退出。</summary>
+/// <summary>一个进程管理多个独立窗口；再次启动把请求转给主进程创建新窗口。</summary>
 public static class Program
 {
+    private static readonly System.Collections.Concurrent.ConcurrentQueue<AppActivationArguments> PendingActivations = new();
     private const string InstanceKey = "Fallery.Main";
 
     [STAThread]
@@ -31,7 +32,11 @@ public static class Program
         var instance = AppInstance.FindOrRegisterForKey(InstanceKey);
         if (instance.IsCurrent)
         {
-            instance.Activated += (_, activation) => App.Current?.OnRedirected(activation);
+            instance.Activated += (_, activation) =>
+            {
+                PendingActivations.Enqueue(activation);
+                if (App.Current is { } app) DeliverPendingActivations(app);
+            };
             return false;
         }
         var activation = AppInstance.GetCurrent().GetActivatedEventArgs();
@@ -47,6 +52,11 @@ public static class Program
         CoWaitForMultipleObjects(0, 0xFFFFFFFF, 1, [done], out _);
         CloseHandle(done);
         return true;
+    }
+
+    internal static void DeliverPendingActivations(App app)
+    {
+        while (PendingActivations.TryDequeue(out var activation)) app.OnRedirected(activation);
     }
 
     [DllImport("user32.dll")]

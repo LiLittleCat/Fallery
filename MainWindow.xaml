@@ -83,6 +83,12 @@
                     <Setter Property="CornerRadius" Value="5" />
                 </Style>
                 <controls:FolderIconConverter x:Key="FolderIconConverter" />
+                <Style x:Key="DetailsHeaderButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                    <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Padding" Value="0" /><Setter Property="MinWidth" Value="0" />
+                    <Setter Property="FontSize" Value="12" /><Setter Property="HorizontalAlignment" Value="Stretch" />
+                    <Setter Property="HorizontalContentAlignment" Value="Left" />
+                </Style>
                 <controls:NonEmptyTextVisibilityConverter x:Key="NonEmptyTextVisibilityConverter" />
                 <Style x:Key="DetailsLabelStyle" TargetType="TextBlock">
                     <Setter Property="FontSize" Value="12" />
@@ -247,6 +253,10 @@
                                 <Button.KeyboardAccelerators><KeyboardAccelerator Key="O" Modifiers="Control" /></Button.KeyboardAccelerators>
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconOpenFolder}" />
                             </Button>
+                            <Button x:Name="NewWindowButton" Style="{StaticResource IconButtonStyle}" Click="NewWindow_Click"
+                                    ToolTipService.ToolTip="新建窗口 (Ctrl+N)" AutomationProperties.Name="新建窗口">
+                                <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconNewWindow}" />
+                            </Button>
                             <Rectangle Width="1" Height="18" Margin="4,0" Fill="{ThemeResource DividerBrush}" VerticalAlignment="Center" />
                             <DropDownButton Style="{StaticResource IconDropDownStyle}" AutomationProperties.Name="排序" ToolTipService.ToolTip="排序（文件夹优先）">
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSort}" />
@@ -329,6 +339,10 @@
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFilmstrip}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
                                         <MenuFlyoutSeparator />
+                                        <RadioMenuFlyoutItem x:Name="DetailsModeItem" Text="列表视图" Tag="Details" GroupName="DisplayMode" Click="DisplayMode_Click">
+                                            <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconPlaylist}" /></RadioMenuFlyoutItem.Icon>
+                                        </RadioMenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
                                         <ToggleMenuFlyoutItem x:Name="ShowFileNamesItem" Text="显示文件名" IsChecked="True" Click="ShowFileNames_Click">
                                                 <ToggleMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFileNames}" /></ToggleMenuFlyoutItem.Icon>
                                             </ToggleMenuFlyoutItem>
@@ -388,6 +402,7 @@
                                 <MenuFlyout MenuFlyoutPresenterStyle="{StaticResource NavigationMenuPresenterStyle}" Placement="BottomEdgeAlignedLeft" ShouldConstrainToRootBounds="True">
                                     <RadioMenuFlyoutItem x:Name="TreeSortNameItem" Text="名称" Tag="Name" GroupName="TreeSortField" IsChecked="True" Click="TreeSort_Click" />
                                     <RadioMenuFlyoutItem x:Name="TreeSortModifiedItem" Text="修改时间" Tag="Modified" GroupName="TreeSortField" Click="TreeSort_Click" />
+                                    <RadioMenuFlyoutItem x:Name="TreeSortCreatedItem" Text="创建时间" Tag="Created" GroupName="TreeSortField" Click="TreeSort_Click" />
                                     <MenuFlyoutSeparator />
                                     <RadioMenuFlyoutItem x:Name="TreeAscendingItem" Text="升序" Tag="Ascending" GroupName="TreeSortDirection" IsChecked="True" Click="TreeSort_Click" />
                                     <RadioMenuFlyoutItem x:Name="TreeDescendingItem" Text="降序" Tag="Descending" GroupName="TreeSortDirection" Click="TreeSort_Click" />
@@ -404,7 +419,8 @@
                                 ToolTipService.ToolTip="文件夹时间" AutomationProperties.Name="文件夹时间">
                             <FontIcon x:Name="TreeTimeIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortModified}" />
                             <Button.Flyout>
-                                <MenuFlyout Placement="Bottom" ShouldConstrainToRootBounds="True">
+                                <MenuFlyout Placement="Bottom" ShouldConstrainToRootBounds="True"
+                                            MenuFlyoutPresenterStyle="{StaticResource NavigationMenuPresenterStyle}">
                                     <RadioMenuFlyoutItem x:Name="TreeTimeHiddenItem" Text="不显示" Tag="None" GroupName="TreeTime" Click="TreeTime_Click" />
                                     <RadioMenuFlyoutItem x:Name="TreeTimeModifiedItem" Text="修改时间" Tag="Modified" GroupName="TreeTime" Click="TreeTime_Click">
                                         <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortModified}" /></RadioMenuFlyoutItem.Icon>
@@ -503,7 +519,8 @@
                 <Grid x:Name="GalleryContent">
                     <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                     <Border x:Name="GallerySurfaceFill" Grid.RowSpan="2" Background="{ThemeResource LayerFillColorDefaultBrush}" IsHitTestVisible="False" />
-                    <ScrollViewer x:Name="GalleryScroller" Padding="12" Background="Transparent">
+                    <ScrollViewer x:Name="GalleryScroller" Padding="12" Background="Transparent"
+                                  SizeChanged="GalleryScroller_SizeChanged" ViewChanged="GalleryScroller_ViewChanged">
                         <ItemsRepeater x:Name="Gallery" VerticalCacheLength="2" HorizontalCacheLength="2" ElementPrepared="Gallery_ElementPrepared" ElementClearing="Gallery_ElementClearing">
                             <ItemsRepeater.Layout>
                                 <layouts:MasonryLayout x:Name="Masonry" Spacing="10" DesiredColumnWidth="{x:Bind ThumbSize.Value, Mode=OneWay}" />
@@ -511,6 +528,24 @@
                             <ItemsRepeater.ItemTemplate><DataTemplate><controls:MediaTile DoubleTapped="Tile_DoubleTapped" Tapped="Tile_Tapped" ContextRequested="Tile_ContextRequested" /></DataTemplate></ItemsRepeater.ItemTemplate>
                         </ItemsRepeater>
                     </ScrollViewer>
+                    <Border x:Name="DetailsHeader" Visibility="Collapsed" VerticalAlignment="Top" Height="36"
+                            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" BorderThickness="0,0,0,1" BorderBrush="{ThemeResource DividerBrush}">
+                        <ScrollViewer x:Name="DetailsHeaderScroller" Margin="12,0,12,0" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled" IsTabStop="False">
+                            <Grid x:Name="DetailsHeaderColumns" Padding="6,0" Height="35">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="52" /><ColumnDefinition Width="*" MinWidth="180" />
+                                    <ColumnDefinition Width="100" /><ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="156" /><ColumnDefinition Width="156" />
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="DetailsNameHeader" Grid.Column="1" Content="名称" Tag="Name" Style="{StaticResource DetailsHeaderButtonStyle}" Click="DetailsSort_Click" />
+                                <TextBlock Grid.Column="2" Text="文件类型" FontSize="12" VerticalAlignment="Center" />
+                                <Button x:Name="DetailsSizeHeader" Grid.Column="3" Content="大小" Tag="Size" Margin="0,0,16,0" HorizontalContentAlignment="Right" Style="{StaticResource DetailsHeaderButtonStyle}" Click="DetailsSort_Click" />
+                                <Button x:Name="DetailsCreatedHeader" Grid.Column="4" Content="创建时间" Tag="Created" Style="{StaticResource DetailsHeaderButtonStyle}" Click="DetailsSort_Click" />
+                                <Button x:Name="DetailsModifiedHeader" Grid.Column="5" Content="修改时间" Tag="Modified" Style="{StaticResource DetailsHeaderButtonStyle}" Click="DetailsSort_Click" />
+                            </Grid>
+                        </ScrollViewer>
+                    </Border>
                     <TextBlock x:Name="EmptyText" Text="在左侧选择目录，或点击顶部的打开文件夹按钮" HorizontalAlignment="Center" VerticalAlignment="Center"
                                TextWrapping="Wrap" Margin="24" Foreground="{ThemeResource TextFillColorSecondaryBrush}" IsHitTestVisible="False" />
                     <Canvas x:Name="MarqueeOverlay" IsHitTestVisible="False" Visibility="Collapsed">
@@ -544,7 +579,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <Grid x:Name="ViewerStage" Grid.Column="0" SizeChanged="ViewerStage_SizeChanged">
+            <Grid x:Name="ViewerStage" Grid.Column="0" Background="Transparent" SizeChanged="ViewerStage_SizeChanged" ContextRequested="Viewer_ContextRequested">
                 <ScrollViewer x:Name="ImageScroller" ViewChanged="ImageScroller_ViewChanged" ZoomMode="Enabled" MinZoomFactor="0.1" MaxZoomFactor="20"
                               HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                               HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
@@ -554,7 +589,7 @@
                              MaxWidth="{x:Bind ImageScroller.ViewportWidth, Mode=OneWay}"
                              MaxHeight="{x:Bind ImageScroller.ViewportHeight, Mode=OneWay}">
                         <controls:QuarterTurnPanel x:Name="ImageRotation">
-                        <Image x:Name="ViewerImage" Stretch="Uniform" ContextRequested="Viewer_ContextRequested"
+                        <Image x:Name="ViewerImage" Stretch="Uniform"
                                PointerPressed="ViewerImage_PointerPressed" PointerMoved="ViewerImage_PointerMoved"
                                PointerReleased="ViewerImage_PointerReleased" PointerCaptureLost="ViewerImage_PointerReleased" />
                         </controls:QuarterTurnPanel>
@@ -568,7 +603,7 @@
                                         AutoPlay="False" Stretch="Uniform" Background="Transparent" />
                 </controls:AspectFitPanel>
                 <Grid x:Name="AudioPresentation" Visibility="Collapsed" Background="#17191C" Padding="32"
-                      Tapped="ViewerVideo_Tapped" DoubleTapped="ViewerVideo_DoubleTapped" ContextRequested="Viewer_ContextRequested">
+                      Tapped="ViewerVideo_Tapped" DoubleTapped="ViewerVideo_DoubleTapped">
                     <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <StackPanel Width="360" Spacing="18">
                             <Border Width="224" Height="224" CornerRadius="16" Background="#2A2D32" HorizontalAlignment="Center">
@@ -785,7 +820,7 @@
                   HorizontalAlignment="Right" Visibility="Collapsed" Margin="12"
                   Background="#202123" BorderBrush="#20FFFFFF" BorderThickness="1" CornerRadius="12">
                 <Grid.Shadow><ThemeShadow x:Name="ViewerPanelShadow" /></Grid.Shadow>
-                <Grid x:Name="DetailsPanel" Visibility="Collapsed">
+                <Grid x:Name="DetailsPanel" Visibility="Collapsed" ContextRequested="Viewer_ContextRequested">
                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <Grid Padding="16,14,10,10">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>

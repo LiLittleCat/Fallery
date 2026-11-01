@@ -16,6 +16,14 @@ public sealed record SearchIndexStatus(int Count, bool Building, bool Limited, i
 // 索引只保存路径和类型，不解码媒体。索引与查询均运行于后台，界面只接收有限结果。
 public sealed class MediaSearchIndex(string storagePath, int entryLimit = 1_000_000)
 {
+    public static MediaSearchIndex Shared { get; } = new(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fallery", "Search", "media-v1.idx"));
+    private Task<bool>? _initialLoad;
+
+    public Task<bool> EnsureLoadedAsync(CancellationToken ct)
+    {
+        lock (_gate) return (_initialLoad ??= LoadAsync(CancellationToken.None)).WaitAsync(ct);
+    }
     private readonly object _gate = new();
     private readonly SemaphoreSlim _buildGate = new(1);
     private Dictionary<string, SearchEntry> _entries = new(StringComparer.OrdinalIgnoreCase);

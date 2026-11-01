@@ -18,7 +18,7 @@ public sealed partial class MainWindow
             if (_searchIndexTask is not null) await _searchIndexTask;
             bool load = _searchIndex is null || _searchIndex.Status.Count == 0;
             EnsureSearchIndex();
-            if (load) await _searchIndex!.LoadAsync(CancellationToken.None);
+            if (load) await _searchIndex!.EnsureLoadedAsync(CancellationToken.None);
             await _searchIndex!.RemovePathsAsync(paths, CancellationToken.None);
             return _searchIndex.Status.Message.Contains("未能保存", StringComparison.Ordinal) ? "；索引未能保存，请稍后刷新索引" : "";
         }

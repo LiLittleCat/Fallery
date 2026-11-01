@@ -15,6 +15,7 @@
     <x:String x:Key="IconUp">&#xF1633;</x:String> <!-- arrow-up-02 -->
     <x:String x:Key="IconRefresh">&#xF244E;</x:String> <!-- refresh -->
     <x:String x:Key="IconOpenFolder">&#xF1D1B;</x:String> <!-- folder-open -->
+    <x:String x:Key="IconNewWindow">&#xF2FEF;</x:String> <!-- app-window -->
     <x:String x:Key="IconNewFolder">&#xF1D04;</x:String> <!-- folder-add -->
     <x:String x:Key="IconFolder">&#xF1D01;</x:String> <!-- folder-01 -->
     <x:String x:Key="IconFolderFilled">&#xF1D01;</x:String> <!-- folder-01 -->

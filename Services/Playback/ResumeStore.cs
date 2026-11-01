@@ -15,6 +15,7 @@ public sealed class ResumeStore(string path)
     private List<Entry>? _entries;
 
     public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fallery", "resume.json");
+    public static ResumeStore Shared { get; } = new(DefaultPath);
 
     public sealed record Entry(string Path, long Length, long ModifiedTicks, double Seconds, long SavedTicks);
 

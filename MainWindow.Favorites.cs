@@ -88,6 +88,9 @@ public sealed partial class MainWindow
     private MenuFlyout BuildFavoriteMenu(string path)
     {
         var menu = new MenuFlyout();
+        var open = new MenuFlyoutItem { Text = "在新窗口中打开", Icon = FluentIcons.Create("IconNewWindow"), Tag = "new-window" };
+        open.Click += (_, _) => RequestNewWindow(path);
+        menu.Items.Add(open);
         var exclude = new MenuFlyoutItem { Text = "排除此文件夹", Icon = FluentIcons.Create("IconFilter"), Tag = "exclude" };
         exclude.Click += (_, _) => ExcludeTreeFolder(path);
         var remove = new MenuFlyoutItem { Text = "移除收藏", Icon = FluentIcons.Create("IconDelete"), Tag = "remove-favorite", KeyboardAcceleratorTextOverride = "Delete" };

@@ -3,6 +3,7 @@ using Fallery.Models;
 using Fallery.Services;
 using Fallery.Services.Playback;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -15,7 +16,7 @@ namespace Fallery;
 public sealed partial class MainWindow
 {
     private static readonly double[] PlaybackRates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
-    private readonly ResumeStore _resumeStore = new(ResumeStore.DefaultPath);
+    private readonly ResumeStore _resumeStore = ResumeStore.Shared;
     private DispatcherQueueTimer? _videoTimer;
     private MediaItem? _videoItem;
     private bool _updatingSeek;
@@ -29,9 +30,14 @@ public sealed partial class MainWindow
     private double _rate = 1;
     private TimeSpan? _loopStart;
     private TimeSpan? _loopEnd;
+    private bool _videoMousePressIsLeft;
+    private IPlayer? _videoSingleTapPlayer;
+    private TaskbarProgress? _taskbarProgress;
+    private bool _playbackEnded;
 
     private void InitializePlayback()
     {
+        ViewerStage.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(Viewer_PointerReleased), true);
         VideoVolumeFlyout.Opened += (_, _) => { _videoVolumeFlyoutOpen = true; ShowFullScreenControls(); };
         VideoVolumeFlyout.Closed += (_, _) => { _videoVolumeFlyoutOpen = false; ScheduleFullScreenControlsHide(); };
         _playlistThumbnailTemplate = PlaylistView.ItemTemplate;
@@ -69,6 +75,7 @@ public sealed partial class MainWindow
     {
         IPlayer player = CreatePlayer(ViewerVideo, enableSystemTransportControls: true);
         _videoItem = item;
+        _playbackEnded = false;
         _loopStart = _loopEnd = null;
         player.Volume = _volume;
         player.IsMuted = _muted;
@@ -82,21 +89,18 @@ public sealed partial class MainWindow
         });
         player.StateChanged += (_, _) => DispatcherQueue.TryEnqueue(() =>
         {
-            if (!_closed && ReferenceEquals(_videoPlayer, player)) UpdatePlayIcon(player.IsPlaying);
+            if (!_closed && ReferenceEquals(_videoPlayer, player))
+            {
+                if (player.IsPlaying) _playbackEnded = false;
+                UpdatePlayIcon(player.IsPlaying);
+                UpdateTaskbarPlaybackProgress();
+            }
         });
         player.TracksChanged += (_, _) => DispatcherQueue.TryEnqueue(() =>
         {
             if (!_closed && ReferenceEquals(_videoPlayer, player)) UpdateTrackMenu();
         });
-        player.Ended += (_, _) => DispatcherQueue.TryEnqueue(async () =>
-        {
-            if (_closed || !ReferenceEquals(_videoPlayer, player)) return;
-            UpdatePlayIcon(false);
-            if (item.Version is { } version) _ = _resumeStore.SaveAsync(version, TimeSpan.Zero, player.Duration);
-            // 下一项为音频或视频时连续播放；图片不自动切换。
-            int next = ViewerState.CurrentIndex + 1;
-            if (ViewerState.CanNext && ViewerState.Playlist[next].IsPlaybackMedia) await ShowInViewerAsync(next);
-        });
+        player.Ended += (_, _) => DispatcherQueue.TryEnqueue(() => _ = CompletePlaybackAsync(player));
         _updatingSeek = true;
         VideoSeek.Value = 0;
         VideoSeek.Maximum = 1;
@@ -165,6 +169,7 @@ public sealed partial class MainWindow
     /// <summary>停止前记下进度，下次打开同一文件从这里继续。</summary>
     private void DetachVideoControls(IPlayer? player)
     {
+        _taskbarProgress?.Clear();
         VideoVolumeFlyout.Hide();
         _videoTimer?.Stop();
         _userSeeking = false;
@@ -186,11 +191,50 @@ public sealed partial class MainWindow
         }
         VideoDurationText.Text = FormatTime(duration);
         VideoPositionText.Text = FormatTime(position);
+        // 某些文件定位到 EOF 后原生时钟继续走，但不触发 MediaEnded。
+        // 按实际总时长兜底；主动暂停不连播，A-B 循环已在上面先处理。
+        if (!_playbackEnded && player.IsPlaying && duration > TimeSpan.Zero && position >= duration)
+        {
+            _ = CompletePlaybackAsync(player);
+            return;
+        }
+        UpdateTaskbarPlaybackProgress();
         if (_userSeeking || duration <= TimeSpan.Zero) return;
         _updatingSeek = true;
         VideoSeek.Maximum = duration.TotalSeconds;
         VideoSeek.Value = Math.Min(position.TotalSeconds, duration.TotalSeconds);
         _updatingSeek = false;
+    }
+
+    private async Task CompletePlaybackAsync(IPlayer player)
+    {
+        if (_closed || _playbackEnded || !ReferenceEquals(_videoPlayer, player)) return;
+        // UI 线程在第一次 await 前标记，计时器与迟到的系统事件不能重复推进播放列表。
+        _playbackEnded = true;
+        player.Pause();
+        UpdatePlayIcon(false);
+        _taskbarProgress?.Clear();
+        if (_videoItem?.Version is { } version)
+            _ = _resumeStore.SaveAsync(version, TimeSpan.Zero, player.Duration);
+        int next = ViewerState.CurrentIndex + 1;
+        if (!ViewerState.CanNext || !ViewerState.Playlist[next].IsPlaybackMedia) return;
+        try { await ShowInViewerAsync(next); }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            if (!_closed) ViewerState.Message = $"无法播放下一项：{ex.Message}";
+        }
+    }
+
+    private void UpdateTaskbarPlaybackProgress()
+    {
+        if (_closed || _playbackEnded || _videoPlayer is not { } player || player.Duration <= TimeSpan.Zero)
+        {
+            _taskbarProgress?.Clear();
+            return;
+        }
+        _taskbarProgress ??= new TaskbarProgress(WinRT.Interop.WindowNative.GetWindowHandle(this));
+        _taskbarProgress.Update(player.Position, player.Duration, player.IsPlaying);
     }
 
     /// <summary>
@@ -241,8 +285,9 @@ public sealed partial class MainWindow
     /// <summary>与 PotPlayer 一致：播放视频时 ←/→ 快退/快进。</summary>
     private void SeekVideo(TimeSpan delta)
     {
+        PlaybackTrace.Write($"seek-input delta={delta.TotalSeconds:F3}");
         if (_videoPlayer is not { } player || player.Duration <= TimeSpan.Zero) return;
-        player.Position += delta;
+        player.Seek(player.Position + delta);
         UpdateVideoProgress();
     }
 
@@ -361,13 +406,43 @@ public sealed partial class MainWindow
         VideoStepBackItem.Visibility = VideoStepForwardItem.Visibility = VideoScreenshotItem.Visibility
             = VideoFrameSeparator.Visibility = audio ? Visibility.Collapsed : Visibility.Visible;
     }
-    private void ViewerVideo_Tapped(object sender, TappedRoutedEventArgs e) => ToggleVideoPlayback();
+    private void RecordVideoMousePress(PointerUpdateKind kind)
+    {
+        PlaybackTrace.Write($"mouse-press kind={kind}");
+        _videoMousePressIsLeft = kind == PointerUpdateKind.LeftButtonPressed;
+        if (!_videoMousePressIsLeft) _videoSingleTapPlayer = null;
+    }
+
+    private void ViewerVideo_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        HandleVideoTap(e.PointerDeviceType, doubleTap: false);
+    }
 
     private void ViewerVideo_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
-        // 双击的第一下已经切换过播放状态，这里切回来，只执行全屏。
-        ToggleVideoPlayback();
-        SetViewerFullScreen(_presenterBeforeFullScreen is null);
+        e.Handled = true;
+        HandleVideoTap(e.PointerDeviceType, doubleTap: true);
+    }
+
+    private void HandleVideoTap(PointerDeviceType deviceType, bool doubleTap)
+    {
+        PlaybackTrace.Write($"tap device={deviceType} double={doubleTap} left={_videoMousePressIsLeft}");
+        // Handled 的侧键按下仍可能产生 Tapped/DoubleTapped，必须使用按下时的按键判断。
+        if (deviceType == PointerDeviceType.Mouse && !_videoMousePressIsLeft) return;
+        if (ViewerVideo.Opacity < 1 || _videoPlayer is not { } player) return;
+        if (doubleTap)
+        {
+            // 只有第一下确实切换了这个播放器，才抵消它；侧键不能成为双击的第一下。
+            if (ReferenceEquals(_videoSingleTapPlayer, player)) ToggleVideoPlayback();
+            _videoSingleTapPlayer = null;
+            SetViewerFullScreen(_presenterBeforeFullScreen is null);
+        }
+        else
+        {
+            ToggleVideoPlayback();
+            _videoSingleTapPlayer = player;
+        }
     }
 
     private void VideoRate_Click(object sender, RoutedEventArgs e)
@@ -388,7 +463,7 @@ public sealed partial class MainWindow
     private void VideoSeek_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
         if (_updatingSeek || _videoPlayer is not { } player || player.Duration <= TimeSpan.Zero) return;
-        player.Position = TimeSpan.FromSeconds(e.NewValue);
+        player.Seek(TimeSpan.FromSeconds(e.NewValue));
         VideoPositionText.Text = FormatTime(player.Position);
     }
 

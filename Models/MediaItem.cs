@@ -14,6 +14,8 @@ public sealed partial class MediaItem : ObservableObject
     private CancellationTokenSource? _thumbnailCts;
     private uint _thumbnailSize;
     private uint _pendingSize;
+    // 只保留当前浏览期间已完成封面的版本键；图片仍只由有预算的 LRU 持有。
+    private FileVersion[] _folderPreviewVersions = [];
 
     public MediaItem(string path, MediaKind kind, FileVersion? version = null)
     {
@@ -65,6 +67,22 @@ public sealed partial class MediaItem : ObservableObject
         if ((Thumbnail is not null && _thumbnailSize >= size)
             || (_thumbnailCts is not null && _pendingSize >= size)) return;
         _thumbnailCts?.Cancel();
+        if (IsFolder && Thumbnail is null && _folderPreviewVersions.Length > 0)
+        {
+            var previews = _folderPreviewVersions.Select(version =>
+            {
+                var image = MediaCache.GetThumbnailPreview(version, out uint pixels);
+                return (Image: image, Size: pixels);
+            }).ToArray();
+            if (previews.All(preview => preview.Image is not null))
+            {
+                FolderThumbnails = previews.Select(preview => preview.Image!).ToArray();
+                Thumbnail = FolderThumbnails[0];
+                _thumbnailSize = previews.Min(preview => preview.Size);
+                ThumbnailFailed = false;
+                if (_thumbnailSize >= size) { _thumbnailCts = null; return; }
+            }
+        }
         if (!IsFolder && MediaCache.GetThumbnail(Version, size) is { } cached)
         {
             _thumbnailCts = null;
@@ -72,6 +90,13 @@ public sealed partial class MediaItem : ObservableObject
             _thumbnailSize = size;
             ThumbnailFailed = false;
             return;
+        }
+        // DPI 或缩略图尺寸升级时先显示已有预览，清晰图就绪后替换，避免等待期间空白。
+        if (!IsFolder && Thumbnail is null && MediaCache.GetThumbnailPreview(Version, out uint previewSize) is { } preview)
+        {
+            Thumbnail = preview;
+            _thumbnailSize = previewSize;
+            ThumbnailFailed = false;
         }
         using var cts = new CancellationTokenSource();
         _thumbnailCts = cts;
@@ -87,6 +112,7 @@ public sealed partial class MediaItem : ObservableObject
                 : [new(Path, Kind) { Version = Version }];
             using var candidateIterator = candidates.GetEnumerator();
             var covers = new List<BitmapImage>(3);
+            var coverVersions = new List<FileVersion>(3);
             // 逐个取得候选，三张可用封面就停止，不为凑齐八个候选继续扫描后代。
             while (await Task.Run(candidateIterator.MoveNext, ct))
             {
@@ -115,18 +141,27 @@ public sealed partial class MediaItem : ObservableObject
                     if (IsFolder)
                     {
                         covers.Add(bitmap);
-                        FolderThumbnails = covers.ToArray();
+                        if (version is { } coverVersion) coverVersions.Add(coverVersion);
+                        // 已有完整叠图在升级期间保持显示，不退回一张再逐张长出来。
+                        if (covers.Count >= FolderThumbnails.Count) FolderThumbnails = covers.ToArray();
                     }
                     Thumbnail = IsFolder ? covers[0] : bitmap;
                     _thumbnailSize = size;
                     ThumbnailFailed = false;
-                    if (!IsFolder || covers.Count == 3) return;
+                    if (!IsFolder) return;
+                    if (covers.Count == 3) break;
                 }
                 catch (OperationCanceledException) when (IsFolder && !ct.IsCancellationRequested) { }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception) when (IsFolder) { }
             }
             ct.ThrowIfCancellationRequested();
+            if (IsFolder)
+            {
+                FolderThumbnails = covers.ToArray();
+                Thumbnail = covers.FirstOrDefault();
+                _folderPreviewVersions = covers.Count == coverVersions.Count ? coverVersions.ToArray() : [];
+            }
             ThumbnailFailed = !IsFolder;
         }
         catch (OperationCanceledException)
@@ -216,7 +251,7 @@ public sealed partial class MediaItem : ObservableObject
         return bitmap;
     }
 
-    public void ReleaseThumbnail()
+    public void ReleaseThumbnail(bool preserveFolderPreview = false)
     {
         _thumbnailCts?.Cancel();
         _thumbnailCts = null;
@@ -224,5 +259,7 @@ public sealed partial class MediaItem : ObservableObject
         FolderThumbnails = [];
         _thumbnailSize = 0;
         ThumbnailFailed = false;
+        // 导航、刷新、文件变更必须重新验证候选；仅布局回收可以复用本次浏览的候选。
+        if (!preserveFolderPreview) _folderPreviewVersions = [];
     }
 }

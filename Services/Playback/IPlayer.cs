@@ -27,6 +27,8 @@ public interface IPlayer : IDisposable
     int AudioTrack { get; set; }
 
     Task OpenAsync(string path, CancellationToken ct);
+    /// <summary>用户快进/进度条优先附近关键帧；Position 保留准确定位供续播、循环等使用。</summary>
+    void Seek(TimeSpan target) => Position = target;
     void Play();
     void Pause();
     void StepFrame(bool forward);

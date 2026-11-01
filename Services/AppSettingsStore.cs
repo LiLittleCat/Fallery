@@ -45,7 +45,7 @@ public sealed record AppSettings
         ThumbnailSize = double.IsFinite(ThumbnailSize) ? Math.Clamp(ThumbnailSize, 120, 480) : 240,
         SidebarWidth = double.IsFinite(SidebarWidth) ? Math.Clamp(SidebarWidth, 160, 480) : 260,
         SortField = Enum.IsDefined(SortField) ? SortField : MediaSortField.Name,
-        TreeSortField = TreeSortField is MediaSortField.Name or MediaSortField.Modified ? TreeSortField : MediaSortField.Name,
+        TreeSortField = TreeSortField is MediaSortField.Name or MediaSortField.Modified or MediaSortField.Created ? TreeSortField : MediaSortField.Name,
         TreeTimeField = Enum.IsDefined(TreeTimeField) ? TreeTimeField : FolderTimeField.Modified,
         TreeExcludedFolders = (TreeExcludedFolders ?? []).Select(NormalizeFolder).OfType<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
@@ -73,6 +73,7 @@ public sealed class AppSettingsStore(string path)
 {
     private readonly SemaphoreSlim _writeGate = new(1);
     public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fallery", "settings.json");
+    public static AppSettingsStore Shared { get; } = new(DefaultPath);
 
     public Task<AppSettings> LoadAsync() => Task.Run(() =>
     {

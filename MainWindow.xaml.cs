@@ -32,6 +32,7 @@ public sealed partial class MainWindow : Window
     private static readonly SemaphoreSlim ViewerImageDecodeSlots = new(2);
     private bool _closed;
     private bool _pickingFolder;
+    private static int _openWindowCount;
     private Windows.Foundation.Point? _panOrigin;
     private double _panHorizontalOffset;
     private double _panVerticalOffset;
@@ -41,6 +42,7 @@ public sealed partial class MainWindow : Window
         if (settingsStore is not null) _settingsStore = settingsStore;
         _startupPath = startupPath;
         InitializeComponent();
+        _openWindowCount++;
         // Win10 不支持 Mica，换成系统亚克力，避免透明外框露出黑底。
         if (!Microsoft.UI.Composition.SystemBackdrops.MicaController.IsSupported())
             SystemBackdrop = new DesktopAcrylicBackdrop();
@@ -173,8 +175,10 @@ public sealed partial class MainWindow : Window
         _settingsTimer.Stop();
         CancelGesture();
         CloseViewer();
+        _taskbarProgress?.Dispose();
         ReleaseGalleryThumbnails();
-        MediaCache.Clear();
+        if (--_openWindowCount == 0) MediaCache.Clear();
+        if (_searchIndex is not null && _searchProgressHandler is not null) _searchIndex.Progress -= _searchProgressHandler;
     }
 
     private TreeViewNode CreateNode(string path, string name, long? modifiedTicks = null, long? createdTicks = null) => new()
@@ -430,7 +434,7 @@ public sealed partial class MainWindow : Window
         get
         {
             double scale = Root.XamlRoot?.RasterizationScale ?? 1.0;
-            double logicalSize = IsFilmstrip ? FilmstripTileWidth : ThumbSize.Value;
+            double logicalSize = IsDetailsView ? 64 : IsFilmstrip ? FilmstripTileWidth : ThumbSize.Value;
             return (uint)Math.Clamp(logicalSize * scale, 128, MediaItem.MaxThumbnailPixels);
         }
     }
@@ -453,7 +457,7 @@ public sealed partial class MainWindow : Window
     private void Gallery_ElementClearing(ItemsRepeater sender, ItemsRepeaterElementClearingEventArgs args)
     {
         if (args.Element is MediaTile tile) tile.Bind(null);
-        if (_realizedItems.Remove(args.Element, out var item)) item.ReleaseThumbnail();
+        if (_realizedItems.Remove(args.Element, out var item)) item.ReleaseThumbnail(preserveFolderPreview: true);
     }
 
     private async void Tile_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -582,6 +586,8 @@ public sealed partial class MainWindow : Window
 
     private void StopVideo(bool keepRotationButtonEnabled = false)
     {
+        _videoSingleTapPlayer = null;
+        _videoMousePressIsLeft = false;
         AudioPresentation.Visibility = Visibility.Collapsed;
         AudioArtwork.Source = null;
         AudioTitle.Text = AudioSubtitle.Text = "";
@@ -730,6 +736,12 @@ public sealed partial class MainWindow : Window
         bool alt = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu)
             & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
         if (_searchDialog is not null) return;
+        if (control && !alt && !IsShiftDown() && e.Key == VirtualKey.N)
+        {
+            e.Handled = true;
+            RequestNewWindow(GalleryState.CurrentFolder);
+            return;
+        }
         if (await HandleExplorerKeyAsync(e, control, alt))
         { e.Handled = true; return; }
         if (control && !alt && e.Key == VirtualKey.F)

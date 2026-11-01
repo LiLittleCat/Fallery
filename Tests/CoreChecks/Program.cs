@@ -9,6 +9,16 @@ using FileAttributes = System.IO.FileAttributes;
 
 if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("自然排序测试需要 Windows。");
 var workspace = Path.GetFullPath(args.Length > 0 ? args[0] : ".");
+if (args.Length == 3 && args[1] == "--keyframe-sample")
+{
+    await VideoKeyframeChecks.RunAsync(Path.GetFullPath(args[2]));
+    return;
+}
+if (args.Length == 3 && args[1] == "--seek-sample")
+{
+    await VideoSeekDiagnostics.RunAsync(Path.GetFullPath(args[2]));
+    return;
+}
 var fixture = Path.Combine(workspace, "work", "validation", "corechecks", Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(fixture);
 if (args.Length == 4 && args[1] == "--identical-sample")
@@ -40,6 +50,23 @@ void Expect<T>(Action action, string name) where T : Exception
     catch (T) { checks++; return; }
     throw new InvalidOperationException(name);
 }
+
+var detailsGeometry = MasonryGeometry.Details(10000, 400);
+Check(detailsGeometry.Bounds[0].Width == MasonryGeometry.DetailsMinWidth && detailsGeometry.ExtentHeight == 600000,
+    "列表视图窄窗口保留所有列，万项采用固定行高");
+Check(detailsGeometry.GetVisibleIndices(60000, 600).SequenceEqual(Enumerable.Range(1000, 10)), "列表视图只查询可见行");
+Check(MasonryGeometry.Details(0, 1200).ExtentHeight == 0, "空列表无额外滚动高度");
+Check((int)GalleryDisplayMode.Justified == 3 && (int)GalleryDisplayMode.Details == 4
+    && new AppSettings { DisplayMode = GalleryDisplayMode.Details }.Normalize().DisplayMode == GalleryDisplayMode.Details, "列表模式追加枚举且可持久化");
+var detailFile = new MediaFile(@"C:\sample\photo.jpg", MediaKind.Image)
+{
+    Version = new(@"C:\SAMPLE\PHOTO.JPG", 1536, new DateTime(2026, 1, 2, 3, 4, 0, DateTimeKind.Utc).Ticks),
+    CreatedTicks = new DateTime(2025, 2, 3, 4, 5, 0, DateTimeKind.Utc).Ticks
+};
+Check(detailFile.SizeText == "1.5 KB" && detailFile.TypeText == "JPG 图片", "列表显示真实格式和文件大小");
+Check(detailFile.CreatedText != detailFile.ModifiedText && detailFile.CreatedText.StartsWith("2025-02-03"), "创建时间和修改时间分别显示");
+Check(new MediaFile(@"C:\sample", MediaKind.Folder).SizeText == "—"
+    && new MediaFile(@"C:\sample", MediaKind.Folder).CreatedText == "—", "文件夹大小和未知日期不伪造数值");
 
 foreach (var name in new[] { "image10.JPG", "image2.png", "image1.jpg", "video2.MP4", "video10.mov", "ignore.txt", "hidden.jpg", "system.jpg" })
     File.WriteAllText(Path.Combine(fixture, name), "fixture");

@@ -58,9 +58,27 @@ public sealed partial class MainWindow
 
     private void Viewer_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
     {
-        if (ViewerState.CurrentItem is not { } item) return;
+        if (!ViewerState.IsOpen || ViewerState.CurrentItem is null) return;
         e.Handled = true;
-        ShowItemMenu(Viewer, e.TryGetPosition(Viewer, out var point) ? point : null, item.Path, false);
+        // 鼠标释放已打开时不再重复弹出；键盘菜单键及触摸长按仍走 ContextRequested。
+        if (_itemMenu?.IsOpen == true) return;
+        ShowViewerItemMenu(e.TryGetPosition(Viewer, out var point) ? point : null);
+    }
+
+    private void Viewer_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!ViewerState.IsOpen || ViewerState.CurrentItem is null
+            || e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Mouse
+            || e.GetCurrentPoint(Viewer).Properties.PointerUpdateKind != Microsoft.UI.Input.PointerUpdateKind.RightButtonReleased) return;
+        // 视频控件内部可能处理 ContextRequested；在画面层捕获右键释放，包含四周留白。
+        e.Handled = true;
+        ShowViewerItemMenu(e.GetCurrentPoint(Viewer).Position);
+    }
+
+    private void ShowViewerItemMenu(Point? point)
+    {
+        if (ViewerState.CurrentItem is not { } item) return;
+        ShowItemMenu(Viewer, point, item.Path, false, singleTarget: true);
     }
 
     private void Gallery_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
@@ -72,31 +90,32 @@ public sealed partial class MainWindow
         ShowItemMenu(GallerySurface, positioned ? point : null, path, true, allowDelete: false);
     }
 
-    private void ShowItemMenu(FrameworkElement target, Point? point, string path, bool folder, TreeViewNode? node = null, bool allowDelete = true)
+    private void ShowItemMenu(FrameworkElement target, Point? point, string path, bool folder, TreeViewNode? node = null, bool allowDelete = true, bool singleTarget = false)
     {
         StopHoverPreview();
         CloseItemMenu();
         if (node is not null) FolderTree.SelectedNode = node;
-        else if (GalleryState.Items.FirstOrDefault(item => string.Equals(item.Path, path, StringComparison.OrdinalIgnoreCase)) is { } selected)
+        else if (!singleTarget && GalleryState.Items.FirstOrDefault(item => string.Equals(item.Path, path, StringComparison.OrdinalIgnoreCase)) is { } selected)
         {
             if (!_selectedPaths.Contains(selected.Path)) SelectItem(selected);
         }
-        var menu = BuildItemMenu(path, folder, node, allowDelete);
+        var menu = BuildItemMenu(path, folder, node, allowDelete, singleTarget);
         _itemMenu = menu;
         menu.Closed += (_, _) => { if (ReferenceEquals(_itemMenu, menu)) _itemMenu = null; };
         menu.ShowAt(target, new FlyoutShowOptions { Position = point });
     }
 
-    private MenuFlyout BuildItemMenu(string path, bool folder, TreeViewNode? node = null, bool allowDelete = true)
+    private MenuFlyout BuildItemMenu(string path, bool folder, TreeViewNode? node = null, bool allowDelete = true, bool singleTarget = false)
     {
         var menu = new MenuFlyout();
-        var targets = node is null && allowDelete ? ContextFileTargets(path, folder) : [(path, folder)];
+        var targets = !singleTarget && node is null && allowDelete ? ContextFileTargets(path, folder) : [(path, folder)];
         bool multiple = targets.Length > 1;
         void Add(string text, string key, Func<Task> action)
         {
             string? icon = key switch
             {
                 "open" => folder ? "IconFolder" : "IconOpen",
+                "new-window" => "IconNewWindow",
                 "expand" => node?.IsExpanded == true ? "IconCollapse" : "IconExpand",
                 "reveal" => "IconOpenFolder",
                 "copy-path" => "IconCopy",
@@ -126,6 +145,12 @@ public sealed partial class MainWindow
                 if (index >= 0) await ShowInViewerAsync(index);
             }
         });
+        bool openFolderInWindow = folder && !multiple && (node is not null || allowDelete);
+        string? windowPath = openFolderInWindow ? path : GalleryState.CurrentFolder
+            ?? (folder ? path : System.IO.Path.GetDirectoryName(path));
+        Add(openFolderInWindow ? "在新窗口中打开" : "新建窗口", "new-window",
+            () => { RequestNewWindow(windowPath); return Task.CompletedTask; });
+        if (!openFolderInWindow) ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+N";
         if (node is not null)
         {
             Add("排除此文件夹", "exclude", () => { ExcludeTreeFolder(path); return Task.CompletedTask; });
@@ -160,10 +185,11 @@ public sealed partial class MainWindow
                 ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "F2";
             }
         }
-        if (!allowDelete && string.Equals(path, GalleryState.CurrentFolder, StringComparison.OrdinalIgnoreCase))
+        if (folder && !multiple)
         {
-            Add("新建文件夹", "new-folder", () => { NewFolder_Click(this, new RoutedEventArgs()); return Task.CompletedTask; });
-            ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+Shift+N";
+            Add("新建文件夹", "new-folder", () => ShowNewFolderDialogAsync(path));
+            if (string.Equals(path, GalleryState.CurrentFolder, StringComparison.OrdinalIgnoreCase))
+                ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+Shift+N";
         }
         string? destination = multiple ? GalleryState.CurrentFolder : folder ? path : System.IO.Path.GetDirectoryName(path);
         Add("粘贴", "paste", () => destination is null ? Task.CompletedTask : PasteFilesAsync(destination));

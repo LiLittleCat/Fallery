@@ -15,6 +15,18 @@ public sealed record MediaFile(string Path, MediaKind Kind)
     public MediaFilter PreviewFilter { get; init; }
     public bool PreviewHidden { get; init; }
     public long? ModifiedTicks => Version?.ModifiedTicks ?? FolderModifiedTicks;
+    public string TypeText => Kind == MediaKind.Folder ? "文件夹" : $"{System.IO.Path.GetExtension(Path).TrimStart('.').ToUpperInvariant()} {Kind switch { MediaKind.Video => "视频", MediaKind.Audio => "音频", _ => "图片" }}";
+    public string SizeText => Kind == MediaKind.Folder || Version is null ? "—" : Version.Value.Length switch
+    {
+        >= 1L << 30 => $"{Version.Value.Length / (double)(1L << 30):0.##} GB",
+        >= 1L << 20 => $"{Version.Value.Length / (double)(1L << 20):0.##} MB",
+        >= 1L << 10 => $"{Version.Value.Length / 1024d:0.##} KB",
+        var bytes => $"{bytes} B"
+    };
+    public string CreatedText => DateText(CreatedTicks);
+    public string ModifiedText => DateText(ModifiedTicks);
+    private static string DateText(long? ticks) => ticks is > 0 && ticks <= DateTime.MaxValue.Ticks
+        ? new DateTime(ticks.Value, DateTimeKind.Utc).ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "—";
 }
 
 // 路径和文件版本一起标识缓存，避免同名文件覆盖后继续显示旧图。

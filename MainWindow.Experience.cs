@@ -11,7 +11,7 @@ namespace Fallery;
 
 public sealed partial class MainWindow
 {
-    private readonly AppSettingsStore _settingsStore = new(AppSettingsStore.DefaultPath);
+    private readonly AppSettingsStore _settingsStore = AppSettingsStore.Shared;
     private readonly DispatcherTimer _settingsTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private bool _settingsReady;
     private bool _closing;

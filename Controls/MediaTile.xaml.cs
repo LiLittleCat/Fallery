@@ -12,6 +12,7 @@ public sealed partial class MediaTile : UserControl
     public event Action<MediaTile, bool>? PreviewHoverChanged;
     private bool _showNames = true;
     private bool _showCard = true;
+    private bool _listMode;
     private Windows.Foundation.Point? _hoverEntryPosition;
 
     public MediaTile()
@@ -30,10 +31,13 @@ public sealed partial class MediaTile : UserControl
         }
     }
 
-    public void SetPresentation(bool showNames, bool containImage, bool selected, bool showCard = true)
+    public void SetPresentation(bool showNames, bool containImage, bool selected, bool showCard = true, bool listMode = false)
     {
         _showNames = showNames;
         _showCard = showCard;
+        _listMode = listMode;
+        TileContent.Visibility = listMode ? Visibility.Collapsed : Visibility.Visible;
+        ListContent.Visibility = listMode ? Visibility.Visible : Visibility.Collapsed;
         HoverOverlay.Margin = new Thickness(showCard ? -5 : 0);
         HoverOverlay.CornerRadius = new CornerRadius(showCard ? 7 : 0);
         // 平衡卡片底部的 5 像素内边距，让名称在图片下缘与卡片底边之间居中。
@@ -55,18 +59,20 @@ public sealed partial class MediaTile : UserControl
         VideoMark.Visibility = _showNames && Item?.IsPlaybackMedia == true ? Visibility.Visible : Visibility.Collapsed;
         VideoMark.Glyph = VideoBadgeIcon.Glyph = FluentIcons.Glyph(Item?.IsAudio == true ? "IconAudio" : "IconPlay");
         string kind = IsSelected ? "Selected" : "Image";
-        VisualStateManager.GoToState(this, kind + (_showCard ? "Card" : "Plain"), false);
+        VisualStateManager.GoToState(this, kind + (_listMode ? "List" : _showCard ? "Card" : "Plain"), false);
     }
 
     private void Tile_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         HoverOverlay.Visibility = Item is null ? Visibility.Collapsed : Visibility.Visible;
+        ListHoverOverlay.Visibility = HoverOverlay.Visibility;
         // 导航/虚拟化会让新卡片出现在静止鼠标下，不能因此自动打开视频解码器。
         _hoverEntryPosition = e.GetCurrentPoint(null).Position;
     }
 
     private void Tile_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
+        if (_listMode) return;
         if (e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Mouse) return;
         var position = e.GetCurrentPoint(null).Position;
         if (_hoverEntryPosition is not { } entered) { _hoverEntryPosition = position; return; }
@@ -78,6 +84,7 @@ public sealed partial class MediaTile : UserControl
     private void Tile_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         HoverOverlay.Visibility = Visibility.Collapsed;
+        ListHoverOverlay.Visibility = Visibility.Collapsed;
         _hoverEntryPosition = null;
         PreviewHoverChanged?.Invoke(this, false);
     }
@@ -92,6 +99,13 @@ public sealed partial class MediaTile : UserControl
         Item = item;
         IsSelected = false;
         HoverOverlay.Visibility = Visibility.Collapsed;
+        ListHoverOverlay.Visibility = Visibility.Collapsed;
+        ListName.Text = item?.Name ?? "";
+        ListType.Text = item?.File.TypeText ?? "";
+        ListSize.Text = item?.File.SizeText ?? "";
+        ListCreated.Text = item?.File.CreatedText ?? "";
+        ListModified.Text = item?.File.ModifiedText ?? "";
+        ToolTipService.SetToolTip(ListName, item?.Name);
         MediaName.Text = item is { IsFolder: false } ? item.Name : string.Empty;
         FolderName.Text = item?.IsFolder == true ? item.Name : string.Empty;
         FolderPlaceholder.Visibility = FolderFooter.Visibility = item?.IsFolder == true
@@ -111,6 +125,14 @@ public sealed partial class MediaTile : UserControl
 
     private void UpdatePreview()
     {
+        ListPreviewImage.Source = Item?.Thumbnail;
+        ListPlaceholder.Glyph = FluentIcons.Glyph(Item?.Kind switch
+        {
+            MediaKind.Folder => "IconFolder", MediaKind.Video => "IconPlay", MediaKind.Audio => "IconAudio", _ => "IconImage"
+        });
+        ListPlaceholder.Visibility = Item is { IsFolder: false, Thumbnail: null } ? Visibility.Visible : Visibility.Collapsed;
+        ListFolderPlaceholder.Visibility = Item is { IsFolder: true, Thumbnail: null } ? Visibility.Visible : Visibility.Collapsed;
+        ListFolderBadge.Visibility = Item is { IsFolder: true, Thumbnail: not null } ? Visibility.Visible : Visibility.Collapsed;
         PreviewImage.Source = Item?.IsFolder == true ? null : Item?.Thumbnail;
         var covers = Item?.IsFolder == true ? Item.FolderThumbnails : [];
         FrontCoverImage.Source = covers.ElementAtOrDefault(0);

@@ -21,6 +21,7 @@
     <Page Include="../../Themes/Icons.xaml" Link="Themes/Icons.xaml" />
     <Content Include="../../Assets/Fonts/*.ttf" Link="Assets/Fonts/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../../Controls/MediaTile.xaml.cs" Link="Controls/MediaTile.xaml.cs" />
+    <Compile Include="../../Controls/FluentIcons.cs" Link="Controls/FluentIcons.cs" />
     <Compile Include="../../Models/MediaFile.cs" Link="Models/MediaFile.cs" />
     <Compile Include="../../Models/MediaItem.cs" Link="Models/MediaItem.cs" />
     <Compile Include="../../Models/FolderEntry.cs" Link="Models/FolderEntry.cs" />

@@ -22,6 +22,7 @@ public sealed partial class MainWindow
 
     private void UpdateBrowseMenus()
     {
+        UpdateDetailsHeaders();
         SortTakenItem.IsChecked = GalleryState.SortField == MediaSortField.Taken;
         SortCreatedItem.IsChecked = GalleryState.SortField == MediaSortField.Created;
         SortModifiedItem.IsChecked = GalleryState.SortField == MediaSortField.Modified;
@@ -100,14 +101,14 @@ public sealed partial class MainWindow
 
     // 设置面板的显示顺序与枚举数值（持久化用）不同。
     private static readonly GalleryDisplayMode[] DisplayModeOrder =
-        [GalleryDisplayMode.Justified, GalleryDisplayMode.Masonry, GalleryDisplayMode.LargeIcons, GalleryDisplayMode.Filmstrip];
+        [GalleryDisplayMode.Justified, GalleryDisplayMode.Masonry, GalleryDisplayMode.LargeIcons, GalleryDisplayMode.Filmstrip, GalleryDisplayMode.Details];
 
     private ContentDialog BuildSettingsDialog()
     {
         var theme = new ComboBox { Name = "SettingsTheme", Header = "外观", HorizontalAlignment = HorizontalAlignment.Stretch,
             ItemsSource = new[] { "跟随系统", "亮色", "暗色" }, SelectedIndex = _themeIndex };
         var mode = new ComboBox { Name = "SettingsView", Header = "默认视图", HorizontalAlignment = HorizontalAlignment.Stretch,
-            ItemsSource = new[] { "自适应视图", "瀑布视图", "网格视图", "大图 + 底部缩略图" },
+            ItemsSource = new[] { "自适应视图", "瀑布视图", "网格视图", "大图 + 底部缩略图", "列表视图" },
             SelectedIndex = Math.Max(0, Array.IndexOf(DisplayModeOrder, GalleryState.DisplayMode)) };
         var opacity = new Slider { Name = "SettingsBackgroundOpacity", Header = $"背景不透明度 · {_backgroundOpacity:0}%",
             Minimum = 0, Maximum = 100, StepFrequency = 1, Value = _backgroundOpacity };

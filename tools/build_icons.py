@@ -28,6 +28,7 @@ ICONS = [
     ("IconUp", "arrow-up-02"),
     ("IconRefresh", "refresh"),
     ("IconOpenFolder", "folder-open"),
+    ("IconNewWindow", "app-window"),
     ("IconNewFolder", "folder-add"),
     ("IconFolder", "folder-01"),
     ("IconFolderFilled", "folder-01"),

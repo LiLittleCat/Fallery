@@ -12,6 +12,7 @@ public sealed partial class MainWindow
     {
         if (e.Pointer.PointerDeviceType != PointerDeviceType.Mouse) return;
         var kind = e.GetCurrentPoint(Root).Properties.PointerUpdateKind;
+        RecordVideoMousePress(kind);
         if (kind is not (PointerUpdateKind.XButton1Pressed or PointerUpdateKind.XButton2Pressed)) return;
         // 只处理本次按下的侧键，按住侧键再点其他按钮不会重复跳转。
         e.Handled = true;

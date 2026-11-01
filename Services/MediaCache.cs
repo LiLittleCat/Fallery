@@ -17,6 +17,17 @@ public static class MediaCache
         => version is { } key && Thumbnails.TryGet(key, out var entry) && entry.RequestedSize >= size
             ? entry.Image : null;
 
+    public static BitmapImage? GetThumbnailPreview(FileVersion? version, out uint size)
+    {
+        if (version is { } key && Thumbnails.TryGet(key, out var entry))
+        {
+            size = entry.RequestedSize;
+            return entry.Image;
+        }
+        size = 0;
+        return null;
+    }
+
     public static void StoreThumbnail(FileVersion? version, uint size, BitmapImage image)
     {
         if (version is not { } key) return;

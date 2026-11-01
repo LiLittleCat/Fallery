@@ -9,8 +9,10 @@ namespace Fallery;
 public sealed partial class MainWindow
 {
     private const double FilmstripTileWidth = 120;
+    private double FilmstripTileHeight => GalleryState.ShowFileNames ? 132 : 110;
     private readonly StackLayout _filmstripLayout = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
     private bool IsFilmstrip => GalleryState.DisplayMode == GalleryDisplayMode.Filmstrip;
+    private bool IsDetailsView => GalleryState.DisplayMode == GalleryDisplayMode.Details;
 
     public Visibility GalleryChromeVisibility(bool open, GalleryDisplayMode mode) =>
         ToVisibility(!open || mode == GalleryDisplayMode.Filmstrip);
@@ -23,6 +25,7 @@ public sealed partial class MainWindow
         GalleryDisplayMode.Justified => "IconJustified",
         GalleryDisplayMode.LargeIcons => "IconLargeIcons",
         GalleryDisplayMode.Filmstrip => "IconFilmstrip",
+        GalleryDisplayMode.Details => "IconPlaylist",
         _ => "IconMasonry"
     });
 
@@ -89,6 +92,7 @@ public sealed partial class MainWindow
         ReleaseGalleryThumbnails();
         Gallery.ItemsSource = null;
         Masonry.UniformTiles = GalleryState.DisplayMode == GalleryDisplayMode.LargeIcons;
+        Masonry.DetailsRows = IsDetailsView;
         Masonry.JustifiedRows = GalleryState.DisplayMode == GalleryDisplayMode.Justified;
         Masonry.ShowFileNames = GalleryState.ShowFileNames;
         Masonry.ShowCards = GalleryState.ShowCards;
@@ -96,9 +100,15 @@ public sealed partial class MainWindow
         Gallery.Layout = IsFilmstrip ? _filmstripLayout : Masonry;
         Grid.SetRow(GalleryScroller, IsFilmstrip ? 1 : 0);
         Grid.SetRow(MarqueeOverlay, IsFilmstrip ? 1 : 0);
-        GalleryScroller.Height = IsFilmstrip ? GalleryState.ShowFileNames ? 154 : 132 : double.NaN;
-        GalleryScroller.HorizontalScrollMode = IsFilmstrip ? ScrollMode.Enabled : ScrollMode.Disabled;
-        GalleryScroller.HorizontalScrollBarVisibility = IsFilmstrip ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
+        // Auto 行按实际内容和 Padding 计算高度，不能用小于卡片 + 留白的固定高度裁剪底边。
+        Gallery.Height = IsFilmstrip ? FilmstripTileHeight : double.NaN;
+        GalleryScroller.Height = double.NaN;
+        // 横向滚动条展开时也留在卡片之外，不能盖住文件名或选中边框。
+        GalleryScroller.Padding = IsFilmstrip ? new Thickness(12, 8, 12, 20) : new Thickness(12);
+        GalleryScroller.Margin = MarqueeOverlay.Margin = new Thickness(0, IsDetailsView ? 36 : 0, 0, 0);
+        DetailsHeader.Visibility = IsDetailsView ? Visibility.Visible : Visibility.Collapsed;
+        GalleryScroller.HorizontalScrollMode = IsFilmstrip || IsDetailsView ? ScrollMode.Enabled : ScrollMode.Disabled;
+        GalleryScroller.HorizontalScrollBarVisibility = IsFilmstrip || IsDetailsView ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
         GalleryScroller.VerticalScrollMode = IsFilmstrip ? ScrollMode.Disabled : ScrollMode.Enabled;
         GalleryScroller.VerticalScrollBarVisibility = IsFilmstrip ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
         PlaceViewer();
@@ -109,9 +119,14 @@ public sealed partial class MainWindow
         MasonryModeItem.IsChecked = GalleryState.DisplayMode == GalleryDisplayMode.Masonry;
         LargeIconsModeItem.IsChecked = GalleryState.DisplayMode == GalleryDisplayMode.LargeIcons;
         FilmstripModeItem.IsChecked = IsFilmstrip;
+        DetailsModeItem.IsChecked = IsDetailsView;
         ShowFileNamesItem.IsChecked = GalleryState.ShowFileNames;
         ShowCardsItem.IsChecked = GalleryState.ShowCards;
-        ThumbSize.IsEnabled = !IsFilmstrip;
+        ShowFileNamesItem.IsEnabled = !IsDetailsView;
+        ShowCardsItem.IsEnabled = !IsDetailsView;
+        ThumbSize.IsEnabled = !IsFilmstrip && !IsDetailsView;
+        UpdateDetailsWidth();
+        UpdateDetailsHeaders();
         UpdateGalleryVisibility();
         UpdateFilmstripSelection();
     }
@@ -119,11 +134,11 @@ public sealed partial class MainWindow
     private void ConfigureTile(MediaTile tile)
     {
         tile.Width = IsFilmstrip ? FilmstripTileWidth : double.NaN;
-        tile.Height = IsFilmstrip ? GalleryState.ShowFileNames ? 132 : 110 : double.NaN;
+        tile.Height = IsFilmstrip ? FilmstripTileHeight : double.NaN;
         // 只有网格和横排的格子比例与图片不一致，需要完整显示；瀑布流与自适应行按原比例铺满。
         tile.SetPresentation(GalleryState.ShowFileNames, GalleryState.DisplayMode is GalleryDisplayMode.LargeIcons or GalleryDisplayMode.Filmstrip,
             tile.Item is not null && _selectedPaths.Contains(tile.Item.Path),
-            GalleryState.ShowCards);
+            GalleryState.ShowCards, IsDetailsView);
     }
 
     /// <summary>程序主动定位时恢复单选；用户多选由 ApplyItemSelection 处理。</summary>

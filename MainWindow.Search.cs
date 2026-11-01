@@ -12,6 +12,7 @@ namespace Fallery;
 public sealed partial class MainWindow
 {
     private MediaSearchIndex? _searchIndex;
+    private Action<SearchIndexStatus>? _searchProgressHandler;
     private Task? _searchIndexTask;
     private CancellationTokenSource? _searchBuildCts, _searchQueryCts;
     private ContentDialog? _searchDialog;
@@ -121,14 +122,15 @@ public sealed partial class MainWindow
     private void EnsureSearchIndex()
     {
         if (_searchIndex is not null) return;
-        _searchIndex = new MediaSearchIndex(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fallery", "Search", "media-v1.idx"));
-        _searchIndex.Progress += status => DispatcherQueue.TryEnqueue(() =>
+        _searchIndex = MediaSearchIndex.Shared;
+        _searchProgressHandler = status => DispatcherQueue.TryEnqueue(() =>
         {
             if (_closed || _searchDialog is null) return;
             _searchProgress!.Text = status.Message;
             _searchRefresh!.Content = status.Building ? "停止索引" : "刷新索引";
             QueueSearch();
         });
+        _searchIndex.Progress += _searchProgressHandler;
     }
 
     private async Task UpdateSearchIndexAsync(bool load)
@@ -138,7 +140,8 @@ public sealed partial class MainWindow
         _searchBuildCts = cts;
         try
         {
-            if (load) await _searchIndex.LoadAsync(cts.Token);
+            if (load) await _searchIndex.EnsureLoadedAsync(cts.Token);
+            if (_searchIndex.Status.Building) return;
             var roots = await Task.Run(MediaSearchIndex.LocalRoots, cts.Token);
             await _searchIndex.BuildAsync(roots, cts.Token);
         }

@@ -60,12 +60,12 @@ public partial class App
         Check(neighbor > 0 && neighbor < items.Count, "方向导航应使用实际布局寻找相邻卡片");
         Click(35);
         Click(45, control: true);
-        var duplicateMenu = (MenuFlyout)Call("BuildItemMenu", items[45].Path, false, null!, true)!;
+        var duplicateMenu = (MenuFlyout)Call("BuildItemMenu", items[45].Path, false, null!, true, false)!;
         Check(!duplicateMenu.Items.OfType<MenuFlyoutItem>().Any(entry => Equals(entry.Tag, "identical-images")), "混选文件夹时不能开启相同图片清理");
         Check(paths.Count == 2 && paths.Contains(items[35].Path) && paths.Contains(items[45].Path), "Ctrl 点击应追加不相邻的文件夹和文件");
         Click(35, control: true);
         Check(paths.Count == 1 && paths.Contains(items[45].Path), "Ctrl 再次点击应只取消该项");
-        duplicateMenu = (MenuFlyout)Call("BuildItemMenu", items[45].Path, false, null!, true)!;
+        duplicateMenu = (MenuFlyout)Call("BuildItemMenu", items[45].Path, false, null!, true, false)!;
         Check(duplicateMenu.Items.OfType<MenuFlyoutItem>().Any(entry => Equals(entry.Tag, "identical-images")), "单选图片应提供相同内容清理入口");
         Click(40, shift: true);
         Check(paths.Count == 6 && paths.Contains(items[35].Path) && paths.Contains(items[40].Path)
@@ -78,7 +78,7 @@ public partial class App
         Check(targets.Length == 11 && targets.Count(target => target.Folder) == 5,
             "批量操作应包含完整选中范围中的文件夹和媒体，按显示顺序提供");
         Check(((TextBlock)root.FindName("SelectionCountText")).Text == "已选择 11 项", "底栏应同步多选数量");
-        var menu = (MenuFlyout)Call("BuildItemMenu", items[40].Path, false, null!, true)!;
+        var menu = (MenuFlyout)Call("BuildItemMenu", items[40].Path, false, null!, true, false)!;
         Check(menu.Items.OfType<MenuFlyoutItem>().Any(entry => Equals(entry.Tag, "copy-file") && entry.Text == "复制 11 项")
             && menu.Items.OfType<MenuFlyoutItem>().Any(entry => Equals(entry.Tag, "delete") && entry.Text == "删除 11 项"),
             "右键批量复制和删除必须明确目标数量");

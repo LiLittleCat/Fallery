@@ -57,8 +57,21 @@
                         <Setter Target="FolderName.Foreground" Value="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                     </VisualState.Setters>
                 </VisualState>
+                <VisualState x:Name="ImageList">
+                    <VisualState.Setters>
+                        <Setter Target="CardRoot.Background" Value="Transparent" />
+                        <Setter Target="CardRoot.BorderBrush" Value="Transparent" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="SelectedList">
+                    <VisualState.Setters>
+                        <Setter Target="CardRoot.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                        <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+                    </VisualState.Setters>
+                </VisualState>
             </VisualStateGroup>
         </VisualStateManager.VisualStateGroups>
+        <Grid x:Name="TileContent">
         <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition x:Name="CaptionRow" Height="22" /></Grid.RowDefinitions>
         <Border x:Name="HoverOverlay" Grid.RowSpan="2" Margin="-5" CornerRadius="7" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                 Visibility="Collapsed" IsHitTestVisible="False" />
@@ -126,5 +139,35 @@
             <FontIcon x:Name="VideoBadgeIcon" Style="{StaticResource FluentIconFilled}" Glyph="{StaticResource IconPlay}" FontSize="12" Foreground="White"
                       Margin="1,0,0,0" HorizontalAlignment="Center" VerticalAlignment="Center" />
         </Border>
+        </Grid>
+        <Grid x:Name="ListContent" Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="52" /><ColumnDefinition Width="*" MinWidth="180" />
+                <ColumnDefinition Width="100" /><ColumnDefinition Width="90" />
+                <ColumnDefinition Width="156" /><ColumnDefinition Width="156" />
+            </Grid.ColumnDefinitions>
+            <Border x:Name="ListHoverOverlay" Grid.ColumnSpan="6" Margin="-5" CornerRadius="7"
+                    Background="{ThemeResource SubtleFillColorSecondaryBrush}" Visibility="Collapsed" IsHitTestVisible="False" />
+            <Border Width="44" Height="42" CornerRadius="4" HorizontalAlignment="Left">
+                <Grid>
+                    <FontIcon x:Name="ListPlaceholder" Style="{StaticResource FluentIcon}" FontSize="24" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <FontIcon x:Name="ListFolderPlaceholder" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFolder}"
+                              FontSize="28" Foreground="{ThemeResource TileFolderBrush}" Visibility="Collapsed" />
+                    <Image x:Name="ListPreviewImage" Stretch="Uniform" />
+                    <Border x:Name="ListFolderBadge" Width="20" Height="18" CornerRadius="4" Visibility="Collapsed"
+                            HorizontalAlignment="Right" VerticalAlignment="Bottom" BorderThickness="1"
+                            BorderBrush="{ThemeResource TileFolderBrush}" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                            IsHitTestVisible="False">
+                        <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFolder}" FontSize="14"
+                                  Foreground="{ThemeResource TileFolderBrush}" />
+                    </Border>
+                </Grid>
+            </Border>
+            <TextBlock x:Name="ListName" Grid.Column="1" Margin="0,0,16,0" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="ListType" Grid.Column="2" Margin="0,0,8,0" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <TextBlock x:Name="ListSize" Grid.Column="3" Margin="0,0,16,0" FontSize="12" VerticalAlignment="Center" TextAlignment="Right" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <TextBlock x:Name="ListCreated" Grid.Column="4" FontSize="12" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <TextBlock x:Name="ListModified" Grid.Column="5" FontSize="12" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </Grid>
     </Grid>
 </UserControl>

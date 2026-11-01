@@ -57,6 +57,54 @@ public partial class App : Application
             root.Measure(new Windows.Foundation.Size(1100, 720));
             root.Arrange(new Windows.Foundation.Rect(0, 0, 1100, 720));
             root.UpdateLayout();
+            checks += await RunVideoGestureChecksAsync(window);
+            if (Environment.GetEnvironmentVariable("FALLERY_SEEK_BOUNDARY_CHECKS") == "1")
+            {
+                string sample = Environment.GetEnvironmentVariable("FALLERY_SEEK_SAMPLE")
+                    ?? Path.Combine(workspace, "work", "validation", "media", "video.mp4");
+                checks += await RunSeekBoundaryChecksAsync(window, sample, report);
+                File.AppendAllText(report, $"\nPASS: {checks} gesture and seek boundary checks");
+                window.Close();
+                window = null;
+                Exit();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("FALLERY_VIEWER_SHELL_CHECKS") == "1")
+            {
+                checks += RunViewerShellChecks(window);
+                File.AppendAllText(report, $"\nPASS: {checks} gesture, taskbar COM and viewer menu checks (no injected input)");
+                window.Close();
+                window = null;
+                Exit();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("FALLERY_PLAYBACK_CHECKS") == "1")
+            {
+                string sample = Environment.GetEnvironmentVariable("FALLERY_SEEK_SAMPLE")
+                    ?? Path.Combine(workspace, "work", "validation", "media", "video.mp4");
+                checks += await RunSeekPlaybackChecksAsync(window, sample, report);
+                File.AppendAllText(report, $"\nPASS: {checks} gesture and native playback checks");
+                window.Close();
+                window = null;
+                Exit();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("FALLERY_VIDEO_GESTURE_CHECKS") == "1")
+            {
+                File.AppendAllText(report, $"\nPASS: {checks} video gesture/setup checks (no injected input)");
+                window.Close();
+                window = null;
+                Exit();
+                return;
+            }
+            if (Environment.GetEnvironmentVariable("FALLERY_IMAGE_SAMPLE") is { Length: > 0 } imageSample)
+            {
+                await RunImageDiagnosticAsync(window, imageSample, report);
+                window.Close();
+                window = null;
+                Exit();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("FALLERY_FOLDER_SAMPLE") is { Length: > 0 } folderSample)
             {
                 await RunFolderDiagnosticAsync(window, folderSample, report);
@@ -179,10 +227,10 @@ public partial class App : Application
                 "进入空目录不能残留上一目录的大图");
             await Invoke("GoBackAsync");
             Check(window.ViewerState.CurrentIndex == 0, "横排模式返回目录后应自动打开首项");
-            var imageMenu = (MenuFlyout)typeof(MainWindow).GetMethod("BuildItemMenu", flags)!.Invoke(window, new object?[] { items[0].Path, false, null, true })!;
+            var imageMenu = (MenuFlyout)typeof(MainWindow).GetMethod("BuildItemMenu", flags)!.Invoke(window, new object?[] { items[0].Path, false, null, true, false })!;
             Check(imageMenu.Items.OfType<MenuFlyoutItem>().Select(i => i.Tag).SequenceEqual(new[] { "open", "reveal", "copy-path", "copy-file", "cut", "rename", "paste", "delete" }),
                 "媒体菜单应提供打开、定位、复制、剪切、重命名、粘贴和删除入口");
-            var treeMenu = (MenuFlyout)typeof(MainWindow).GetMethod("BuildItemMenu", flags)!.Invoke(window, new object?[] { folder, true, firstNode, true })!;
+            var treeMenu = (MenuFlyout)typeof(MainWindow).GetMethod("BuildItemMenu", flags)!.Invoke(window, new object?[] { folder, true, firstNode, true, false })!;
             Check(treeMenu.Items.OfType<MenuFlyoutItem>().Any(i => Equals(i.Tag, "paste") && i.KeyboardAcceleratorTextOverride == "Ctrl+V"),
                 "文件夹菜单应提供粘贴及快捷键提示");
             bool TextOwnsClipboard(DependencyObject element) => (bool)typeof(MainWindow).GetMethod("IsClipboardTextTarget",
@@ -1188,6 +1236,26 @@ public partial class App : Application
             await Invoke("SetTreeTimeAsync", FolderTimeField.Created, false);
             Check(((FolderEntry)selectedTreeNode.Content).ModifiedText == "" && ((RadioMenuFlyoutItem)root.FindName("TreeTimeHiddenItem")).IsChecked,
                 "不显示隐藏时间但保留选择类型");
+            Directory.SetCreationTimeUtc(treeOne, new DateTime(2023, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            Directory.SetCreationTimeUtc(treeTen, new DateTime(2022, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            await Invoke("SetTreeOptionsAsync", MediaSortField.Created, false, false);
+            Check(TreeNames().SequenceEqual(new[] { "folder10", "folder1", "folder2" })
+                && ((RadioMenuFlyoutItem)root.FindName("TreeSortCreatedItem")).IsChecked,
+                $"隐藏时间时也应支持按真实创建时间升序，不能使用修改时间或名称代替：{string.Join(",", treeParent.Children.Select(node => $"{((FolderEntry)node.Content).Name}:{((FolderEntry)node.Content).CreatedTicks}"))}");
+            await Invoke("SetTreeOptionsAsync", MediaSortField.Created, true, false);
+            Check(TreeNames().SequenceEqual(new[] { "folder2", "folder1", "folder10" }), "文件树应支持创建时间降序");
+            Check(ReferenceEquals(tree.SelectedNode, selectedTreeNode) && selectedTreeNode.IsExpanded
+                && ReferenceEquals(selectedTreeNode.Children.Single(), preservedChild), "创建时间排序必须保留选择和展开的子树");
+            var createdSortSettings = (AppSettings)typeof(MainWindow).GetMethod("CaptureSettings", flags)!.Invoke(window, null)!;
+            Check(await store.SaveAsync(createdSortSettings) && (await store.LoadAsync()).TreeSortField == MediaSortField.Created,
+                "创建时间排序应通过设置校验并保存");
+            await Invoke("RestoreSettingsAsync");
+            Check(((RadioMenuFlyoutItem)root.FindName("TreeSortCreatedItem")).IsChecked
+                && ((RadioMenuFlyoutItem)root.FindName("TreeDescendingItem")).IsChecked, "恢复创建时间排序及降序菜单状态");
+            var missingCreated = new FolderEntry("missing", "folder0");
+            Check((int)typeof(MainWindow).GetMethod("CompareTreeEntries", flags)!.Invoke(window,
+                [missingCreated, selectedTreeNode.Content])! > 0, "创建时间缺失项在降序中也应置后");
+            await Invoke("SetTreeOptionsAsync", MediaSortField.Name, true, false);
             string createdFolder = await FolderCreation.CreateAsync(treeFixture, "新建目录");
             Check(Directory.Exists(createdFolder) && Path.GetDirectoryName(createdFolder) == treeFixture, "新建文件夹只能创建指定父目录中的一层目录");
             bool duplicateRejected = false;
@@ -1287,6 +1355,10 @@ public partial class App : Application
             checks += await RunSelectionChecksAsync(window);
             checks += await RunAudioChecksAsync(window, workspace);
             checks += await RunStickyTreeChecksAsync(window);
+            checks += await RunResizePreviewChecksAsync(window, workspace);
+            checks += await RunListViewChecksAsync(window, workspace);
+            checks += await RunFilmstripBoundsChecksAsync(window);
+            checks += await RunMultiWindowChecksAsync(workspace);
             ((Slider)root.FindName("ThumbSize")).Value = 360;
             var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             window.Closed += (_, _) => closed.TrySetResult();

@@ -87,6 +87,22 @@ internal static class PhotoMetadataChecks
         var plainDetails = await MediaDetailsReader.ReadAsync(plain.Path, MediaKind.Image, CancellationToken.None);
         check(plainDetails.Width == 4 && !plainDetails.Groups.Any(group => group.Group is "拍摄" or "地理位置"),
             "没有 EXIF 的真实 PNG 保留尺寸且不出现空拍摄/地理卡片");
+        // 自生成的纯色 WebP，不依赖用户样本；伪装扩展名也必须按实际解码器判断。
+        byte[] webp = Convert.FromBase64String("UklGRh4AAABXRUJQVlA4TBEAAAAvH8AFAAdQvLaUtv+BiOh/AAA=");
+        foreach (string name in new[] { "without-exif.webp", "webp-named-jpeg.jpg" })
+        {
+            string webpPath = Path.Combine(directory, name);
+            await File.WriteAllBytesAsync(webpPath, webp);
+            var webpFile = await StorageFile.GetFileFromPathAsync(webpPath);
+            var metadata = new Dictionary<string, object>();
+            await PhotoMetadata.FillLensAsync(webpFile, metadata, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+            check(metadata.Count == 0, "WebP 不得使用 JPEG/TIFF 原始镜头标签查询（含扩展名伪装）");
+        }
+        var webpDetails = await MediaDetailsReader.ReadAsync(Path.Combine(directory, "without-exif.webp"), MediaKind.Image, CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        check(webpDetails.Width == 32 && webpDetails.Height == 24
+            && !webpDetails.Groups.Any(group => group.Group is "拍摄" or "地理位置"),
+            "WebP 详情保留尺寸，缺失 EXIF 不生成空分组");
         using var canceled = new CancellationTokenSource();
         canceled.Cancel();
         bool observed = false;

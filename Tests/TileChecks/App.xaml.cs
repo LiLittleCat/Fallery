@@ -97,6 +97,11 @@ public partial class App : Application
             tile.Bind(returned);
             Check(ReferenceEquals(image.Source, bitmap), "缓存图片必须正确绑定到复用卡片");
             Check(MediaCache.GetThumbnail(version, 256) is null, "放大不能误用分辨率不足的缓存");
+            returned.ReleaseThumbnail();
+            var upgrade = returned.EnsureThumbnailAsync(256);
+            Check(ReferenceEquals(returned.Thumbnail, bitmap) && ReferenceEquals(image.Source, bitmap),
+                "回收后的卡片请求更大尺寸时应立即显示旧预览，不能等待清晰图期间留白");
+            await upgrade;
             await returned.EnsureThumbnailAsync(256);
             var larger = returned.Thumbnail;
             Check(larger is not null && !ReferenceEquals(larger, bitmap), "放大应加载更清晰的图片");
@@ -157,6 +162,18 @@ public partial class App : Application
             await folder.EnsureThumbnailAsync(128);
             Check(folder.FolderThumbnails.Count == 3 && ReferenceEquals(folder.Thumbnail, folder.FolderThumbnails[0]),
                 "嵌套目录应加载三张不同文件的封面，并保留首图缓存接口");
+            var warmCovers = folder.FolderThumbnails.ToArray();
+            folder.ReleaseThumbnail(preserveFolderPreview: true);
+            Check(folder.Thumbnail is null && folder.FolderThumbnails.Count == 0, "布局回收必须释放封面的全部图片引用");
+            var warmFolder = folder.EnsureThumbnailAsync(128);
+            Check(warmFolder.IsCompletedSuccessfully && folder.FolderThumbnails.SequenceEqual(warmCovers),
+                "同一目录调整窗口或滚动后，应同步恢复完整叠图而不是重新扫描后代");
+            await warmFolder;
+            folder.ReleaseThumbnail();
+            var revalidatedFolder = folder.EnsureThumbnailAsync(128);
+            Check(!revalidatedFolder.IsCompleted && folder.FolderThumbnails.Count == 0,
+                "离开目录或刷新后必须重新验证封面候选，不能使用布局复用的版本快照");
+            await revalidatedFolder;
             tile.Bind(folder);
             Check(((Grid)tile.FindName("FolderStack")).Visibility == Visibility.Visible
                 && ((Border)tile.FindName("BackCover")).Visibility == Visibility.Visible

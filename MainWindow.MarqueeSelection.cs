@@ -133,7 +133,7 @@ public sealed partial class MainWindow
             for (int index = firstHit; index >= 0 && index <= lastHit; index++) yield return index;
             yield break;
         }
-        double height = GalleryState.ShowFileNames ? 132 : 110;
+        double height = FilmstripTileHeight;
         if (rect.Bottom <= 0 || rect.Top >= height) yield break;
         int first = Math.Max(0, (int)Math.Floor(rect.Left / 128));
         int end = Math.Min(GalleryState.Items.Count, (int)Math.Ceiling(rect.Right / 128));
