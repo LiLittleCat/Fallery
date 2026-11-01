@@ -14,6 +14,8 @@ public static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (ShellRegistrationCommand.TryExecute(args, Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Fallery.exe"),
+            FolderScanner.SupportedExtensions, out int exitCode)) return exitCode;
         WinRT.ComWrappersSupport.InitializeComWrappers();
         if (RedirectToRunningInstance()) return 0;
         Application.Start(callback =>

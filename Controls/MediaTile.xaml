@@ -70,6 +70,8 @@
                    Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12"
                    HorizontalAlignment="Center" VerticalAlignment="Center" />
         <Border CornerRadius="4"><Image x:Name="PreviewImage" Stretch="UniformToFill" /></Border>
+        <FontIcon x:Name="AudioPlaceholder" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconAudio}"
+                  Visibility="Collapsed" FontSize="48" Foreground="{ThemeResource TextFillColorSecondaryBrush}" IsHitTestVisible="False" />
         <Border CornerRadius="4" IsHitTestVisible="False"><Grid x:Name="HoverVideoHost" /></Border>
         <!-- 叠图外沿贴近 5:4 画布，后两张反向交叉，前图摆正以保持主体清楚。 -->
         <Grid x:Name="FolderArtwork" Visibility="Collapsed" CornerRadius="4" IsHitTestVisible="False">
@@ -121,7 +123,7 @@
         <Border x:Name="VideoBadge" Visibility="Collapsed" Background="#99000000" CornerRadius="12" Width="24" Height="24"
                 Margin="6" HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False">
             <!-- 三角形的视觉重心偏左，右移 1 像素才显得居中。 -->
-            <FontIcon Style="{StaticResource FluentIconFilled}" Glyph="{StaticResource IconPlay}" FontSize="12" Foreground="White"
+            <FontIcon x:Name="VideoBadgeIcon" Style="{StaticResource FluentIconFilled}" Glyph="{StaticResource IconPlay}" FontSize="12" Foreground="White"
                       Margin="1,0,0,0" HorizontalAlignment="Center" VerticalAlignment="Center" />
         </Border>
     </Grid>

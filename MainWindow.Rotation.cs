@@ -47,7 +47,7 @@ public sealed partial class MainWindow
 
     private void FlipImage_Click(object sender, RoutedEventArgs e)
     {
-        if (_closed || _closing || !ViewerState.IsOpen || ViewerState.CurrentItem?.IsVideo != false
+        if (_closed || _closing || !ViewerState.IsOpen || ViewerState.CurrentItem?.IsImage != true
             || ViewerImage.Source is null)
         {
             // ToggleButton 会先切换自身状态；加载中不能留下与实际图像不符的选中态。

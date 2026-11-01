@@ -39,7 +39,7 @@ public sealed partial class MainWindow
         && (Root.XamlRoot is not { } root || !VisualTreeHelper.GetOpenPopupsForXamlRoot(root).Any(popup => popup.Child is not ToolTip));
 
     private bool IsImageEnlargedForWheel() =>
-        ViewerState.CurrentItem is { IsVideo: false } && ViewerImage.Source is not null
+        ViewerState.CurrentItem is { IsImage: true } && ViewerImage.Source is not null
         && ImageScroller.ZoomFactor > 1.0001f;
 
     private bool CanNavigateViewerWheel(bool modified, bool horizontal) =>

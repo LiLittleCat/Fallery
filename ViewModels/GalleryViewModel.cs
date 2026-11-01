@@ -252,13 +252,15 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     private void UpdateStatus()
     {
         int videos = MediaItems.Count(item => item.IsVideo);
-        int photos = MediaItems.Count - videos;
+        int audio = MediaItems.Count(item => item.IsAudio);
+        int photos = MediaItems.Count - videos - audio;
         int folders = Items.Count - MediaItems.Count;
         List<string> counts = [];
         if (folders > 0) counts.Add($"{folders} 个文件夹");
         if (photos > 0) counts.Add($"{photos} 张图片");
         if (videos > 0) counts.Add($"{videos} 个视频");
-        string filter = Filter switch { MediaFilter.Photos => "仅图片 · ", MediaFilter.Videos => "仅视频 · ", _ => "" };
+        if (audio > 0) counts.Add($"{audio} 个音频");
+        string filter = Filter switch { MediaFilter.Photos => "仅图片 · ", MediaFilter.Videos => "仅视频 · ", MediaFilter.Audio => "仅音频 · ", _ => "" };
         Status = filter + (counts.Count > 0 ? string.Join(" · ", counts) : "没有可显示的项目");
     }
 

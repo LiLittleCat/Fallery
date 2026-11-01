@@ -253,7 +253,7 @@ public sealed class MediaSearchIndex(string storagePath, int entryLimit = 1_000_
             return new("", false, false, term[4..].Split(';').Select(ext => ext.TrimStart('.')).ToHashSet(StringComparer.OrdinalIgnoreCase), false, null);
         if (term.StartsWith("type:", StringComparison.OrdinalIgnoreCase))
             return new("", false, false, null, true, term[5..].ToLowerInvariant() switch
-            { "photo" or "image" or "图片" => MediaKind.Image, "video" or "视频" => MediaKind.Video, "folder" or "文件夹" => MediaKind.Folder, _ => null });
+            { "photo" or "image" or "图片" => MediaKind.Image, "video" or "视频" => MediaKind.Video, "folder" or "文件夹" => MediaKind.Folder, "audio" or "music" or "音频" => MediaKind.Audio, _ => null });
         bool path = term.StartsWith("path:", StringComparison.OrdinalIgnoreCase) || term.Contains('\\') || term.Contains('/');
         string pattern = (term.StartsWith("path:", StringComparison.OrdinalIgnoreCase) ? term[5..] : term).Replace('/', '\\');
         return new(pattern, path, pattern.Contains('*') || pattern.Contains('?'), null, false, null);

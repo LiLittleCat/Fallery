@@ -15,7 +15,8 @@ public sealed partial class MainWindow
         var allRows = details.Groups.SelectMany(group => group.Rows).ToArray();
         string Value(string label) => allRows.FirstOrDefault(row => row.Label == label).Value ?? "";
         bool video = ViewerState.CurrentItem?.IsVideo == true;
-        string type = details.Format + (video ? " 视频" : " 图片");
+        bool audio = ViewerState.CurrentItem?.IsAudio == true;
+        string type = details.Format + (audio ? " 音频" : video ? " 视频" : " 图片");
 
         var basic = new List<(string Label, string Value)>
         {
@@ -28,7 +29,7 @@ public sealed partial class MainWindow
         };
         AddDetailsCard("基本信息", "IconInfo", basic, fileActions: true);
 
-        var media = details.Groups.Where(group => group.Group == (video ? "视频" : "图像"))
+        var media = details.Groups.Where(group => group.Group == (audio ? "音频" : video ? "视频" : "图像"))
             .SelectMany(group => group.Rows).ToList();
         if (details.Width > 0 && details.Height > 0)
         {
@@ -36,7 +37,12 @@ public sealed partial class MainWindow
             while (b != 0) (a, b) = (b, a % b);
             media.Add(("宽高比", $"{details.Width / a}:{details.Height / a}"));
         }
-        AddDetailsCard(video ? "视频信息" : "图像信息", video ? "IconVideo" : "IconImage", media);
+        AddDetailsCard(audio ? "音频信息" : video ? "视频信息" : "图像信息", audio ? "IconAudio" : video ? "IconVideo" : "IconImage", media);
+        if (audio)
+        {
+            AudioTitle.Text = Value("标题") is { Length: > 0 } title ? title : ViewerState.CurrentItem!.Name;
+            AudioSubtitle.Text = string.Join(" · ", new[] { Value("艺术家"), Value("专辑") }.Where(value => value.Length > 0));
+        }
         foreach (var (group, rows) in details.Groups.Where(group => group.Group == "拍摄"))
             AddDetailsCard("拍摄信息", "IconSortTaken", rows);
         foreach (var (group, rows) in details.Groups.Where(group => group.Group == "地理位置"))

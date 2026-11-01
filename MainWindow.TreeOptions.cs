@@ -11,6 +11,7 @@ public sealed partial class MainWindow
     private MediaSortField _treeSortField;
     private bool _treeDescending;
     private bool _treeShowModifiedTime;
+    private FolderTimeField _treeTimeField;
     private CancellationTokenSource? _treePresentationCts;
 
     private void UpdateTreeToolbar()
@@ -19,7 +20,13 @@ public sealed partial class MainWindow
         TreeSortModifiedItem.IsChecked = _treeSortField == MediaSortField.Modified;
         TreeAscendingItem.IsChecked = !_treeDescending;
         TreeDescendingItem.IsChecked = _treeDescending;
-        TreeModifiedToggle.IsChecked = _treeShowModifiedTime;
+        TreeTimeHiddenItem.IsChecked = !_treeShowModifiedTime;
+        TreeTimeModifiedItem.IsChecked = _treeShowModifiedTime && _treeTimeField == FolderTimeField.Modified;
+        TreeTimeCreatedItem.IsChecked = _treeShowModifiedTime && _treeTimeField == FolderTimeField.Created;
+        TreeTimeIcon.Glyph = Controls.FluentIcons.Glyph(_treeTimeField == FolderTimeField.Created ? "IconSortCreated" : "IconSortModified");
+        string timeLabel = !_treeShowModifiedTime ? "不显示" : _treeTimeField == FolderTimeField.Created ? "创建时间" : "修改时间";
+        ToolTipService.SetToolTip(TreeTimeButton, $"文件夹时间：{timeLabel}");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TreeTimeButton, $"文件夹时间：{timeLabel}");
         NewFolderButton.IsEnabled = GalleryState.CurrentFolder is not null;
         TreeExclusionsItem.Text = $"管理排除的文件夹（{_treeExcludedFolders.Count}）";
     }
@@ -32,8 +39,19 @@ public sealed partial class MainWindow
         else await SetTreeOptionsAsync(_treeSortField, tag == "Descending", _treeShowModifiedTime);
     }
 
-    private async void TreeModified_Click(object sender, RoutedEventArgs e) =>
-        await SetTreeOptionsAsync(_treeSortField, _treeDescending, TreeModifiedToggle.IsChecked == true);
+    private async void TreeTime_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioMenuFlyoutItem { Tag: string tag }) return;
+        if (tag == "None") await SetTreeTimeAsync(_treeTimeField, false);
+        else if (Enum.TryParse<FolderTimeField>(tag, out var field)) await SetTreeTimeAsync(field, true);
+    }
+
+    private async Task SetTreeTimeAsync(FolderTimeField field, bool visible)
+    {
+        if (_closed || _closing || !Enum.IsDefined(field)) return;
+        _treeTimeField = field;
+        await SetTreeOptionsAsync(_treeSortField, _treeDescending, visible);
+    }
 
     private async Task SetTreeOptionsAsync(MediaSortField field, bool descending, bool showModifiedTime)
     {
@@ -67,14 +85,14 @@ public sealed partial class MainWindow
         try
         {
             var nodes = LoadedFolderNodes();
-            var dates = new ConcurrentDictionary<string, long?>(StringComparer.OrdinalIgnoreCase);
+            var dates = new ConcurrentDictionary<string, (long? Modified, long? Created)>(StringComparer.OrdinalIgnoreCase);
             if (_treeShowModifiedTime || _treeSortField == MediaSortField.Modified)
             {
                 var paths = nodes.Select(node => ((FolderEntry)node.Content).Path).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 // 只读取已加载节点，不展开子树；网络目录的元数据也不能阻塞 UI。
                 await Task.Run(() => Parallel.ForEach(paths,
                     new ParallelOptions { CancellationToken = cts.Token, MaxDegreeOfParallelism = 4 },
-                    path => dates[path] = FolderScanner.ReadFolderModifiedTicks(path)), cts.Token);
+                    path => dates[path] = (FolderScanner.ReadFolderModifiedTicks(path), FolderScanner.ReadFolderCreatedTicks(path))), cts.Token);
             }
             cts.Token.ThrowIfCancellationRequested();
             if (_closed || _closing) return;
@@ -83,8 +101,10 @@ public sealed partial class MainWindow
             foreach (var node in nodes)
             {
                 if (node.Content is not FolderEntry entry) continue;
-                node.Content = entry with { ShowModifiedTime = _treeShowModifiedTime,
-                    ModifiedTicks = dates.TryGetValue(entry.Path, out var ticks) ? ticks : entry.ModifiedTicks };
+                bool hasDates = dates.TryGetValue(entry.Path, out var ticks);
+                node.Content = entry with { ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField,
+                    ModifiedTicks = hasDates ? ticks.Modified : entry.ModifiedTicks,
+                    CreatedTicks = hasDates ? ticks.Created : entry.CreatedTicks };
                 SortTreeChildren(node);
             }
             SortTreeChildren(_favoritesRoot);

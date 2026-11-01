@@ -132,11 +132,13 @@ public sealed partial class MainWindow
                     // 一个节点在枚举时消失或失去权限，不应阻止其他节点和主列表更新。
                     exists = Directory.Exists(entry.Path);
                 }
-                return (exists, children, modifiedTicks: exists ? FolderScanner.ReadFolderModifiedTicks(entry.Path) : null);
+                return (exists, children, modifiedTicks: exists ? FolderScanner.ReadFolderModifiedTicks(entry.Path) : null,
+                    createdTicks: exists ? FolderScanner.ReadFolderCreatedTicks(entry.Path) : null);
             });
             if (_closed || version != _navigationVersion) return;
             if (!result.exists) { RemoveTreeNode(entry.Path); continue; }
-            node.Content = entry with { ModifiedTicks = result.modifiedTicks, ShowModifiedTime = _treeShowModifiedTime };
+            node.Content = entry with { ModifiedTicks = result.modifiedTicks, CreatedTicks = result.createdTicks,
+                ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField };
             if (result.children is null) continue;
             result.children.RemoveAll(child => IsTreeFolderExcluded(child.Path));
             var paths = result.children.Select(child => child.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -148,7 +150,7 @@ public sealed partial class MainWindow
                 var child = node.Children.FirstOrDefault(n => n.Content is FolderEntry info && string.Equals(info.Path, path, StringComparison.OrdinalIgnoreCase));
                 if (child is null)
                 {
-                    child = CreateNode(path, System.IO.Path.GetFileName(path), result.children[index].ModifiedTicks);
+                    child = CreateNode(path, System.IO.Path.GetFileName(path), result.children[index].ModifiedTicks, result.children[index].CreatedTicks);
                     child.HasUnrealizedChildren = hasChildren;
                     node.Children.Insert(index, child);
                 }
@@ -158,7 +160,8 @@ public sealed partial class MainWindow
                     node.Children.Insert(index, child);
                 }
                 if (child.Content is FolderEntry childEntry)
-                    child.Content = childEntry with { ModifiedTicks = result.children[index].ModifiedTicks, ShowModifiedTime = _treeShowModifiedTime };
+                    child.Content = childEntry with { ModifiedTicks = result.children[index].ModifiedTicks,
+                        CreatedTicks = result.children[index].CreatedTicks, ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField };
             }
             node.HasUnrealizedChildren = false;
             SortTreeChildren(node);

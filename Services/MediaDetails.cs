@@ -54,6 +54,22 @@ public static class MediaDetailsReader
         try
         {
             var file = await StorageFile.GetFileFromPathAsync(path).AsTask(ct);
+            if (kind == MediaKind.Audio)
+            {
+                var music = await file.Properties.GetMusicPropertiesAsync().AsTask(ct);
+                var extra = await file.Properties.RetrievePropertiesAsync(new[] { "System.Audio.SampleRate", "System.Audio.ChannelCount" }).AsTask(ct);
+                var rows = new List<(string, string)>();
+                if (!string.IsNullOrWhiteSpace(music.Title)) rows.Add(("标题", music.Title));
+                if (!string.IsNullOrWhiteSpace(music.Artist)) rows.Add(("艺术家", music.Artist));
+                if (!string.IsNullOrWhiteSpace(music.Album)) rows.Add(("专辑", music.Album));
+                if (music.Duration > TimeSpan.Zero) rows.Add(("时长", music.Duration.TotalHours >= 1 ? music.Duration.ToString(@"h\:mm\:ss") : music.Duration.ToString(@"m\:ss")));
+                if (music.Bitrate > 0) rows.Add(("码率", $"{music.Bitrate / 1000.0:N0} kbps"));
+                if (music.TrackNumber > 0) rows.Add(("曲目", music.TrackNumber.ToString()));
+                if (music.Year > 0) rows.Add(("年份", music.Year.ToString()));
+                if (extra.TryGetValue("System.Audio.SampleRate", out var sample) && sample is uint hz && hz > 0) rows.Add(("采样率", $"{hz / 1000.0:0.#} kHz"));
+                if (extra.TryGetValue("System.Audio.ChannelCount", out var channels) && channels is uint count && count > 0) rows.Add(("声道", count.ToString()));
+                return basic with { Groups = [basic.Groups[0], ("音频", rows), basic.Groups[1]] };
+            }
             if (kind == MediaKind.Video)
             {
                 var video = await file.Properties.GetVideoPropertiesAsync().AsTask(ct);

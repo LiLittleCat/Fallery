@@ -293,6 +293,9 @@
                                         <RadioMenuFlyoutItem x:Name="FilterVideosItem" Text="视频" Tag="Videos" GroupName="MediaFilter" Click="MediaFilter_Click">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconVideo}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
+                                        <RadioMenuFlyoutItem x:Name="FilterAudioItem" Text="音频" Tag="Audio" GroupName="MediaFilter" Click="MediaFilter_Click">
+                                            <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconAudio}" /></RadioMenuFlyoutItem.Icon>
+                                        </RadioMenuFlyoutItem>
                                         <MenuFlyoutSeparator />
                                         <RadioMenuFlyoutItem x:Name="ShowSubfoldersItem" Text="显示子文件夹" Tag="Show" GroupName="Subfolders" IsChecked="True" Click="Subfolders_Click">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFolder}" /></RadioMenuFlyoutItem.Icon>
@@ -397,10 +400,21 @@
                                 ToolTipService.ToolTip="在当前目录新建文件夹" AutomationProperties.Name="新建文件夹">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconNewFolder}" />
                         </Button>
-                        <ToggleButton x:Name="TreeModifiedToggle" Style="{StaticResource IconToggleButtonStyle}" Click="TreeModified_Click"
-                                      ToolTipService.ToolTip="显示文件夹修改时间" AutomationProperties.Name="显示文件夹修改时间">
-                            <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortModified}" />
-                        </ToggleButton>
+                        <Button x:Name="TreeTimeButton" Style="{StaticResource IconButtonStyle}"
+                                ToolTipService.ToolTip="文件夹时间" AutomationProperties.Name="文件夹时间">
+                            <FontIcon x:Name="TreeTimeIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortModified}" />
+                            <Button.Flyout>
+                                <MenuFlyout Placement="Bottom" ShouldConstrainToRootBounds="True">
+                                    <RadioMenuFlyoutItem x:Name="TreeTimeHiddenItem" Text="不显示" Tag="None" GroupName="TreeTime" Click="TreeTime_Click" />
+                                    <RadioMenuFlyoutItem x:Name="TreeTimeModifiedItem" Text="修改时间" Tag="Modified" GroupName="TreeTime" Click="TreeTime_Click">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortModified}" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="TreeTimeCreatedItem" Text="创建时间" Tag="Created" GroupName="TreeTime" Click="TreeTime_Click">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortCreated}" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
                     </StackPanel>
                 </Grid>
                 <TreeView x:Name="FavoritesTree" Grid.Row="1" SelectionMode="Single" ItemInvoked="FavoritesTree_ItemInvoked"
@@ -414,7 +428,7 @@
                                 <Grid Grid.Column="1" VerticalAlignment="Center" Margin="0,3">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Content.Name}" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Content.ModifiedText}" Visibility="{Binding Content.ModifiedText, Converter={StaticResource NonEmptyTextVisibilityConverter}}"
+                                    <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Content.ModifiedText}" ToolTipService.ToolTip="{Binding Content.TimeLabel}" Visibility="{Binding Content.ModifiedText, Converter={StaticResource NonEmptyTextVisibilityConverter}}"
                                                FontSize="11" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </Grid>
                             </Grid>
@@ -443,13 +457,42 @@
                                 <Grid Grid.Column="1" VerticalAlignment="Center" Margin="0,3">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Content.Name}" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Content.ModifiedText}" Visibility="{Binding Content.ModifiedText, Converter={StaticResource NonEmptyTextVisibilityConverter}}"
+                                    <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Content.ModifiedText}" ToolTipService.ToolTip="{Binding Content.TimeLabel}" Visibility="{Binding Content.ModifiedText, Converter={StaticResource NonEmptyTextVisibilityConverter}}"
                                                FontSize="11" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </Grid>
                             </Grid>
                         </DataTemplate>
                     </TreeView.ItemTemplate>
                 </TreeView>
+                <Border x:Name="FolderTreeStickyHeader" Grid.Row="2" VerticalAlignment="Top" Margin="4,0,16,0"
+                        Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" CornerRadius="4"
+                        PointerWheelChanged="FolderTreeStickyHeader_PointerWheelChanged">
+                    <ItemsControl x:Name="FolderTreeStickyItems">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Height="32" ColumnSpacing="4">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <Button Tag="{Binding Node}" Click="StickyTreeCollapse_Click" Style="{StaticResource IconButtonStyle}"
+                                            Width="28" Height="30" ToolTipService.ToolTip="{Binding CollapseLabel}" AutomationProperties.Name="{Binding CollapseLabel}">
+                                        <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconExpand}" FontSize="12" />
+                                    </Button>
+                                    <Button Grid.Column="1" Tag="{Binding Node}" Click="StickyTreeNavigate_Click" Padding="4,0" MinWidth="0" Height="32"
+                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Background="Transparent" BorderThickness="0"
+                                            ToolTipService.ToolTip="{Binding Entry.Path}" AutomationProperties.Name="{Binding Entry.Name}">
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="18" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                            <FontIcon Style="{StaticResource FluentIcon}" Glyph="{Binding Glyph}" FontSize="16" Foreground="{ThemeResource FolderIconBrush}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Entry.Name}" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Entry.ModifiedText}" FontSize="11" VerticalAlignment="Center"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" ToolTipService.ToolTip="{Binding Entry.TimeLabel}" />
+                                        </Grid>
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
             </Grid>
             <toolkit:GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Width="6" Background="Transparent"
                                   HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
@@ -524,6 +567,23 @@
                     <MediaPlayerElement x:Name="ViewerVideo" Visibility="Collapsed" AreTransportControlsEnabled="False"
                                         AutoPlay="False" Stretch="Uniform" Background="Transparent" />
                 </controls:AspectFitPanel>
+                <Grid x:Name="AudioPresentation" Visibility="Collapsed" Background="#17191C" Padding="32"
+                      Tapped="ViewerVideo_Tapped" DoubleTapped="ViewerVideo_DoubleTapped" ContextRequested="Viewer_ContextRequested">
+                    <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <StackPanel Width="360" Spacing="18">
+                            <Border Width="224" Height="224" CornerRadius="16" Background="#2A2D32" HorizontalAlignment="Center">
+                                <Grid>
+                                    <FontIcon x:Name="AudioPlaceholder" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconAudio}" FontSize="80" Foreground="#B8C0CC" />
+                                    <Image x:Name="AudioArtwork" Stretch="Uniform" />
+                                </Grid>
+                            </Border>
+                            <TextBlock x:Name="AudioTitle" FontSize="22" FontWeight="SemiBold" Foreground="White" TextAlignment="Center"
+                                       TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="AudioSubtitle" FontSize="14" Foreground="#B8C0CC" TextAlignment="Center"
+                                       TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Viewbox>
+                </Grid>
                 <controls:AspectFitPanel x:Name="MotionSurface" Visibility="Collapsed" IsHitTestVisible="False" Background="Transparent">
                     <MediaPlayerElement x:Name="MotionVideo" AreTransportControlsEnabled="False" AutoPlay="False"
                                         Stretch="Uniform" RenderTransformOrigin="0.5,0.5" />
@@ -677,16 +737,16 @@
                                     <MenuFlyoutSubItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconVolume}" /></MenuFlyoutSubItem.Icon>
                                 </MenuFlyoutSubItem>
                                 <MenuFlyoutSeparator />
-                                <MenuFlyoutItem Text="上一帧" KeyboardAcceleratorTextOverride="," Click="VideoStepBack_Click" />
-                                <MenuFlyoutItem Text="下一帧" KeyboardAcceleratorTextOverride="." Click="VideoStepForward_Click" />
-                                <MenuFlyoutSeparator />
+                                <MenuFlyoutItem x:Name="VideoStepBackItem" Text="上一帧" KeyboardAcceleratorTextOverride="," Click="VideoStepBack_Click" />
+                                <MenuFlyoutItem x:Name="VideoStepForwardItem" Text="下一帧" KeyboardAcceleratorTextOverride="." Click="VideoStepForward_Click" />
+                                <MenuFlyoutSeparator x:Name="VideoFrameSeparator" />
                                 <MenuFlyoutItem Text="设置 A 点" KeyboardAcceleratorTextOverride="[" Click="VideoLoopStart_Click">
                                     <MenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconLoop}" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutItem Text="设置 B 点" KeyboardAcceleratorTextOverride="]" Click="VideoLoopEnd_Click" />
                                 <MenuFlyoutItem Text="取消 A-B 循环" KeyboardAcceleratorTextOverride="\" Click="VideoLoopClear_Click" />
                                 <MenuFlyoutSeparator />
-                                <MenuFlyoutItem Text="截图保存到视频目录" KeyboardAcceleratorTextOverride="Ctrl+E" Click="VideoScreenshot_Click">
+                                <MenuFlyoutItem x:Name="VideoScreenshotItem" Text="截图保存到视频目录" KeyboardAcceleratorTextOverride="Ctrl+E" Click="VideoScreenshot_Click">
                                     <MenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconScreenshot}" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                             </MenuFlyout>
@@ -768,7 +828,9 @@
                                 <Grid ColumnSpacing="10" Padding="0,6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <Grid Width="88" Height="50" CornerRadius="4" Background="#2A2B2F">
-                                        <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconImage}" FontSize="18"
+                                        <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconImage}" FontSize="18" Visibility="{x:Bind IsImage}"
+                                                  Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                        <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconAudio}" FontSize="22" Visibility="{x:Bind IsAudio}"
                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                         <Image Source="{x:Bind Thumbnail, Mode=OneWay}" Stretch="UniformToFill" />
                                         <Border Visibility="{x:Bind IsVideo}" Background="#99000000" CornerRadius="9" Width="18" Height="18"

@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../AudioFixture.cs" Link="AudioFixture.cs" />
     <Compile Include="../../Services/MediaDates.cs" Link="MediaDates.cs" />
     <Compile Include="../../Models/GalleryDisplayMode.cs" Link="Models/GalleryDisplayMode.cs" />
     <Compile Include="../../Models/MediaFile.cs" Link="MediaFile.cs" />
@@ -21,7 +22,9 @@
     <Compile Include="../../Services/MediaDetails.cs" Link="MediaDetails.cs" />
     <Compile Include="../../Services/PhotoMetadata.cs" Link="PhotoMetadata.cs" />
     <Compile Include="../../Services/FileAssociation.cs" Link="FileAssociation.cs" />
+    <Compile Include="../../Services/ShellRegistrationCommand.cs" Link="ShellRegistrationCommand.cs" />
     <Compile Include="../../Services/FilePaste.cs" Link="FilePaste.cs" />
+    <Compile Include="../../Services/FileClipboard.cs" Link="FileClipboard.cs" />
     <Compile Include="../../Services/IdenticalImages.cs" Link="IdenticalImages.cs" />
     <Compile Include="../../Services/FileRename.cs" Link="FileRename.cs" />
     <Compile Include="../../Services/FolderCreation.cs" Link="FolderCreation.cs" />

@@ -13,11 +13,7 @@ public sealed partial class MainWindow
 {
     private bool _pasting;
 
-    private static bool ClipboardHasFiles()
-    {
-        try { return Clipboard.GetContent().Contains(StandardDataFormats.StorageItems); }
-        catch (Exception) { return false; }
-    }
+    private static bool ClipboardHasFiles() => FileClipboard.HasFiles();
 
     private static bool IsClipboardTextTarget(DependencyObject? source)
     {
@@ -53,7 +49,6 @@ public sealed partial class MainWindow
             if (cut && targets.Any(target => System.IO.Path.GetDirectoryName(System.IO.Path.TrimEndingDirectorySeparator(target.Path)) is null))
                 throw new IOException("不能剪切磁盘根目录。");
             var data = new DataPackage { RequestedOperation = cut ? DataPackageOperation.Move : DataPackageOperation.Copy };
-            data.Properties["Fallery.TransferId"] = Guid.NewGuid().ToString("N");
             data.SetStorageItems(items);
             Clipboard.SetContent(data);
             Clipboard.Flush();
@@ -85,31 +80,17 @@ public sealed partial class MainWindow
         _pasting = true;
         try
         {
-            var content = Clipboard.GetContent();
-            if (!content.Contains(StandardDataFormats.StorageItems))
+            var content = await FileClipboard.ReadAsync(WinRT.Interop.WindowNative.GetWindowHandle(this), _lifetimeCts.Token);
+            if (content is null || content.Paths.Count == 0)
             { GalleryState.Status = "剪贴板中没有可粘贴的文件或文件夹"; return; }
-            var items = await content.GetStorageItemsAsync().AsTask(_lifetimeCts.Token);
-            var paths = items.Select(item => item.Path).Where(path => !string.IsNullOrEmpty(path)).ToArray();
-            if (paths.Length != items.Count) throw new IOException("部分剪贴板项目没有本地文件路径，请先在资源管理器中保存到磁盘。");
-            GalleryState.Status = $"正在粘贴 {paths.Length} 项…";
-            bool move = content.RequestedOperation == DataPackageOperation.Move;
+            var paths = content.Paths;
+            GalleryState.Status = $"正在{(content.Move ? "移动" : "复制")} {paths.Count} 项…";
+            bool move = content.Move;
             StopHoverPreview();
             if (ViewerState.IsOpen) CloseViewer();
             var result = await FilePaste.TransferAsync(paths, destination, move, ResolveFileConflictAsync, _lifetimeCts.Token);
             if (_closed || _closing) return;
-            // 只在整批完成时通知剪切来源；失败/跳过时保留剪贴板以便重试剩余文件。
-            if (move && !result.Canceled && result.Skipped == 0 && result.Errors.Count == 0)
-            {
-                try
-                {
-                    content.ReportOperationCompleted(DataPackageOperation.Move);
-                    // 仅清理仍属于本次已完成剪切的剪贴板，不能覆盖用户期间复制的新内容。
-                    if (content.Properties.TryGetValue("Fallery.TransferId", out var id)
-                        && Clipboard.GetContent().Properties.TryGetValue("Fallery.TransferId", out var currentId) && Equals(id, currentId))
-                        Clipboard.Clear();
-                }
-                catch (Exception) { }
-            }
+            FileClipboard.CompleteMove(content, result, WinRT.Interop.WindowNative.GetWindowHandle(this));
             if (result.Copied.Count > 0) await RefreshAndSelectFilesAsync(result.Copied, destination);
             GalleryState.Status = $"{(result.Canceled ? "粘贴已取消，已处理" : "已粘贴")} {result.Copied.Count} 项"
                 + (result.Skipped > 0 ? $"，跳过 {result.Skipped} 项" : "")

@@ -110,9 +110,10 @@ public sealed partial class MainWindow
         Microsoft.UI.Xaml.Controls.Grid.SetColumn(ViewerMetadata, video ? 1 : 0);
         VideoPreviousButton.Visibility = VideoNextButton.Visibility = width >= 620 ? Visibility.Visible : Visibility.Collapsed;
         VideoPositionText.Visibility = VideoDurationText.Visibility = width >= 520 ? Visibility.Visible : Visibility.Collapsed;
-        FitVideoWindowButton.Visibility = width >= 850 ? Visibility.Visible : Visibility.Collapsed;
+        bool isAudio = ViewerState.CurrentItem?.IsAudio == true;
+        FitVideoWindowButton.Visibility = !isAudio && width >= 850 ? Visibility.Visible : Visibility.Collapsed;
         VideoRateButton.Visibility = width >= 700 ? Visibility.Visible : Visibility.Collapsed;
-        RotateMediaButton.Visibility = !video || width >= 760 ? Visibility.Visible : Visibility.Collapsed;
+        RotateMediaButton.Visibility = !isAudio && (!video || width >= 760) ? Visibility.Visible : Visibility.Collapsed;
         UpdateLoopLabel();
     }
 }

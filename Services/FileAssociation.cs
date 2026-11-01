@@ -10,6 +10,7 @@ namespace Fallery.Services;
 public static class FileAssociation
 {
     public const string ProgId = "Fallery.Media";
+    public const string ContextVerb = "Fallery.Open";
     private const string AppKey = "Fallery.exe";
     private const string CapabilitiesPath = @"Software\Fallery\Capabilities";
 
@@ -18,6 +19,7 @@ public static class FileAssociation
     {
         using var software = softwareRoot is null ? Registry.CurrentUser.CreateSubKey("Software") : null;
         var root = softwareRoot ?? software!;
+        exePath = Path.GetFullPath(exePath);
         string command = $"\"{exePath}\" \"%1\"";
         string icon = $"\"{exePath}\",0";
         var list = extensions.Select(e => e.StartsWith('.') ? e.ToLowerInvariant() : "." + e.ToLowerInvariant()).Distinct().ToList();
@@ -49,24 +51,63 @@ public static class FileAssociation
             foreach (var extension in list) associations.SetValue(extension, ProgId);
         }
         using (var registered = root.CreateSubKey("RegisteredApplications")) registered.SetValue("Fallery", CapabilitiesPath);
+        foreach (var extension in list)
+            RegisterVerb(root, $@"SystemFileAssociations\{extension}", exePath, "%1");
+        // 尾部加 \.，避免磁盘根目录的反斜杠与命令行结束引号发生转义。
+        RegisterVerb(root, "Directory", exePath, @"%1\.");
+        RegisterVerb(root, @"Directory\Background", exePath, @"%V\.");
+        RegisterVerb(root, "Drive", exePath, @"%1\.");
         if (softwareRoot is null) NotifyShell();
     }
 
-    public static void Unregister(IEnumerable<string> extensions, RegistryKey? softwareRoot = null)
+    private static void RegisterVerb(RegistryKey root, string target, string exePath, string argument)
+    {
+        using var verb = root.CreateSubKey($@"Classes\{target}\shell\{ContextVerb}");
+        verb.SetValue("", "用 Fallery 打开");
+        verb.SetValue("Icon", $"\"{exePath}\",0");
+        verb.SetValue("MultiSelectModel", "Single");
+        using var command = verb.CreateSubKey("command");
+        command.SetValue("", $"\"{exePath}\" \"{argument}\"");
+    }
+
+    public static bool IsContextMenuRegistered(string exePath, IEnumerable<string> extensions, RegistryKey? softwareRoot = null)
+    {
+        using var software = softwareRoot is null ? Registry.CurrentUser.OpenSubKey("Software") : null;
+        var root = softwareRoot ?? software;
+        var targets = extensions.Select(e => $@"SystemFileAssociations\{(e.StartsWith('.') ? e : "." + e).ToLowerInvariant()}")
+            .Select(target => (Target: target, Argument: "%1"))
+            .Concat(new[] { ("Directory", @"%1\."), (@"Directory\Background", @"%V\."), ("Drive", @"%1\.") });
+        foreach (var (target, argument) in targets)
+        {
+            using var command = root?.OpenSubKey($@"Classes\{target}\shell\{ContextVerb}\command");
+            if (!string.Equals(command?.GetValue("") as string, $"\"{Path.GetFullPath(exePath)}\" \"{argument}\"", StringComparison.OrdinalIgnoreCase)) return false;
+        }
+        return true;
+    }
+
+    public static void Unregister(IEnumerable<string> extensions, RegistryKey? softwareRoot = null, string? expectedExePath = null)
     {
         using var software = softwareRoot is null ? Registry.CurrentUser.OpenSubKey("Software", writable: true) : null;
         var root = softwareRoot ?? software;
         if (root is null) return;
+        // 安装版升级/迁移后，旧副本卸载不能删掉指向新安装位置的注册。
+        if (expectedExePath is not null && RegisteredExecutable(root) is { } registeredExe
+            && !string.Equals(Path.GetFullPath(registeredExe), Path.GetFullPath(expectedExePath), StringComparison.OrdinalIgnoreCase)) return;
+        using var supported = root.OpenSubKey($@"Classes\Applications\{AppKey}\SupportedTypes");
+        var list = extensions.Concat(supported?.GetValueNames() ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         root.DeleteSubKeyTree($@"Classes\Applications\{AppKey}", throwOnMissingSubKey: false);
         root.DeleteSubKeyTree($@"Classes\{ProgId}", throwOnMissingSubKey: false);
-        root.DeleteSubKeyTree("Fallery", throwOnMissingSubKey: false);
+        root.DeleteSubKeyTree(@"Fallery\Capabilities", throwOnMissingSubKey: false);
         using (var registered = root.OpenSubKey("RegisteredApplications", writable: true)) registered?.DeleteValue("Fallery", throwOnMissingValue: false);
-        foreach (var extension in extensions)
+        foreach (var extension in list)
         {
             var name = extension.StartsWith('.') ? extension.ToLowerInvariant() : "." + extension.ToLowerInvariant();
             using var progIds = root.OpenSubKey($@"Classes\{name}\OpenWithProgids", writable: true);
             progIds?.DeleteValue(ProgId, throwOnMissingValue: false);
+            root.DeleteSubKeyTree($@"Classes\SystemFileAssociations\{name}\shell\{ContextVerb}", throwOnMissingSubKey: false);
         }
+        foreach (var target in new[] { "Directory", @"Directory\Background", "Drive" })
+            root.DeleteSubKeyTree($@"Classes\{target}\shell\{ContextVerb}", throwOnMissingSubKey: false);
         if (softwareRoot is null) NotifyShell();
     }
 

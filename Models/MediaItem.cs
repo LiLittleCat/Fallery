@@ -37,6 +37,9 @@ public sealed partial class MediaItem : ObservableObject
     public MediaFile File { get; }
     public bool HasAspectRatio { get; set; }
     public bool IsVideo => Kind == MediaKind.Video;
+    public bool IsAudio => Kind == MediaKind.Audio;
+    public bool IsImage => Kind == MediaKind.Image;
+    public bool IsPlaybackMedia => IsVideo || IsAudio;
     public bool IsFolder => Kind == MediaKind.Folder;
 
     /// <summary>宽 / 高。探测完成前按 1:1 占位，由 MasonryLayout 读取。</summary>
@@ -164,7 +167,7 @@ public sealed partial class MediaItem : ObservableObject
         var file = await StorageFile.GetFileFromPathAsync(path).AsTask(ct);
         try
         {
-            using var thumb = await file.GetThumbnailAsync(ThumbnailMode.SingleItem, size,
+            using var thumb = await file.GetThumbnailAsync(kind == MediaKind.Audio ? ThumbnailMode.MusicView : ThumbnailMode.SingleItem, size,
                 ThumbnailOptions.ResizeThumbnail).AsTask(ct);
             ct.ThrowIfCancellationRequested();
             if (thumb is not null && thumb.Size > 0 && thumb.Type == ThumbnailType.Image)

@@ -32,10 +32,11 @@ public sealed partial class MainWindow
         FilterAllItem.IsChecked = GalleryState.Filter == MediaFilter.All;
         FilterPhotosItem.IsChecked = GalleryState.Filter == MediaFilter.Photos;
         FilterVideosItem.IsChecked = GalleryState.Filter == MediaFilter.Videos;
+        FilterAudioItem.IsChecked = GalleryState.Filter == MediaFilter.Audio;
         ShowSubfoldersItem.IsChecked = GalleryState.ShowSubfolders;
         HideSubfoldersItem.IsChecked = !GalleryState.ShowSubfolders;
         ShowHiddenItem.IsChecked = GalleryState.ShowHidden;
-        string label = GalleryState.Filter switch { MediaFilter.Photos => "图片", MediaFilter.Videos => "视频", _ => "所有媒体" };
+        string label = GalleryState.Filter switch { MediaFilter.Photos => "图片", MediaFilter.Videos => "视频", MediaFilter.Audio => "音频", _ => "所有媒体" };
         ToolTipService.SetToolTip(FilterMenuButton, $"{label} · {(GalleryState.ShowSubfolders ? "显示" : "隐藏")}子文件夹"
             + (GalleryState.ShowHidden ? " · 含隐藏项目" : ""));
     }
@@ -181,18 +182,20 @@ public sealed partial class MainWindow
     private StackPanel BuildAssociationSection()
     {
         var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(new TextBlock { Text = "打开方式", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
+        panel.Children.Add(new TextBlock { Text = "右键菜单与打开方式", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
         var status = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap,
             Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] };
-        var register = new Button { Content = "注册到“打开方式”" };
+        var register = new Button { Content = "注册右键菜单与打开方式" };
         var unregister = new Button { Content = "取消注册" };
         string exe = Environment.ProcessPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, "Fallery.exe");
         void Refresh()
         {
             var registered = FileAssociation.RegisteredExecutable();
             bool current = registered is not null && string.Equals(System.IO.Path.GetFullPath(registered), exe, StringComparison.OrdinalIgnoreCase);
-            status.Text = registered is null ? "尚未注册。注册后可在资源管理器右键“打开方式”中选择 Fallery。"
-                : current ? "已注册。可在“打开方式”或系统“默认应用”中把 Fallery 设为默认。"
+            status.Text = registered is null ? "注册后可右键图片、视频、音频或文件夹，选择“用 Fallery 打开”；也支持文件夹内空白处。"
+                : current ? FileAssociation.IsContextMenuRegistered(exe, FolderScanner.SupportedExtensions)
+                    ? "已注册右键菜单与打开方式。Windows 11 请在“显示更多选项”中查看右键入口。"
+                    : "已注册打开方式。再次点击注册可补全文件和文件夹的右键入口。"
                 : $"已注册到其他位置：{registered}\n程序移动后请重新注册。";
             unregister.IsEnabled = registered is not null;
         }

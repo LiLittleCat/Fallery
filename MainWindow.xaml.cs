@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window
         InitializeExperience();
         InitializeViewModels();
         InitializeFavorites();
+        InitializeStickyTree();
         InitializePlayback();
         InitializeHoverPreview();
         InitializeFullScreenControls();
@@ -107,7 +108,7 @@ public sealed partial class MainWindow : Window
                 if (!FolderTree.RootNodes.Any(node =>
                     node.Content is FolderEntry existing && string.Equals(existing.Path, entry.Path, StringComparison.OrdinalIgnoreCase)))
                     // 恢复被排除的快捷入口时也插回顶部，不追加到磁盘之后。
-                    FolderTree.RootNodes.Insert(Math.Min(rootIndex, FolderTree.RootNodes.Count), CreateNode(entry.Path, entry.Name, entry.ModifiedTicks));
+                    FolderTree.RootNodes.Insert(Math.Min(rootIndex, FolderTree.RootNodes.Count), CreateNode(entry.Path, entry.Name, entry.ModifiedTicks, entry.CreatedTicks));
                 rootIndex++;
             }
         }
@@ -155,6 +156,7 @@ public sealed partial class MainWindow : Window
     {
         EndMarqueeSelection(cancel: true);
         _closed = true;
+        DetachStickyTree();
         StopHoverPreview();
         _fullScreenControlsTimer.Stop();
         _folderChangeTimer?.Stop();
@@ -175,9 +177,10 @@ public sealed partial class MainWindow : Window
         MediaCache.Clear();
     }
 
-    private TreeViewNode CreateNode(string path, string name, long? modifiedTicks = null) => new()
+    private TreeViewNode CreateNode(string path, string name, long? modifiedTicks = null, long? createdTicks = null) => new()
     {
-        Content = new FolderEntry(path, name) { ModifiedTicks = modifiedTicks, ShowModifiedTime = _treeShowModifiedTime },
+        Content = new FolderEntry(path, name) { ModifiedTicks = modifiedTicks, CreatedTicks = createdTicks,
+            ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField },
         HasUnrealizedChildren = true,
     };
 
@@ -205,13 +208,14 @@ public sealed partial class MainWindow : Window
     {
         bool showHidden = GalleryState.ShowHidden;
         var result = await Task.Run(() => (Children: FolderScanner.GetChildFolders(entry.Path, _lifetimeCts.Token, showHidden),
-            ModifiedTicks: FolderScanner.ReadFolderModifiedTicks(entry.Path)));
+            ModifiedTicks: FolderScanner.ReadFolderModifiedTicks(entry.Path), CreatedTicks: FolderScanner.ReadFolderCreatedTicks(entry.Path)));
         _lifetimeCts.Token.ThrowIfCancellationRequested();
-        node.Content = entry with { ModifiedTicks = result.ModifiedTicks, ShowModifiedTime = _treeShowModifiedTime };
+        node.Content = entry with { ModifiedTicks = result.ModifiedTicks, CreatedTicks = result.CreatedTicks,
+            ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField };
         foreach (var childInfo in result.Children)
         {
             if (IsTreeFolderExcluded(childInfo.Path)) continue;
-            var child = CreateNode(childInfo.Path, System.IO.Path.GetFileName(childInfo.Path), childInfo.ModifiedTicks);
+            var child = CreateNode(childInfo.Path, System.IO.Path.GetFileName(childInfo.Path), childInfo.ModifiedTicks, childInfo.CreatedTicks);
             child.HasUnrealizedChildren = childInfo.HasChildren;
             node.Children.Add(child);
         }
@@ -496,7 +500,7 @@ public sealed partial class MainWindow : Window
             CancelBrowsePositionRestore();
         }
         CaptureBrowseWindowPlacement();
-        bool imageToImage = ViewerState.CurrentItem?.IsVideo == false && !ViewerState.Playlist[index].IsVideo;
+        bool imageToImage = ViewerState.CurrentItem?.IsImage == true && ViewerState.Playlist[index].IsImage;
         var request = ViewerState.BeginOpen(index);
         if (request is null) return;
         var ct = request.Token;
@@ -506,20 +510,28 @@ public sealed partial class MainWindow : Window
         ViewerImage.ReleasePointerCaptures();
         StopVideo(keepRotationButtonEnabled: imageToImage);
         ClearViewerImage(keepImageButtonsEnabled: imageToImage);
-        ImageScroller.Visibility = item.IsVideo ? Visibility.Collapsed : Visibility.Visible;
+        ImageScroller.Visibility = item.IsPlaybackMedia ? Visibility.Collapsed : Visibility.Visible;
         UpdateViewerOverlays();
         _ = LoadViewerDetailsAsync(item);
         if (!IsFilmstrip) CloseViewerButton.Focus(FocusState.Programmatic);
 
         try
         {
-            if (item.IsVideo)
+            if (item.IsPlaybackMedia)
             {
                 var player = CreatePlayer(item, ct);
                 _videoPlayer = player;
                 ViewerVideo.Opacity = 0;
                 ViewerVideo.IsHitTestVisible = false;
                 ViewerVideo.Visibility = Visibility.Visible;
+                if (item.IsAudio)
+                {
+                    AudioPresentation.Visibility = Visibility.Visible;
+                    AudioPlaceholder.Visibility = Visibility.Visible;
+                    AudioTitle.Text = item.Name;
+                    AudioSubtitle.Text = "";
+                    _ = LoadAudioArtworkAsync(item, ct);
+                }
                 await player.OpenAsync(item.Path, ct);
             }
             else
@@ -570,6 +582,9 @@ public sealed partial class MainWindow : Window
 
     private void StopVideo(bool keepRotationButtonEnabled = false)
     {
+        AudioPresentation.Visibility = Visibility.Collapsed;
+        AudioArtwork.Source = null;
+        AudioTitle.Text = AudioSubtitle.Text = "";
         FitVideoWindowButton.IsEnabled = false;
         if (!keepRotationButtonEnabled) RotateMediaButton.IsEnabled = false;
         var player = _videoPlayer;
@@ -756,7 +771,7 @@ public sealed partial class MainWindow : Window
             return;
         }
         // 与 Windows 照片一致的图片缩放快捷键：Ctrl+0 适应窗口，Ctrl+= / Ctrl+- 放大缩小。
-        if (control && Viewer.Visibility == Visibility.Visible && ViewerState.CurrentItem is { IsVideo: false }
+        if (control && Viewer.Visibility == Visibility.Visible && ViewerState.CurrentItem is { IsImage: true }
             && e.Key is VirtualKey.Number0 or VirtualKey.NumberPad0 or (VirtualKey)187 or (VirtualKey)189 or VirtualKey.Add or VirtualKey.Subtract)
         {
             e.Handled = true;
@@ -798,11 +813,11 @@ public sealed partial class MainWindow : Window
                     e.Handled = true;
                     await DeleteFocusedItemAsync(IsShiftDown(), e.OriginalSource as DependencyObject);
                     break;
-                case VirtualKey.Space when ViewerState.CurrentItem?.IsVideo == true:
+                case VirtualKey.Space when ViewerState.CurrentItem?.IsPlaybackMedia == true:
                     e.Handled = true;
                     ToggleVideoPlayback();
                     break;
-                case VirtualKey.M when ViewerState.CurrentItem?.IsVideo == true:
+                case VirtualKey.M when ViewerState.CurrentItem?.IsPlaybackMedia == true:
                     e.Handled = true;
                     ToggleMute();
                     break;
@@ -815,23 +830,23 @@ public sealed partial class MainWindow : Window
                     e.Handled = true;
                     SetDetailsOpen(!_detailsOpen);
                     break;
-                case VirtualKey.Up when ViewerState.CurrentItem?.IsVideo == true:
+                case VirtualKey.Up when ViewerState.CurrentItem?.IsPlaybackMedia == true:
                     e.Handled = true;
                     ChangeVolume(5);
                     break;
-                case VirtualKey.Down when ViewerState.CurrentItem?.IsVideo == true:
+                case VirtualKey.Down when ViewerState.CurrentItem?.IsPlaybackMedia == true:
                     e.Handled = true;
                     ChangeVolume(-5);
                     break;
-                case VirtualKey.C when ViewerState.CurrentItem?.IsVideo == true:
+                case VirtualKey.C when ViewerState.CurrentItem?.IsPlaybackMedia == true:
                     e.Handled = true;
                     ChangeRate(1);
                     break;
-                case VirtualKey.X when ViewerState.CurrentItem?.IsVideo == true:
+                case VirtualKey.X when ViewerState.CurrentItem?.IsPlaybackMedia == true:
                     e.Handled = true;
                     ChangeRate(-1);
                     break;
-                case VirtualKey.Z when ViewerState.CurrentItem?.IsVideo == true:
+                case VirtualKey.Z when ViewerState.CurrentItem?.IsPlaybackMedia == true:
                     e.Handled = true;
                     ChangeRate(0);
                     break;
@@ -843,15 +858,15 @@ public sealed partial class MainWindow : Window
                     e.Handled = true;
                     StepVideoFrame(true);
                     break;
-                case (VirtualKey)219 when ViewerState.CurrentItem?.IsVideo == true:
+                case (VirtualKey)219 when ViewerState.CurrentItem?.IsPlaybackMedia == true:
                     e.Handled = true;
                     SetLoopPoint(true);
                     break;
-                case (VirtualKey)221 when ViewerState.CurrentItem?.IsVideo == true:
+                case (VirtualKey)221 when ViewerState.CurrentItem?.IsPlaybackMedia == true:
                     e.Handled = true;
                     SetLoopPoint(false);
                     break;
-                case (VirtualKey)220 when ViewerState.CurrentItem?.IsVideo == true:
+                case (VirtualKey)220 when ViewerState.CurrentItem?.IsPlaybackMedia == true:
                     e.Handled = true;
                     ClearLoop();
                     break;
@@ -859,11 +874,11 @@ public sealed partial class MainWindow : Window
                     e.Handled = true;
                     SetPlaylistOpen(!_playlistOpen);
                     break;
-                case VirtualKey.Left when ViewerState.CurrentItem?.IsVideo == true:
+                case VirtualKey.Left when ViewerState.CurrentItem?.IsPlaybackMedia == true:
                     e.Handled = true;
                     SeekVideo(TimeSpan.FromSeconds(-5));
                     break;
-                case VirtualKey.Right when ViewerState.CurrentItem?.IsVideo == true:
+                case VirtualKey.Right when ViewerState.CurrentItem?.IsPlaybackMedia == true:
                     e.Handled = true;
                     SeekVideo(TimeSpan.FromSeconds(5));
                     break;

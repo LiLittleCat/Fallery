@@ -42,7 +42,7 @@ public sealed partial class MainWindow
         SearchEntry? chosen = null;
         _searchInput = new TextBox { PlaceholderText = "输入名称、关键词或 *.jpg", Text = _lastSearchText, MaxLength = 512 };
         AutomationProperties.SetName(_searchInput, "全电脑文件名搜索");
-        _searchType = new ComboBox { ItemsSource = new[] { "全部", "图片", "视频", "文件夹" }, SelectedIndex = 0, MinWidth = 96 };
+        _searchType = new ComboBox { ItemsSource = new[] { "全部", "图片", "视频", "文件夹", "音频" }, SelectedIndex = 0, MinWidth = 96 };
         AutomationProperties.SetName(_searchType, "搜索结果类型");
         var inputRow = new Grid { ColumnSpacing = 8 };
         inputRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -56,7 +56,7 @@ public sealed partial class MainWindow
         };
         AutomationProperties.SetName(_searchResults, "搜索结果");
         _searchProgress = new TextBlock { Text = _searchIndex?.Status.Message ?? "首次搜索将建立本地磁盘索引", TextWrapping = TextWrapping.Wrap, FontSize = 12 };
-        _searchResultCount = new TextBlock { Text = "搜索本地磁盘中的图片、视频和文件夹", FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        _searchResultCount = new TextBlock { Text = "搜索本地磁盘中的图片、视频、音频和文件夹", FontSize = 12, TextWrapping = TextWrapping.Wrap };
         _searchRefresh = new Button { Content = _searchIndex?.Status.Building == true ? "停止索引" : "刷新索引", Padding = new Thickness(10, 4, 10, 4) };
         var footer = new Grid { ColumnSpacing = 12 };
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -162,7 +162,7 @@ public sealed partial class MainWindow
         if (_searchDialog is null || _searchIndex is null) return;
         _searchQueryCts?.Cancel();
         string query = _searchInput!.Text;
-        string prefix = _searchType!.SelectedIndex switch { 1 => "type:photo ", 2 => "type:video ", 3 => "type:folder ", _ => "" };
+        string prefix = _searchType!.SelectedIndex switch { 1 => "type:photo ", 2 => "type:video ", 3 => "type:folder ", 4 => "type:audio ", _ => "" };
         _ = RunSearchAsync(prefix + query);
     }
 
@@ -176,7 +176,7 @@ public sealed partial class MainWindow
             var matches = await _searchIndex!.SearchAsync(query, GalleryState.ShowHidden, cts.Token);
             if (_closed || cts.IsCancellationRequested || _searchDialog is null) return;
             _searchResults!.ItemsSource = matches.Items.Select(item => new SearchRow(item, FluentIcons.Glyph(item.Kind switch
-            { MediaKind.Folder => "IconFolder", MediaKind.Video => "IconVideo", _ => "IconImage" }))).ToArray();
+            { MediaKind.Folder => "IconFolder", MediaKind.Video => "IconVideo", MediaKind.Audio => "IconAudio", _ => "IconImage" }))).ToArray();
             if (matches.Items.Count > 0) _searchResults.SelectedIndex = 0;
             _searchResultCount!.Text = string.IsNullOrWhiteSpace(query) ? "输入关键词，或选择类型浏览索引" :
                 matches.Total == 0 ? (_searchIndex.Status.Building ? "暂未找到，索引仍在建立中…" : "没有匹配结果，可换关键词或刷新索引") :

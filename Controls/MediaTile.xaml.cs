@@ -51,8 +51,9 @@ public sealed partial class MediaTile : UserControl
     // 显示文件名时类型标记跟在名称行里；隐藏文件名时退回到图片角上的小徽标。
     private void UpdateMarks()
     {
-        VideoBadge.Visibility = !_showNames && Item?.IsVideo == true ? Visibility.Visible : Visibility.Collapsed;
-        VideoMark.Visibility = _showNames && Item?.IsVideo == true ? Visibility.Visible : Visibility.Collapsed;
+        VideoBadge.Visibility = !_showNames && Item?.IsPlaybackMedia == true ? Visibility.Visible : Visibility.Collapsed;
+        VideoMark.Visibility = _showNames && Item?.IsPlaybackMedia == true ? Visibility.Visible : Visibility.Collapsed;
+        VideoMark.Glyph = VideoBadgeIcon.Glyph = FluentIcons.Glyph(Item?.IsAudio == true ? "IconAudio" : "IconPlay");
         string kind = IsSelected ? "Selected" : "Image";
         VisualStateManager.GoToState(this, kind + (_showCard ? "Card" : "Plain"), false);
     }
@@ -124,8 +125,9 @@ public sealed partial class MediaTile : UserControl
         FolderArtwork.Visibility = Item?.IsFolder == true ? Visibility.Visible : Visibility.Collapsed;
         FolderPlaceholder.Visibility = Item?.IsFolder == true && covers.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         FailureText.Text = Item?.IsVideo == true ? "无法生成预览\n双击尝试播放" : "无法加载预览";
-        FailureText.Visibility = Item?.ThumbnailFailed == true ? Visibility.Visible : Visibility.Collapsed;
-        LoadingText.Visibility = Item is { IsFolder: false, Thumbnail: null, ThumbnailFailed: false }
+        AudioPlaceholder.Visibility = Item is { IsAudio: true, Thumbnail: null } ? Visibility.Visible : Visibility.Collapsed;
+        FailureText.Visibility = Item is { IsAudio: false, ThumbnailFailed: true } ? Visibility.Visible : Visibility.Collapsed;
+        LoadingText.Visibility = Item is { IsFolder: false, IsAudio: false, Thumbnail: null, ThumbnailFailed: false }
             ? Visibility.Visible : Visibility.Collapsed;
     }
 }

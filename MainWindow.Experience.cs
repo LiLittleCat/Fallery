@@ -89,6 +89,7 @@ public sealed partial class MainWindow
         _treeSortField = settings.TreeSortField;
         _treeDescending = settings.TreeDescending;
         _treeShowModifiedTime = settings.TreeShowModifiedTime;
+        _treeTimeField = settings.TreeTimeField;
         _treeExcludedFolders.Clear();
         _treeExcludedFolders.AddRange(settings.TreeExcludedFolders);
         UpdateTreeToolbar();
@@ -132,6 +133,7 @@ public sealed partial class MainWindow
         TreeSortField = _treeSortField,
         TreeDescending = _treeDescending,
         TreeShowModifiedTime = _treeShowModifiedTime,
+        TreeTimeField = _treeTimeField,
         TreeExcludedFolders = [.. _treeExcludedFolders],
         SortField = GalleryState.SortField,
         Descending = GalleryState.Descending,

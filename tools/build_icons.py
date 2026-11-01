@@ -47,6 +47,7 @@ ICONS = [
     ("IconAllMedia", "image-play"),
     ("IconImage", "image-01"),
     ("IconVideo", "video-01"),
+    ("IconAudio", "music-note-01"),
     ("IconHiddenItems", "view"),
     ("IconView", "dashboard-square-01"),
     ("IconJustified", "layout-07"),

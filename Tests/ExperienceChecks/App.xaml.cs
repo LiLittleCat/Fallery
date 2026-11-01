@@ -1156,7 +1156,38 @@ public partial class App : Application
             await Invoke("RestoreSettingsAsync");
             Check(((RadioMenuFlyoutItem)root.FindName("TreeSortNameItem")).IsChecked
                 && ((RadioMenuFlyoutItem)root.FindName("TreeDescendingItem")).IsChecked
-                && ((ToggleButton)root.FindName("TreeModifiedToggle")).IsChecked == false, "文件树工具栏必须恢复已保存的状态");
+                && ((RadioMenuFlyoutItem)root.FindName("TreeTimeHiddenItem")).IsChecked, "文件树工具栏必须恢复已保存的状态");
+            Directory.SetCreationTimeUtc(treeTwo, new DateTime(2024, 5, 6, 8, 30, 0, DateTimeKind.Utc));
+            var namesBeforeTimeChange = TreeNames();
+            await Invoke("SetTreeTimeAsync", FolderTimeField.Created, true);
+            root.UpdateLayout();
+            var creationTimeEntry = (FolderEntry)selectedTreeNode.Content;
+            string creationText = Directory.GetCreationTimeUtc(treeTwo).ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+            Check(creationTimeEntry.TimeField == FolderTimeField.Created && creationTimeEntry.ModifiedText == creationText
+                && ((RadioMenuFlyoutItem)root.FindName("TreeTimeCreatedItem")).IsChecked,
+                "选择创建时间应显示真实文件系统创建时间并同步菜单");
+            Check(TreeNames().SequenceEqual(namesBeforeTimeChange) && ReferenceEquals(tree.SelectedNode, selectedTreeNode)
+                && selectedTreeNode.IsExpanded, "切换显示时间不能改变排序、选中或展开状态");
+            Check(((FolderEntry)preservedChild.Content).TimeField == FolderTimeField.Created
+                && ((FolderEntry)preservedChild.Content).CreatedTicks == Directory.GetCreationTimeUtc(Path.Combine(treeTwo, "child")).Ticks,
+                "已展开的后代节点也切换为创建时间");
+            // 恢复设置会重新布局，目标节点可能已被虚拟化回收；滚到可见后检查实际文本。
+            Descendants(tree).OfType<ListView>().First().ScrollIntoView(selectedTreeNode);
+            await Task.Delay(100); root.UpdateLayout();
+            var creationTimeContainer = tree.ContainerFromNode(selectedTreeNode);
+            Check(creationTimeContainer is not null && Descendants(creationTimeContainer).OfType<TextBlock>()
+                .Any(text => text.Text == creationText && text.Visibility == Visibility.Visible), "真实文件树文本必须切换到创建时间");
+            var creationSettings = (AppSettings)typeof(MainWindow).GetMethod("CaptureSettings", flags)!.Invoke(window, null)!;
+            Check(await store.SaveAsync(creationSettings) && (await store.LoadAsync()).TreeTimeField == FolderTimeField.Created,
+                "创建时间显示类型必须持久化");
+            await Invoke("RestoreSettingsAsync");
+            Check(((RadioMenuFlyoutItem)root.FindName("TreeTimeCreatedItem")).IsChecked, "恢复设置时应选中创建时间");
+            await Invoke("SetTreeTimeAsync", FolderTimeField.Modified, true);
+            Check(((FolderEntry)selectedTreeNode.Content).ModifiedText == Directory.GetLastWriteTimeUtc(treeTwo).ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+                "切回修改时间应恢复正确数据");
+            await Invoke("SetTreeTimeAsync", FolderTimeField.Created, false);
+            Check(((FolderEntry)selectedTreeNode.Content).ModifiedText == "" && ((RadioMenuFlyoutItem)root.FindName("TreeTimeHiddenItem")).IsChecked,
+                "不显示隐藏时间但保留选择类型");
             string createdFolder = await FolderCreation.CreateAsync(treeFixture, "新建目录");
             Check(Directory.Exists(createdFolder) && Path.GetDirectoryName(createdFolder) == treeFixture, "新建文件夹只能创建指定父目录中的一层目录");
             bool duplicateRejected = false;
@@ -1254,6 +1285,8 @@ public partial class App : Application
             File.AppendAllText(report, "\nBEGIN browse position checks");
             checks += await RunBrowsePositionChecksAsync(window, workspace);
             checks += await RunSelectionChecksAsync(window);
+            checks += await RunAudioChecksAsync(window, workspace);
+            checks += await RunStickyTreeChecksAsync(window);
             ((Slider)root.FindName("ThumbSize")).Value = 360;
             var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             window.Closed += (_, _) => closed.TrySetResult();

@@ -34,6 +34,7 @@
     <x:String x:Key="IconAllMedia">&#xF1E99;</x:String> <!-- image-play -->
     <x:String x:Key="IconImage">&#xF1E85;</x:String> <!-- image-01 -->
     <x:String x:Key="IconVideo">&#xF2964;</x:String> <!-- video-01 -->
+    <x:String x:Key="IconAudio">&#xF21E0;</x:String> <!-- music-note-01 -->
     <x:String x:Key="IconHiddenItems">&#xF2971;</x:String> <!-- view -->
     <x:String x:Key="IconView">&#xF1B15;</x:String> <!-- dashboard-square-01 -->
     <x:String x:Key="IconJustified">&#xF1F6D;</x:String> <!-- layout-07 -->

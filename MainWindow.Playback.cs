@@ -77,7 +77,7 @@ public sealed partial class MainWindow
         player.Failed += (_, message) => DispatcherQueue.TryEnqueue(() =>
         {
             if (_closed || !ReferenceEquals(_videoPlayer, player)) return;
-            ViewerState.Message = UnsupportedVideoMessage(item.Path, message);
+            ViewerState.Message = item.IsAudio ? $"无法播放此音频。文件可能损坏或系统缺少对应解码器。\n{message}" : UnsupportedVideoMessage(item.Path, message);
             StopVideo();
         });
         player.StateChanged += (_, _) => DispatcherQueue.TryEnqueue(() =>
@@ -93,9 +93,9 @@ public sealed partial class MainWindow
             if (_closed || !ReferenceEquals(_videoPlayer, player)) return;
             UpdatePlayIcon(false);
             if (item.Version is { } version) _ = _resumeStore.SaveAsync(version, TimeSpan.Zero, player.Duration);
-            // 下一项也是视频时连续播放；图片不自动切换，避免看完视频被带走。
+            // 下一项为音频或视频时连续播放；图片不自动切换。
             int next = ViewerState.CurrentIndex + 1;
-            if (ViewerState.CanNext && ViewerState.Playlist[next].IsVideo) await ShowInViewerAsync(next);
+            if (ViewerState.CanNext && ViewerState.Playlist[next].IsPlaybackMedia) await ShowInViewerAsync(next);
         });
         _updatingSeek = true;
         VideoSeek.Value = 0;
@@ -128,10 +128,13 @@ public sealed partial class MainWindow
             }
             ct.ThrowIfCancellationRequested();
             // 控制栏和画面区域先完成布局，再露出视频；保持进入前的窗口尺寸。
-            Root.UpdateLayout();
-            await WaitForVideoLayoutFrameAsync(ct);
-            Root.UpdateLayout();
-            await WaitForVideoLayoutFrameAsync(ct);
+            if (!item.IsAudio)
+            {
+                Root.UpdateLayout();
+                await WaitForVideoLayoutFrameAsync(ct);
+                Root.UpdateLayout();
+                await WaitForVideoLayoutFrameAsync(ct);
+            }
             if (_closed || !ReferenceEquals(_videoPlayer, player)) return;
             ViewerState.Message = "";
             ViewerVideo.Opacity = 1;
@@ -144,7 +147,7 @@ public sealed partial class MainWindow
         {
             if (!_closed && ReferenceEquals(_videoPlayer, player))
             {
-                ViewerState.Message = $"无法准备视频画面：{ex.Message}";
+                ViewerState.Message = $"无法准备{(item.IsAudio ? "音频播放" : "视频画面")}：{ex.Message}";
                 StopVideo();
             }
         }
@@ -245,7 +248,7 @@ public sealed partial class MainWindow
 
     private void StepVideoFrame(bool forward)
     {
-        if (_videoPlayer is not { } player) return;
+        if (ViewerState.CurrentItem?.IsVideo != true || _videoPlayer is not { } player) return;
         player.StepFrame(forward);
         UpdatePlayIcon(false);
         UpdateVideoProgress();
@@ -322,7 +325,7 @@ public sealed partial class MainWindow
     /// <summary>按原始分辨率截取当前画面，保存到视频所在目录。</summary>
     private async Task CaptureVideoFrameAsync()
     {
-        if (_videoPlayer is not { } player || _videoItem is not { } item) return;
+        if (_videoPlayer is not { } player || _videoItem is not { IsVideo: true } item) return;
         var time = player.Position;
         try
         {
@@ -349,11 +352,14 @@ public sealed partial class MainWindow
 
     private void VideoMoreMenu_Opening(object sender, object e)
     {
-        VideoCompactFitItem.Visibility = FitVideoWindowButton.Visibility == Visibility.Collapsed ? Visibility.Visible : Visibility.Collapsed;
+        bool audio = ViewerState.CurrentItem?.IsAudio == true;
+        VideoCompactFitItem.Visibility = !audio && FitVideoWindowButton.Visibility == Visibility.Collapsed ? Visibility.Visible : Visibility.Collapsed;
         VideoCompactFitItem.IsEnabled = FitVideoWindowButton.IsEnabled;
-        VideoCompactRotateItem.Visibility = RotateMediaButton.Visibility == Visibility.Collapsed ? Visibility.Visible : Visibility.Collapsed;
+        VideoCompactRotateItem.Visibility = !audio && RotateMediaButton.Visibility == Visibility.Collapsed ? Visibility.Visible : Visibility.Collapsed;
         VideoCompactRotateItem.IsEnabled = RotateMediaButton.IsEnabled;
         VideoCompactRateMenu.Visibility = VideoRateButton.Visibility == Visibility.Collapsed ? Visibility.Visible : Visibility.Collapsed;
+        VideoStepBackItem.Visibility = VideoStepForwardItem.Visibility = VideoScreenshotItem.Visibility
+            = VideoFrameSeparator.Visibility = audio ? Visibility.Collapsed : Visibility.Visible;
     }
     private void ViewerVideo_Tapped(object sender, TappedRoutedEventArgs e) => ToggleVideoPlayback();
 
@@ -463,7 +469,7 @@ public sealed partial class MainWindow
     /// <summary>视频的全部控制都在画面下方；画面两侧的切换箭头只给图片使用。</summary>
     private void UpdateViewerOverlays()
     {
-        bool video = ViewerState.CurrentItem?.IsVideo == true;
+        bool video = ViewerState.CurrentItem?.IsPlaybackMedia == true;
         bool fullScreen = _presenterBeforeFullScreen is not null;
         // 视频的上一项/下一项在进度条旁，画面上不叠加箭头；底栏右侧图片显示缩放、视频显示音量与倍速。
         PrevButton.Visibility = NextButton.Visibility = video ? Visibility.Collapsed : Visibility.Visible;

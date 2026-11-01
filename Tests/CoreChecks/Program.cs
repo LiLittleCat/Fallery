@@ -289,6 +289,10 @@ using (var registryRoot = Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"S
     finally { Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\FalleryCoreChecks", throwOnMissingSubKey: false); }
 }
 
+ShellRegistrationChecks.Run(fixture, Check);
+await AudioChecks.RunAsync(Path.Combine(fixture, "audio-checks"), Check);
+await FileClipboardChecks.RunAsync(Path.Combine(fixture, "clipboard-checks"), Check);
+
 var resumePath = Path.Combine(fixture, "resume", "resume.json");
 var resumeVersion = new FileVersion(@"C:\VIDEOS\A.MP4", 1000, 42);
 var resume = new Fallery.Services.Playback.ResumeStore(resumePath);
@@ -375,6 +379,18 @@ Check(new AppSettings { DisplayMode = (GalleryDisplayMode)99 }.Normalize().Displ
 var viewSettings = savedSettings with { DisplayMode = GalleryDisplayMode.Filmstrip, ShowFileNames = false };
 viewSettings = viewSettings with { Filter = MediaFilter.Videos, ShowSubfolders = false, SortField = MediaSortField.Taken };
 Check(new AppSettings { Filter = (MediaFilter)99 }.Normalize().Filter == MediaFilter.All, "非法筛选应回退所有媒体");
+Check(System.Text.Json.JsonSerializer.Deserialize<AppSettings>("{\"TreeShowModifiedTime\":true}") is
+    { TreeShowModifiedTime: true, TreeTimeField: FolderTimeField.Modified }, "旧时间显示设置应继续显示修改时间");
+Check(new AppSettings { TreeTimeField = (FolderTimeField)99 }.Normalize().TreeTimeField == FolderTimeField.Modified,
+    "非法时间显示类型回退修改时间");
+var timeEntry = new FolderEntry(@"C:\sample", "sample") { ShowModifiedTime = true, ModifiedTicks = new DateTime(2026, 2, 3).Ticks,
+    CreatedTicks = new DateTime(2024, 5, 6).Ticks, TimeField = FolderTimeField.Created };
+Check(timeEntry.ModifiedText == new DateTime(timeEntry.CreatedTicks!.Value, DateTimeKind.Utc).ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+    && timeEntry.TimeLabel == "创建时间" && (timeEntry with { CreatedTicks = null }).ModifiedText == "创建时间未知",
+    "时间显示按选择读取正确日期，缺失时不借用另一种时间");
+var timeSettings = savedSettings with { TreeShowModifiedTime = true, TreeTimeField = FolderTimeField.Created };
+Check(await settingsStore.SaveAsync(timeSettings) && (await settingsStore.LoadAsync()).TreeTimeField == FolderTimeField.Created,
+    "文件树创建时间显示选择可持久化");
 Check(await settingsStore.SaveAsync(viewSettings) && await settingsStore.LoadAsync() == viewSettings,
     "视图模式和文件名开关必须跨启动保存");
 Check((await Task.WhenAll(Enumerable.Range(0, 10).Select(i => settingsStore.SaveAsync(savedSettings with { Width = 1000 + i })))).All(ok => ok), "并发保存不能互相覆盖临时文件或写出半份 JSON");

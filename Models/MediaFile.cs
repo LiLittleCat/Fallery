@@ -1,8 +1,8 @@
 namespace Fallery.Models;
 
-public enum MediaKind { Image, Video, Folder }
+public enum MediaKind { Image, Video, Folder, Audio }
 public enum MediaSortField { Name, Modified, Size, Taken, Created }
-public enum MediaFilter { All, Photos, Videos }
+public enum MediaFilter { All, Photos, Videos, Audio }
 
 // 扫描结果不携带 UI 对象，可以在后台生成和测试。
 public sealed record MediaFile(string Path, MediaKind Kind)

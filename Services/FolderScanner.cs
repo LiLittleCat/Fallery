@@ -16,6 +16,12 @@ public static class FolderScanner
         ".mp4", ".m4v", ".mov", ".mkv", ".avi", ".wmv", ".webm", ".3gp",
     };
 
+    private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp3", ".wav", ".flac", ".m4a", ".m4b", ".aac", ".adt", ".adts", ".wma",
+        ".aif", ".aiff", ".ogg", ".oga", ".opus", ".amr", ".mka",
+    };
+
     private static readonly EnumerationOptions TopLevelOnly = new()
     {
         IgnoreInaccessible = false,
@@ -192,13 +198,14 @@ public static class FolderScanner
         }
     }
 
-    public static IEnumerable<string> SupportedExtensions => ImageExtensions.Concat(VideoExtensions);
+    public static IEnumerable<string> SupportedExtensions => ImageExtensions.Concat(VideoExtensions).Concat(AudioExtensions);
 
     public static MediaKind? GetMediaKind(string path)
     {
         var extension = Path.GetExtension(path);
         if (ImageExtensions.Contains(extension)) return MediaKind.Image;
         if (VideoExtensions.Contains(extension)) return MediaKind.Video;
+        if (AudioExtensions.Contains(extension)) return MediaKind.Audio;
         return null;
     }
 
@@ -206,7 +213,8 @@ public static class FolderScanner
     {
         MediaFilter.Photos => kind == MediaKind.Image,
         MediaFilter.Videos => kind == MediaKind.Video,
-        _ => kind is MediaKind.Image or MediaKind.Video,
+        MediaFilter.Audio => kind == MediaKind.Audio,
+        _ => kind is MediaKind.Image or MediaKind.Video or MediaKind.Audio,
     };
 
     private static long? GetCreatedTicks(FileSystemInfo info)
@@ -240,6 +248,8 @@ public static class FolderScanner
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
 
+    public static long? ReadFolderCreatedTicks(string path) => GetCreatedTicks(new DirectoryInfo(path));
+
     public static int CompareNames(string left, string right) => StrCmpLogicalW(left, right);
 
     public static List<FolderEntry> GetRoots(CancellationToken ct = default)
@@ -247,9 +257,9 @@ public static class FolderScanner
         ct.ThrowIfCancellationRequested();
         var roots = new List<FolderEntry>();
         var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-        if (Directory.Exists(pictures)) roots.Add(new(pictures, "图片") { ModifiedTicks = ReadFolderModifiedTicks(pictures) });
+        if (Directory.Exists(pictures)) roots.Add(new(pictures, "图片") { ModifiedTicks = ReadFolderModifiedTicks(pictures), CreatedTicks = ReadFolderCreatedTicks(pictures) });
         var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        if (Directory.Exists(desktop)) roots.Add(new(desktop, "桌面") { ModifiedTicks = ReadFolderModifiedTicks(desktop) });
+        if (Directory.Exists(desktop)) roots.Add(new(desktop, "桌面") { ModifiedTicks = ReadFolderModifiedTicks(desktop), CreatedTicks = ReadFolderCreatedTicks(desktop) });
         foreach (var drive in DriveInfo.GetDrives())
         {
             ct.ThrowIfCancellationRequested();
@@ -258,7 +268,7 @@ public static class FolderScanner
                 if (!drive.IsReady) continue;
                 var label = drive.VolumeLabel;
                 roots.Add(new(drive.RootDirectory.FullName, string.IsNullOrEmpty(label)
-                    ? drive.Name : $"{label} ({drive.Name.TrimEnd('\\')})") { ModifiedTicks = ReadFolderModifiedTicks(drive.RootDirectory.FullName) });
+                    ? drive.Name : $"{label} ({drive.Name.TrimEnd('\\')})") { ModifiedTicks = ReadFolderModifiedTicks(drive.RootDirectory.FullName), CreatedTicks = ReadFolderCreatedTicks(drive.RootDirectory.FullName) });
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
             {
@@ -296,7 +306,7 @@ public static class FolderScanner
             if (showHidden && !IsVisibleHiddenEntry(path, token)) return null;
             // 能列出名称不代表能访问目录；失败节点不应留下一个无法打开的入口。
             return TryGetHasSubfolders(path, showHidden, token, out var hasChildren)
-                ? new FolderChild(path, hasChildren) { ModifiedTicks = ReadFolderModifiedTicks(path) } : null;
+                ? new FolderChild(path, hasChildren) { ModifiedTicks = ReadFolderModifiedTicks(path), CreatedTicks = ReadFolderCreatedTicks(path) } : null;
         }, ct);
         return children.OfType<FolderChild>().ToList();
     }

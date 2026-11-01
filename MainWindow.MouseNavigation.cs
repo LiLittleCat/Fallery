@@ -31,7 +31,7 @@ public sealed partial class MainWindow
             if (forward) await GoForwardAsync();
             else await GoBackAsync();
         }
-        else if (ViewerState.CurrentItem?.IsVideo == true && ViewerVideo.Opacity >= 1 && _videoPlayer is not null)
+        else if (ViewerState.CurrentItem?.IsPlaybackMedia == true && ViewerVideo.Opacity >= 1 && _videoPlayer is not null)
         {
             SeekVideo(TimeSpan.FromSeconds(forward ? 5 : -5));
         }

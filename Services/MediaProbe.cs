@@ -27,6 +27,7 @@ public static class MediaProbe
     {
         ct.ThrowIfCancellationRequested();
         if (kind == MediaKind.Folder) return null;
+        if (kind == MediaKind.Audio) return 1;
         try
         {
             var file = await StorageFile.GetFileFromPathAsync(path).AsTask(ct);

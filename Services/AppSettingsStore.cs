@@ -17,6 +17,7 @@ public sealed record AppSettings
     public MediaSortField TreeSortField { get; init; } = MediaSortField.Name;
     public bool TreeDescending { get; init; }
     public bool TreeShowModifiedTime { get; init; }
+    public FolderTimeField TreeTimeField { get; init; }
     public string[] TreeExcludedFolders { get; init; } = [];
     public MediaSortField SortField { get; init; }
     public bool Descending { get; init; }
@@ -45,6 +46,7 @@ public sealed record AppSettings
         SidebarWidth = double.IsFinite(SidebarWidth) ? Math.Clamp(SidebarWidth, 160, 480) : 260,
         SortField = Enum.IsDefined(SortField) ? SortField : MediaSortField.Name,
         TreeSortField = TreeSortField is MediaSortField.Name or MediaSortField.Modified ? TreeSortField : MediaSortField.Name,
+        TreeTimeField = Enum.IsDefined(TreeTimeField) ? TreeTimeField : FolderTimeField.Modified,
         TreeExcludedFolders = (TreeExcludedFolders ?? []).Select(NormalizeFolder).OfType<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
         DisplayMode = Enum.IsDefined(DisplayMode) ? DisplayMode : GalleryDisplayMode.Masonry,
