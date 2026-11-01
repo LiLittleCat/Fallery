@@ -31,4 +31,19 @@ public static class MediaCache
         AspectRatios.Clear();
         MediaDates.Clear();
     }
+
+    public static Task RemoveDeletedAsync(IReadOnlyCollection<string> paths, IReadOnlyCollection<FileVersion> versions)
+    {
+        var removed = paths.Select(path => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        bool Matches(FileVersion version)
+        {
+            for (string? path = version.Path; path is not null; path = Path.GetDirectoryName(path))
+                if (removed.Contains(path)) return true;
+            return false;
+        }
+        Thumbnails.RemoveWhere(Matches);
+        AspectRatios.RemoveWhere(Matches);
+        return Disk.RemoveManyAsync(versions);
+    }
 }

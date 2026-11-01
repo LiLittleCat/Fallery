@@ -11,6 +11,9 @@ namespace Fallery;
 public sealed partial class MainWindow
 {
     private bool _deleting;
+    private bool _deleteSelectionReady;
+    private bool IsGallerySelectionBlockedByDelete => _deleting && !_deleteSelectionReady;
+    private bool _deleteStartedInTree;
 
     private static bool IsShiftDown() =>
         (InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift) & CoreVirtualKeyStates.Down) != 0;
@@ -32,8 +35,79 @@ public sealed partial class MainWindow
                 return Task.CompletedTask;
             return DeleteWithConfirmationAsync(entry.Path, true, permanent);
         }
-        var item = ViewerState.IsOpen ? ViewerState.CurrentItem : _selectedItem;
-        return item is null ? Task.CompletedTask : DeleteWithConfirmationAsync(item.Path, item.IsFolder, permanent);
+        if (ViewerState.IsOpen && !IsFilmstrip)
+            return ViewerState.CurrentItem is { } item ? DeleteWithConfirmationAsync(item.Path, item.IsFolder, permanent) : Task.CompletedTask;
+        return DeleteSelectionWithConfirmationAsync(SelectedFileTargets(), permanent);
+    }
+
+    private async Task DeleteSelectionWithConfirmationAsync(IReadOnlyList<(string Path, bool Folder)> targets, bool permanent)
+    {
+        if (targets.Count == 0) return;
+        if (targets.Count == 1) { await DeleteWithConfirmationAsync(targets[0].Path, targets[0].Folder, permanent); return; }
+        if (_deleting || _pasting || _closed || _closing || _settingsDialog is not null) return;
+        if (targets.Any(target => string.Equals(System.IO.Path.TrimEndingDirectorySeparator(target.Path),
+            System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetPathRoot(target.Path)!), StringComparison.OrdinalIgnoreCase))) return;
+        _deleting = true;
+        _deleteSelectionReady = false;
+        try
+        {
+            int irreversible = targets.Count(target => permanent || !SupportsRecycleBin(target.Path));
+            string question = irreversible == 0 ? $"将选中的 {targets.Count} 项放入回收站？"
+                : $"删除选中的 {targets.Count} 项？其中 {irreversible} 项将永久删除，无法从回收站恢复。";
+            var content = new StackPanel { Spacing = 10, MaxWidth = 420 };
+            content.Children.Add(new TextBlock { Text = question, TextWrapping = TextWrapping.Wrap });
+            content.Children.Add(new TextBlock
+            {
+                Text = string.Join("\n", targets.Take(6).Select(target => System.IO.Path.GetFileName(target.Path)))
+                    + (targets.Count > 6 ? $"\n…共 {targets.Count} 项" : ""), TextWrapping = TextWrapping.Wrap
+            });
+            var dialog = new ContentDialog
+            {
+                XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = "删除选中项目", Content = content,
+                PrimaryButtonText = "是", CloseButtonText = "否", DefaultButton = ContentDialogButton.Close
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary || _closed) return;
+            string? folder = GalleryState.CurrentFolder;
+            double vertical = GalleryScroller.VerticalOffset, horizontal = GalleryScroller.HorizontalOffset;
+            var targetPaths = targets.Select(target => target.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            int adjacent = GalleryState.Items.FindIndex(item => targetPaths.Contains(item.Path));
+            int viewerIndex = ViewerState.CurrentIndex;
+            bool deletingViewed = ViewerState.CurrentItem is { } current && targets.Any(target => string.Equals(target.Path, current.Path, StringComparison.OrdinalIgnoreCase));
+            StopHoverPreview();
+            if (deletingViewed) { StopVideo(); ClearViewerImage(); }
+            var deleted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var deletedVersions = new List<Models.FileVersion>();
+            var failures = new List<string>();
+            foreach (var target in targets)
+            {
+                try
+                {
+                    var fileVersion = target.Folder ? null : await Task.Run(() => Models.FileVersion.Read(target.Path));
+                    await DeletePathAsync(target.Path, target.Folder, !permanent && SupportsRecycleBin(target.Path));
+                    deleted.Add(target.Path);
+                    if (fileVersion is { } version) deletedVersions.Add(version);
+                    if (target.Folder) RemoveTreeNode(target.Path);
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex) { failures.Add($"{System.IO.Path.GetFileName(target.Path)}：{ex.Message}"); }
+            }
+            if (_closed) return;
+            if (string.Equals(folder, GalleryState.CurrentFolder, StringComparison.OrdinalIgnoreCase))
+            {
+                GalleryState.RemoveItems(deleted);
+                var remaining = targets.Where(target => !deleted.Contains(target.Path)).Select(target => target.Path).ToArray();
+                if (remaining.Length > 0) RestoreItemSelection(remaining, remaining[0], remaining[0]);
+                else SelectItem(GalleryState.Items.Count == 0 ? null : GalleryState.Items[Math.Clamp(adjacent, 0, GalleryState.Items.Count - 1)]);
+                RestoreGalleryAfterDelete(horizontal, vertical);
+                if (deletingViewed && GalleryState.MediaItems.Count > 0)
+                    await ShowInViewerAsync(Math.Clamp(viewerIndex, 0, GalleryState.MediaItems.Count - 1));
+                else if (deletingViewed) CloseViewer();
+            }
+            string syncWarning = await SynchronizeDeletedDataAsync(deleted, deletedVersions);
+            GalleryState.Status = $"已删除 {deleted.Count} 项" + (failures.Count > 0 ? $"，{failures.Count} 项失败：{failures[0]}" : "") + syncWarning;
+        }
+        catch (Exception ex) { if (!_closed) GalleryState.Status = $"删除失败：{ex.Message}"; }
+        finally { _deleting = _deleteSelectionReady = false; _deleteStartedInTree = false; }
     }
 
     // 资源管理器只在本地固定磁盘上使用回收站；网络位置和可移动磁盘会直接永久删除。
@@ -50,8 +124,13 @@ public sealed partial class MainWindow
 
     private async Task DeleteWithConfirmationAsync(string path, bool folder, bool permanent)
     {
-        if (_deleting || _closed || _closing || _settingsDialog is not null) return;
+        if (_deleting || _pasting || _closed || _closing || _settingsDialog is not null) return;
         _deleting = true;
+        _deleteSelectionReady = false;
+        _deleteStartedInTree = false;
+        for (var element = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(Root.XamlRoot) as DependencyObject;
+             element is not null; element = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element))
+            if (element == FolderTree || element == FavoritesTree) { _deleteStartedInTree = true; break; }
         try
         {
             bool recycle = !permanent && SupportsRecycleBin(path);
@@ -87,16 +166,18 @@ public sealed partial class MainWindow
                 StopVideo();
                 ClearViewerImage();
             }
+            var deletedVersion = folder ? null : await Task.Run(() => Models.FileVersion.Read(path));
             await DeletePathAsync(path, folder, recycle);
             await AfterDeleteAsync(path, folder, viewerIndex);
-            GalleryState.Status = recycle ? $"已移到回收站：{System.IO.Path.GetFileName(path)}" : $"已永久删除：{System.IO.Path.GetFileName(path)}";
+            string syncWarning = await SynchronizeDeletedDataAsync([path], deletedVersion is { } version ? [version] : []);
+            GalleryState.Status = (recycle ? $"已移到回收站：{System.IO.Path.GetFileName(path)}" : $"已永久删除：{System.IO.Path.GetFileName(path)}") + syncWarning;
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             if (!_closed) GalleryState.Status = $"删除失败：{ex.Message}";
         }
-        finally { _deleting = false; }
+        finally { _deleting = _deleteSelectionReady = false; _deleteStartedInTree = false; }
     }
 
     private static Task DeletePathAsync(string path, bool folder, bool recycle)
@@ -139,17 +220,36 @@ public sealed partial class MainWindow
         }
         int index = GalleryState.Items.FindIndex(i => string.Equals(i.Path, path, StringComparison.OrdinalIgnoreCase));
         double offset = GalleryScroller.VerticalOffset;
+        double horizontal = GalleryScroller.HorizontalOffset;
         if (!GalleryState.RemoveItem(path)) return;
-        // 列表重绑会回到顶部；只删一项时保持原来的浏览位置，并把选中移到相邻项，方便连续删除。
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            if (!_closed && !IsFilmstrip) GalleryScroller.ChangeView(null, offset, null, true);
-        });
         if (viewerIndex >= 0 && GalleryState.MediaItems.Count > 0)
             await ShowInViewerAsync(Math.Min(viewerIndex, GalleryState.MediaItems.Count - 1));
         else if (viewerIndex >= 0) CloseViewer();
-        else if (index >= 0 && GalleryState.Items.Count > 0)
-            SelectItem(GalleryState.Items[Math.Min(index, GalleryState.Items.Count - 1)]);
+        else if (index >= 0)
+            SelectItem(GalleryState.Items.Count == 0 ? null : GalleryState.Items[Math.Min(index, GalleryState.Items.Count - 1)]);
+        RestoreGalleryAfterDelete(horizontal, offset);
+    }
+
+    private void RestoreGalleryAfterDelete(double horizontal, double vertical)
+    {
+        // 文件/列表已更新，后续缓存和索引同步只继续串行化写操作，不再吞掉选择输入。
+        _deleteSelectionReady = true;
+        if (ViewerState.IsOpen && !IsFilmstrip) return;
+        // 删除会回收焦点卡片，WinUI 可能把焦点移到文件树或缩略图滑块；高亮并不等于键盘目标。
+        // 取消重绑列表时排队的旧定位，在新布局就绪后把焦点交给不会被回收的浏览容器。
+        CancelBrowsePositionRestore();
+        int restore = _browsePositionVersion;
+        int navigation = _navigationVersion;
+        bool focusGallery = !_deleteStartedInTree;
+        if (focusGallery) GalleryScroller.Focus(FocusState.Programmatic);
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            if (_closed || _closing || navigation != _navigationVersion || restore != _browsePositionVersion
+                || ViewerState.IsOpen && !IsFilmstrip) return;
+            GalleryScroller.UpdateLayout();
+            GalleryScroller.ChangeView(horizontal, vertical, null, true);
+            if (focusGallery) GalleryScroller.Focus(FocusState.Programmatic);
+        });
     }
 
     private void RemoveTreeNode(string path)

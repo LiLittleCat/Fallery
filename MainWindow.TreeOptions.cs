@@ -128,7 +128,7 @@ public sealed partial class MainWindow
 
     private async void NewFolder_Click(object sender, RoutedEventArgs e)
     {
-        if (_closed || _closing || _settingsDialog is not null || _deleting || GalleryState.CurrentFolder is not { } parent) return;
+        if (_closed || _closing || _settingsDialog is not null || _deleting || _pasting || GalleryState.CurrentFolder is not { } parent) return;
         StopHoverPreview();
         var input = new TextBox { Text = "新建文件夹", Header = "文件夹名称", MinWidth = 300, MaxLength = 255 };
         var error = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 420 };

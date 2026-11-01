@@ -19,14 +19,13 @@ public sealed partial class MainWindow
         var zoom = ImageZoomPanel.Visibility;
         try
         {
-            // 默认的 1280×720 指视频画面，窗口还需要容纳标题栏、两行控制栏和系统边框。
+            // 默认的 1280×720 指视频画面，窗口还需要容纳标题栏、单行控制栏和系统边框。
             VideoControls.Visibility = VideoAudioPanel.Visibility = Visibility.Visible;
             ImageZoomPanel.Visibility = Visibility.Collapsed;
-            VideoControls.Measure(new Size(1280, double.PositiveInfinity));
             ViewerBar.Measure(new Size(1280, double.PositiveInfinity));
             double chromeWidth = Math.Max(0, AppWindow.Size.Width - (client.Right - client.Left));
             double chromeHeight = Math.Max(0, AppWindow.Size.Height - (client.Bottom - client.Top))
-                + (AppTitleBar.ActualHeight + VideoControls.DesiredSize.Height + ViewerBar.DesiredSize.Height) * scale;
+                + (AppTitleBar.ActualHeight + ViewerBar.DesiredSize.Height) * scale;
             return ResizeWindowForVideo(16d / 9, 1280 * scale, chromeWidth, chromeHeight);
         }
         finally
@@ -100,10 +99,20 @@ public sealed partial class MainWindow
         return true;
     }
 
-    private void ViewerBar_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void ViewerBar_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateViewerBarLayout();
+
+    private void UpdateViewerBarLayout()
     {
-        // 窄窗口收起可在详细信息中查看的元数据，给播放操作留空间。
-        ViewerMetadata.Visibility = e.NewSize.Width >= 850 ? Visibility.Visible : Visibility.Collapsed;
-        VideoVolume.Visibility = e.NewSize.Width >= 600 ? Visibility.Visible : Visibility.Collapsed;
+        double width = ViewerBar.ActualWidth;
+        bool video = VideoControls.Visibility == Visibility.Visible;
+        // 逐步收起次要操作到更多菜单，给窄窗口的播放、进度和声音按钮留空间。
+        ViewerMetadata.Visibility = width >= (video ? 1100 : 850) ? Visibility.Visible : Visibility.Collapsed;
+        Microsoft.UI.Xaml.Controls.Grid.SetColumn(ViewerMetadata, video ? 1 : 0);
+        VideoPreviousButton.Visibility = VideoNextButton.Visibility = width >= 620 ? Visibility.Visible : Visibility.Collapsed;
+        VideoPositionText.Visibility = VideoDurationText.Visibility = width >= 520 ? Visibility.Visible : Visibility.Collapsed;
+        FitVideoWindowButton.Visibility = width >= 850 ? Visibility.Visible : Visibility.Collapsed;
+        VideoRateButton.Visibility = width >= 700 ? Visibility.Visible : Visibility.Collapsed;
+        RotateMediaButton.Visibility = !video || width >= 760 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateLoopLabel();
     }
 }

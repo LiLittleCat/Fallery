@@ -84,6 +84,7 @@ public sealed partial class MainWindow
 
     private void ApplyDisplayOptions()
     {
+        EndMarqueeSelection(cancel: true);
         // 换布局时先回收原控件，避免横排固定尺寸残留到瀑布流复用的卡片上。
         ReleaseGalleryThumbnails();
         Gallery.ItemsSource = null;
@@ -94,6 +95,7 @@ public sealed partial class MainWindow
         Masonry.Refresh();
         Gallery.Layout = IsFilmstrip ? _filmstripLayout : Masonry;
         Grid.SetRow(GalleryScroller, IsFilmstrip ? 1 : 0);
+        Grid.SetRow(MarqueeOverlay, IsFilmstrip ? 1 : 0);
         GalleryScroller.Height = IsFilmstrip ? GalleryState.ShowFileNames ? 154 : 132 : double.NaN;
         GalleryScroller.HorizontalScrollMode = IsFilmstrip ? ScrollMode.Enabled : ScrollMode.Disabled;
         GalleryScroller.HorizontalScrollBarVisibility = IsFilmstrip ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
@@ -120,23 +122,27 @@ public sealed partial class MainWindow
         tile.Height = IsFilmstrip ? GalleryState.ShowFileNames ? 132 : 110 : double.NaN;
         // 只有网格和横排的格子比例与图片不一致，需要完整显示；瀑布流与自适应行按原比例铺满。
         tile.SetPresentation(GalleryState.ShowFileNames, GalleryState.DisplayMode is GalleryDisplayMode.LargeIcons or GalleryDisplayMode.Filmstrip,
-            tile.Item is not null && ReferenceEquals(tile.Item, IsFilmstrip ? ViewerState.CurrentItem : _selectedItem),
+            tile.Item is not null && _selectedPaths.Contains(tile.Item.Path),
             GalleryState.ShowCards);
     }
 
-    /// <summary>瀑布流和大图列表的单击选中；横排模式的选中始终跟随当前大图。</summary>
+    /// <summary>程序主动定位时恢复单选；用户多选由 ApplyItemSelection 处理。</summary>
     private void SelectItem(MediaItem? item)
     {
-        if (ReferenceEquals(_selectedItem, item)) return;
+        _selectionCursor = item?.Path;
+        if (ReferenceEquals(_selectedItem, item) && _selectedPaths.Count == (item is null ? 0 : 1)
+            && (item is null || _selectedPaths.Contains(item.Path))) return;
+        _selectedPaths.Clear();
+        if (item is not null) _selectedPaths.Add(item.Path);
+        _selectionAnchor = item?.Path;
         _selectedItem = item;
-        if (IsFilmstrip || _closed) return;
-        foreach (var tile in _realizedItems.Keys.OfType<MediaTile>()) ConfigureTile(tile);
+        RefreshSelectionVisuals();
     }
 
     private void UpdateFilmstripSelection()
     {
         if (!IsFilmstrip || _closed) return;
-        foreach (var tile in _realizedItems.Keys.OfType<MediaTile>()) ConfigureTile(tile);
+        SelectItem(ViewerState.CurrentItem);
         if (ViewerState.CurrentItem is not { } item) return;
         int index = GalleryState.Items.IndexOf(item);
         if (index < 0) return;
@@ -152,15 +158,18 @@ public sealed partial class MainWindow
 
     private async void Tile_Tapped(object sender, TappedRoutedEventArgs e)
     {
+        if (_marqueeStarted || _suppressMarqueeTap) { e.Handled = true; return; }
         // 点击卡片后让键盘操作跟随浏览区，避免焦点仍留在之前的文件树节点。
         if (sender is MediaTile tile) tile.Focus(FocusState.Pointer);
-        if (!IsFilmstrip)
+        if (sender is not MediaTile { Item: { } item }) return;
+        bool control = IsControlDown(), shift = IsShiftDown();
+        ApplyItemSelection(item, control, shift);
+        e.Handled = true;
+        if (!IsFilmstrip || control || shift)
         {
-            if (sender is MediaTile { Item: { } selected }) SelectItem(selected);
             return;
         }
-        if (sender is not MediaTile { Item: { IsFolder: false } item }) return;
-        e.Handled = true;
+        if (item.IsFolder) return;
         await ShowInViewerAsync(GalleryState.MediaItems.IndexOf(item));
     }
 }

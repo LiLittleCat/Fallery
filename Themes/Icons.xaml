@@ -53,6 +53,7 @@
     <x:String x:Key="IconExpand">&#xF15FC;</x:String> <!-- arrow-down-01 -->
     <x:String x:Key="IconCollapse">&#xF1632;</x:String> <!-- arrow-up-01 -->
     <x:String x:Key="IconCopy">&#xF1A75;</x:String> <!-- copy-01 -->
+    <x:String x:Key="IconSearch">&#xF2546;</x:String> <!-- search-01 -->
     <x:String x:Key="IconPaste">&#xF19E1;</x:String> <!-- clipboard-paste -->
     <x:String x:Key="IconCopyFile">&#xF1CB5;</x:String> <!-- files-01 -->
     <x:String x:Key="IconTheme">&#xF33A0;</x:String> <!-- sun-moon -->

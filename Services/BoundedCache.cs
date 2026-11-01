@@ -58,4 +58,16 @@ public sealed class BoundedCache<TKey, TValue>(long capacity, int countLimit) wh
             _weight = 0;
         }
     }
+
+    public void RemoveWhere(Func<TKey, bool> predicate)
+    {
+        lock (_gate)
+        {
+            foreach (var key in _entries.Keys.Where(predicate).ToArray())
+            {
+                var node = _entries[key];
+                _entries.Remove(key); _recent.Remove(node); _weight -= node.Value.Weight;
+            }
+        }
+    }
 }

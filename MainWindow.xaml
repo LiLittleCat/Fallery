@@ -22,6 +22,34 @@
                         <SolidColorBrush x:Key="DividerBrush" Color="#19FFFFFF" />
                     </ResourceDictionary>
                 </ResourceDictionary.ThemeDictionaries>
+                <DataTemplate x:Key="SearchResultTemplate">
+                    <Grid Padding="4,7" ColumnSpacing="12" ToolTipService.ToolTip="{Binding Path}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="22" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <FontIcon Style="{StaticResource FluentIcon}" Glyph="{Binding Glyph}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Spacing="3">
+                            <TextBlock Text="{Binding Name}" FontSize="14" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Parent}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+                <DataTemplate x:Key="IdenticalImageResultTemplate">
+                    <Grid Padding="4,7" ColumnSpacing="12" ToolTipService.ToolTip="{Binding Path}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="64" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border Width="64" Height="48" CornerRadius="4" Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
+                            <controls:FileThumbnail File="{Binding PreviewFile}" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Name}" FontSize="14" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Parent}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+                <DataTemplate x:Key="FolderScopeTemplate">
+                    <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                               ToolTipService.ToolTip="{Binding}" />
+                </DataTemplate>
                 <!-- 图标开关用中性底色和图标明暗区分状态，保留原生 ToggleButton 的交互与焦点处理。 -->
                 <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
                 <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="{ThemeResource SubtleFillColorSecondary}" />
@@ -91,8 +119,8 @@
                 <Style x:Key="PlaybackRateMenuPresenterStyle" TargetType="MenuFlyoutPresenter"
                        BasedOn="{StaticResource NavigationMenuPresenterStyle}">
                     <Setter Property="MinWidth" Value="0" />
-                    <Setter Property="Width" Value="88" />
-                    <Setter Property="Padding" Value="3" />
+                    <Setter Property="Width" Value="80" />
+                    <Setter Property="Padding" Value="2" />
                     <Setter Property="CornerRadius" Value="8" />
                 </Style>
                 <Style x:Key="AddressMenuItemStyle" TargetType="ListViewItem">
@@ -129,6 +157,9 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+
+        <Border x:Name="BackdropTint" Grid.RowSpan="3" IsHitTestVisible="False"
+                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" Opacity="0.7" />
 
         <TitleBar x:Name="AppTitleBar" Title="Fallery" Height="48"
                   Background="Transparent" Foreground="{ThemeResource TextFillColorPrimaryBrush}">
@@ -203,6 +234,10 @@
                             </Grid>
                         </Border>
                         <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="2" Margin="6,0,0,0">
+                            <Button x:Name="SearchButton" Style="{StaticResource IconButtonStyle}" Click="Search_Click"
+                                    ToolTipService.ToolTip="全电脑搜索 (Ctrl+F)" AutomationProperties.Name="全电脑搜索">
+                                <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSearch}" />
+                            </Button>
                             <Button x:Name="FavoriteButton" Style="{StaticResource IconButtonStyle}" Click="Favorite_Click" IsEnabled="False"
                                     ToolTipService.ToolTip="收藏当前文件夹" AutomationProperties.Name="收藏当前文件夹">
                                 <FontIcon x:Name="FavoriteIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconBookmark}" />
@@ -393,7 +428,7 @@
                     </TreeView.Resources>
                     <TreeView.ItemTemplate>
                         <DataTemplate>
-                            <Grid ColumnSpacing="8" ToolTipService.ToolTip="{Binding Content.Path}">
+                            <Grid ColumnSpacing="8" ToolTipService.ToolTip="{Binding Content.Path}" DoubleTapped="FolderTreeItem_DoubleTapped">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                 <Grid VerticalAlignment="Center">
                                     <FontIcon Style="{StaticResource FluentIconFilled}" Glyph="{StaticResource IconFolderFilled}" Foreground="{ThemeResource FolderIconBrush}"
@@ -425,7 +460,7 @@
                 <Grid x:Name="GalleryContent">
                     <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                     <Border x:Name="GallerySurfaceFill" Grid.RowSpan="2" Background="{ThemeResource LayerFillColorDefaultBrush}" IsHitTestVisible="False" />
-                    <ScrollViewer x:Name="GalleryScroller" Padding="12">
+                    <ScrollViewer x:Name="GalleryScroller" Padding="12" Background="Transparent">
                         <ItemsRepeater x:Name="Gallery" VerticalCacheLength="2" HorizontalCacheLength="2" ElementPrepared="Gallery_ElementPrepared" ElementClearing="Gallery_ElementClearing">
                             <ItemsRepeater.Layout>
                                 <layouts:MasonryLayout x:Name="Masonry" Spacing="10" DesiredColumnWidth="{x:Bind ThumbSize.Value, Mode=OneWay}" />
@@ -435,16 +470,23 @@
                     </ScrollViewer>
                     <TextBlock x:Name="EmptyText" Text="在左侧选择目录，或点击顶部的打开文件夹按钮" HorizontalAlignment="Center" VerticalAlignment="Center"
                                TextWrapping="Wrap" Margin="24" Foreground="{ThemeResource TextFillColorSecondaryBrush}" IsHitTestVisible="False" />
+                    <Canvas x:Name="MarqueeOverlay" IsHitTestVisible="False" Visibility="Collapsed">
+                        <Border x:Name="SelectionMarquee" BorderThickness="1" BorderBrush="{ThemeResource SystemControlHighlightAccentBrush}">
+                            <Border.Background><SolidColorBrush Color="{ThemeResource SystemAccentColor}" Opacity="0.18" /></Border.Background>
+                        </Border>
+                    </Canvas>
                 </Grid>
             </Border>
         </Grid>
 
         <Grid x:Name="BrowserStatus" Grid.Row="2" Padding="14,4,10,4" ColumnSpacing="12" Background="Transparent">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <TextBlock x:Name="StatusText" Text="{x:Bind GalleryState.Status, Mode=OneWay}" FontSize="12" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock x:Name="SelectionCountText" Grid.Column="1" FontSize="12" VerticalAlignment="Center"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconImage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <Slider x:Name="ThumbSize" Width="116" Minimum="120" Maximum="480" StepFrequency="20" Value="240"
                         ToolTipService.ToolTip="缩略图大小" AutomationProperties.Name="缩略图大小" ValueChanged="ThumbSize_ValueChanged" />
@@ -522,15 +564,19 @@
                     Background="Transparent" Visibility="Collapsed"
                     PointerExited="FullScreenControls_PointerExited" />
 
-            <!-- 普通窗口位于画面下方，全屏时浮在画面上且显隐不改变画面尺寸。 -->
-            <Grid x:Name="VideoControls" Grid.Row="1" Grid.Column="0" Visibility="Collapsed" Padding="8,2,12,0" ColumnSpacing="2" Background="#1F2023"
-                  BorderBrush="#26FFFFFF" BorderThickness="0,1,0,0">
+            <!-- 单行控制栏；全屏时浮在画面上，侧面板不改变其宽度。 -->
+            <Grid x:Name="ViewerBar" Grid.Row="2" Grid.Column="0" Padding="8,4" ColumnSpacing="6" Background="#1F2023"
+                  BorderBrush="#26FFFFFF" BorderThickness="0,1,0,0" SizeChanged="ViewerBar_SizeChanged">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Grid x:Name="VideoControls" Visibility="Collapsed" ColumnSpacing="2" HorizontalAlignment="Stretch" VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <!-- 视频画面由独立渲染窗口承载，不能叠加 XAML 箭头，上一项/下一项放在这里。 -->
                 <StackPanel Orientation="Horizontal">
-                    <Button Style="{StaticResource IconButtonStyle}" Click="Prev_Click" IsEnabled="{x:Bind ViewerState.CanPrevious, Mode=OneWay}"
+                    <Button x:Name="VideoPreviousButton" Style="{StaticResource IconButtonStyle}" Click="Prev_Click" IsEnabled="{x:Bind ViewerState.CanPrevious, Mode=OneWay}"
                             ToolTipService.ToolTip="上一项 (PageUp)" AutomationProperties.Name="上一项">
                         <FontIcon Style="{StaticResource FluentIconFilled}" Glyph="{StaticResource IconPreviousMedia}" />
                     </Button>
@@ -538,9 +584,32 @@
                             ToolTipService.ToolTip="播放 / 暂停 (空格)" AutomationProperties.Name="播放或暂停">
                         <FontIcon x:Name="VideoPlayIcon" Style="{StaticResource FluentIconFilled}" Glyph="{StaticResource IconPauseMedia}" />
                     </Button>
-                    <Button Style="{StaticResource IconButtonStyle}" Click="Next_Click" IsEnabled="{x:Bind ViewerState.CanNext, Mode=OneWay}"
+                    <Button x:Name="VideoNextButton" Style="{StaticResource IconButtonStyle}" Click="Next_Click" IsEnabled="{x:Bind ViewerState.CanNext, Mode=OneWay}"
                             ToolTipService.ToolTip="下一项 (PageDown)" AutomationProperties.Name="下一项">
                         <FontIcon Style="{StaticResource FluentIconFilled}" Glyph="{StaticResource IconNextMedia}" />
+                    </Button>
+                    <Button x:Name="VideoMuteButton" Style="{StaticResource IconButtonStyle}"
+                            ToolTipService.ToolTip="调整音量" AutomationProperties.Name="调整音量">
+                        <FontIcon x:Name="VideoMuteIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconVolume}" />
+                        <Button.Flyout>
+                            <Flyout x:Name="VideoVolumeFlyout" Placement="Top" ShouldConstrainToRootBounds="True">
+                                <Flyout.FlyoutPresenterStyle>
+                                    <Style TargetType="FlyoutPresenter">
+                                        <Setter Property="MinWidth" Value="0" />
+                                        <Setter Property="Padding" Value="12,4" />
+                                        <Setter Property="CornerRadius" Value="8" />
+                                    </Style>
+                                </Flyout.FlyoutPresenterStyle>
+                                <Grid Width="146" ColumnSpacing="10" RequestedTheme="Dark">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="100" /><ColumnDefinition Width="36" /></Grid.ColumnDefinitions>
+                                    <Slider x:Name="VideoVolume" Minimum="0" Maximum="100" Value="100" StepFrequency="1"
+                                            VerticalAlignment="Center" IsThumbToolTipEnabled="False"
+                                            AutomationProperties.Name="音量" ValueChanged="VideoVolume_ValueChanged" />
+                                    <TextBlock x:Name="VideoVolumeText" Grid.Column="1" Text="100%" VerticalAlignment="Center"
+                                               TextAlignment="Right" FontSize="12" />
+                                </Grid>
+                            </Flyout>
+                        </Button.Flyout>
                     </Button>
                 </StackPanel>
                 <TextBlock x:Name="VideoPositionText" Grid.Column="1" Text="0:00" FontSize="12" VerticalAlignment="Center" Margin="4,0,8,0"
@@ -553,11 +622,7 @@
                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" ToolTipService.ToolTip="A-B 循环（\ 取消）" />
             </Grid>
 
-            <!-- 控制栏与画面等宽，展开右侧面板不移动刚点击的按钮。 -->
-            <Grid x:Name="ViewerBar" Grid.Row="2" Grid.Column="0" Padding="8,2,8,2" ColumnSpacing="8" Background="#1F2023" SizeChanged="ViewerBar_SizeChanged">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                    <StackPanel x:Name="ViewerMetadata" Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel x:Name="ViewerMetadata" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock x:Name="ViewerFormatText" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     <FontIcon x:Name="ViewerResolutionIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconResolution}" FontSize="13"
@@ -569,7 +634,7 @@
                     <TextBlock x:Name="ViewerSizeText" FontSize="12" VerticalAlignment="Center"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
-                </StackPanel>
+                </Grid>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                 <StackPanel x:Name="ImageZoomPanel" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                     <Button Style="{StaticResource IconButtonStyle}" Click="ZoomFit_Click" ToolTipService.ToolTip="适应窗口 (Ctrl+0)" AutomationProperties.Name="适应窗口">
@@ -593,13 +658,7 @@
                             ToolTipService.ToolTip="窗口适应视频（同步调整浏览窗口）" AutomationProperties.Name="窗口适应视频">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFit}" />
                     </Button>
-                    <Button x:Name="VideoMuteButton" Style="{StaticResource IconButtonStyle}" Click="VideoMute_Click"
-                            ToolTipService.ToolTip="静音 (M)" AutomationProperties.Name="静音">
-                        <FontIcon x:Name="VideoMuteIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconVolume}" />
-                    </Button>
-                    <Slider x:Name="VideoVolume" Width="90" Margin="0,0,6,0" Minimum="0" Maximum="100" Value="100" StepFrequency="1"
-                            VerticalAlignment="Center" AutomationProperties.Name="音量" ValueChanged="VideoVolume_ValueChanged" />
-                    <Button Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="播放速度（C 加快 / X 减慢 / Z 恢复）"
+                    <Button x:Name="VideoRateButton" Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="播放速度（C 加快 / X 减慢 / Z 恢复）"
                             AutomationProperties.Name="播放速度" Width="48" MinWidth="0" Height="30" Padding="6,0">
                         <TextBlock x:Name="VideoRateText" Text="1×" FontSize="13" Width="36" TextAlignment="Center" />
                         <Button.Flyout>
@@ -607,10 +666,13 @@
                                         MenuFlyoutPresenterStyle="{StaticResource PlaybackRateMenuPresenterStyle}" />
                         </Button.Flyout>
                     </Button>
-                    <DropDownButton Style="{StaticResource IconDropDownStyle}" ToolTipService.ToolTip="更多" AutomationProperties.Name="更多播放选项">
+                    <Button Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="更多" AutomationProperties.Name="更多播放选项">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconMore}" />
-                        <DropDownButton.Flyout>
-                            <MenuFlyout Placement="Top">
+                        <Button.Flyout>
+                            <MenuFlyout Placement="Top" Opening="VideoMoreMenu_Opening">
+                                <MenuFlyoutItem x:Name="VideoCompactFitItem" Text="窗口适应视频" Click="FitVideoWindow_Click" />
+                                <MenuFlyoutItem x:Name="VideoCompactRotateItem" Text="向右旋转 90°" Click="RotateMedia_Click" />
+                                <MenuFlyoutSubItem x:Name="VideoCompactRateMenu" Text="播放速度" />
                                 <MenuFlyoutSubItem x:Name="VideoTrackMenu" Text="音轨">
                                     <MenuFlyoutSubItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconVolume}" /></MenuFlyoutSubItem.Icon>
                                 </MenuFlyoutSubItem>
@@ -628,8 +690,8 @@
                                     <MenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconScreenshot}" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                             </MenuFlyout>
-                        </DropDownButton.Flyout>
-                    </DropDownButton>
+                        </Button.Flyout>
+                    </Button>
                 </StackPanel>
                     <Button x:Name="RotateImageLeftButton" Style="{StaticResource IconButtonStyle}" Click="RotateImageLeft_Click" IsEnabled="False"
                             ToolTipService.ToolTip="向左旋转 90°" AutomationProperties.Name="向左旋转 90°">

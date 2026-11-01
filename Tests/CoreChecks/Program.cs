@@ -11,6 +11,23 @@ if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("自�
 var workspace = Path.GetFullPath(args.Length > 0 ? args[0] : ".");
 var fixture = Path.Combine(workspace, "work", "validation", "corechecks", Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(fixture);
+if (args.Length == 4 && args[1] == "--identical-sample")
+{
+    try
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        var result = await IdenticalImages.ScanAsync(Path.GetFullPath(args[2]), [Path.GetFullPath(args[3])], false, null, timeout.Token);
+        Console.WriteLine($"Read-only identical image scan: {result.Examined} images, {result.Matches.Count} matches, {result.Skipped} skipped, limited={result.Limited}. No files deleted.");
+    }
+    finally { Directory.Delete(fixture, recursive: true); }
+    return;
+}
+if (args.Length == 3 && args[1] == "--search-sample")
+{
+    try { await MediaSearchChecks.CheckLocalSampleAsync(fixture, Path.GetFullPath(args[2])); }
+    finally { Directory.Delete(fixture, recursive: true); }
+    return;
+}
 int checks = 0;
 void Check(bool condition, string name)
 {
@@ -297,7 +314,9 @@ Check(basicDetails.Format == "JPG" && basicDetails.Length == new FileInfo(launch
 Check(MediaDetailsReader.Basic(Path.Combine(fixture, "missing.mp4"), MediaKind.Video).Length == 0, "缺失文件的基础信息不能抛异常");
 await PhotoMetadataChecks.RunAsync(Path.Combine(fixture, "exif"), Check);
 await FilePasteChecks.RunAsync(Path.Combine(fixture, "paste"), Check);
+await IdenticalImageChecks.RunAsync(Path.Combine(fixture, "identical"), Check);
 await MotionPhotoChecks.RunAsync(Path.Combine(fixture, "motion"), Check);
+await MediaSearchChecks.RunAsync(Path.Combine(fixture, "search"), Check);
 
 MediaFile SortFile(string name, long length, long ticks) => new(Path.Combine(fixture, name), MediaKind.Image)
 { Version = new FileVersion(Path.Combine(fixture, name), length, ticks), CreatedTicks = ticks, TakenTicks = ticks };
@@ -336,10 +355,16 @@ var settingsPath = Path.Combine(fixture, "settings", "settings.json");
 var settingsStore = new AppSettingsStore(settingsPath);
 Check(await settingsStore.LoadAsync() == new AppSettings(), "首次启动应使用默认设置");
 var savedSettings = new AppSettings { Width = 1100, Height = 700, Maximized = true, LastFolder = navRoot, Theme = 2,
-    SidebarWidth = 300, ThumbnailSize = 320, SortField = MediaSortField.Modified, Descending = true };
+    BackgroundOpacity = 82, SidebarWidth = 300, ThumbnailSize = 320, SortField = MediaSortField.Modified, Descending = true };
 Check(await settingsStore.SaveAsync(savedSettings) && await settingsStore.LoadAsync() == savedSettings, "所有设置必须完整往返保存");
 File.WriteAllText(settingsPath, "{broken json");
 Check(await settingsStore.LoadAsync() == new AppSettings(), "损坏设置不能阻止启动");
+File.WriteAllText(settingsPath, "{\"Theme\":2}");
+Check((await settingsStore.LoadAsync()).BackgroundOpacity == 70, "旧设置缺少背景不透明度时应使用更实的默认背景");
+Check(new AppSettings { BackgroundOpacity = double.NaN }.Normalize().BackgroundOpacity == 70
+    && new AppSettings { BackgroundOpacity = -20 }.Normalize().BackgroundOpacity == 0
+    && new AppSettings { BackgroundOpacity = 120 }.Normalize().BackgroundOpacity == 100,
+    "背景不透明度应校正非法值并限制范围");
 var sanitized = new AppSettings { Width = -1, Height = 99999, Theme = 99, ThumbnailSize = double.NaN,
     SidebarWidth = double.PositiveInfinity, LastFolder = "relative", SortField = (MediaSortField)99 }.Normalize();
 Check(sanitized.Width == 320 && sanitized.Height == 4320 && sanitized.Theme == 0 && sanitized.ThumbnailSize == 240
@@ -423,6 +448,14 @@ if (Directory.Exists(large))
     var largeItems = FolderScanner.Scan(large);
     Check(largeItems.Count == 10_000, "一万张图的测试目录扫描数量错误");
     Console.WriteLine($"Scan: {largeItems.Count:N0} files, {scanTimer.ElapsedMilliseconds} ms");
+    var searchIndex = new MediaSearchIndex(Path.Combine(fixture, "large-search.idx"));
+    scanTimer.Restart();
+    await searchIndex.BuildAsync([large], default);
+    long indexMs = scanTimer.ElapsedMilliseconds;
+    scanTimer.Restart();
+    var allSearch = await searchIndex.SearchAsync("type:photo", false, default);
+    Check(allSearch.Total == 10_000 && allSearch.Items.Count == 300, "万图搜索必须正确计数并限制返回数量");
+    Console.WriteLine($"Search index: 10,000 entries in {indexMs} ms; query {scanTimer.ElapsedMilliseconds} ms (local fixture only).");
 }
 Console.WriteLine($"PASS: {checks} checks; geometry correctness suite {timer.ElapsedMilliseconds} ms (includes brute-force oracle).");
 var mediaFixtures = Path.Combine(workspace, "work", "validation", "media");

@@ -37,5 +37,6 @@ internal static class FilePasteChecks
         int before = Directory.GetFiles(destination).Length;
         try { await FilePaste.CopyAsync([photo], destination, canceled.Token); check(false, "取消粘贴必须中止"); }
         catch (OperationCanceledException) { check(Directory.GetFiles(destination).Length == before, "取消不能生成新文件"); }
+        await FileOperationChecks.RunAsync(Path.Combine(fixture, "operations"), check);
     }
 }

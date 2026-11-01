@@ -27,7 +27,7 @@ public sealed partial class MainWindow
 
     private bool CanHoverPreview => !_closed && !_closing && !ViewerState.IsOpen && !IsFilmstrip
         && !GalleryState.IsScanning && _settingsDialog is null && _itemMenu is null
-        && _addressFlyout is null && _gesturePointer is null;
+        && _addressFlyout is null && _gesturePointer is null && !_marqueeStarted;
 
     private void GalleryTile_PreviewHoverChanged(MediaTile tile, bool hovered)
     {

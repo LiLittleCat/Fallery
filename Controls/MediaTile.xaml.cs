@@ -12,6 +12,7 @@ public sealed partial class MediaTile : UserControl
     public event Action<MediaTile, bool>? PreviewHoverChanged;
     private bool _showNames = true;
     private bool _showCard = true;
+    private Windows.Foundation.Point? _hoverEntryPosition;
 
     public MediaTile()
     {
@@ -59,12 +60,16 @@ public sealed partial class MediaTile : UserControl
     private void Tile_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         HoverOverlay.Visibility = Item is null ? Visibility.Collapsed : Visibility.Visible;
-        Tile_PointerMoved(sender, e);
+        // 导航/虚拟化会让新卡片出现在静止鼠标下，不能因此自动打开视频解码器。
+        _hoverEntryPosition = e.GetCurrentPoint(null).Position;
     }
 
     private void Tile_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         if (e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Mouse) return;
+        var position = e.GetCurrentPoint(null).Position;
+        if (_hoverEntryPosition is not { } entered) { _hoverEntryPosition = position; return; }
+        if (Math.Abs(position.X - entered.X) < 2 && Math.Abs(position.Y - entered.Y) < 2) return;
         var buttons = e.GetCurrentPoint(this).Properties;
         PreviewHoverChanged?.Invoke(this, !buttons.IsLeftButtonPressed && !buttons.IsRightButtonPressed && !buttons.IsMiddleButtonPressed);
     }
@@ -72,6 +77,7 @@ public sealed partial class MediaTile : UserControl
     private void Tile_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         HoverOverlay.Visibility = Visibility.Collapsed;
+        _hoverEntryPosition = null;
         PreviewHoverChanged?.Invoke(this, false);
     }
 
@@ -79,6 +85,7 @@ public sealed partial class MediaTile : UserControl
     {
         PreviewHoverChanged?.Invoke(this, false);
         SetHoverPreview(null);
+        _hoverEntryPosition = null;
         // 回收卡片可能还保留旧 DataTemplate 状态；每次准备都完整覆盖，避免跨目录残留。
         if (Item is not null) Item.PropertyChanged -= Item_PropertyChanged;
         Item = item;

@@ -27,36 +27,45 @@ public sealed partial class MainWindow
         return false;
     }
 
-    private (string Path, bool Folder)? ClipboardSelection(DependencyObject? source)
+    private (string Path, bool Folder)[] ClipboardSelection(DependencyObject? source)
     {
         for (var element = source; element is not null; element = VisualTreeHelper.GetParent(element))
         {
             if (element is TreeView tree && (tree == FolderTree || tree == FavoritesTree))
                 return tree.SelectedNode?.Content is FolderEntry entry && !string.IsNullOrEmpty(entry.Path)
-                    ? (entry.Path, true) : null;
+                    ? [(entry.Path, true)] : [];
         }
-        var item = ViewerState.IsOpen ? ViewerState.CurrentItem : _selectedItem;
-        return item is null ? null : (item.Path, item.IsFolder);
+        if (ViewerState.IsOpen && !IsFilmstrip)
+            return ViewerState.CurrentItem is { } item ? [(item.Path, item.IsFolder)] : [];
+        return SelectedFileTargets();
     }
 
-    private async Task CopyFileAsync(string path, bool folder)
+    private Task CopyFileAsync(string path, bool folder) => CopyFilesAsync([(path, folder)]);
+
+    private async Task CopyFilesAsync(IReadOnlyList<(string Path, bool Folder)> targets, bool cut = false)
     {
+        if (targets.Count == 0) return;
         try
         {
-            IStorageItem item = folder ? await StorageFolder.GetFolderFromPathAsync(path) : await StorageFile.GetFileFromPathAsync(path);
-            var data = new DataPackage { RequestedOperation = DataPackageOperation.Copy };
-            data.SetStorageItems(new[] { item });
+            var items = new List<IStorageItem>(targets.Count);
+            foreach (var target in targets)
+                items.Add(target.Folder ? await StorageFolder.GetFolderFromPathAsync(target.Path) : await StorageFile.GetFileFromPathAsync(target.Path));
+            if (cut && targets.Any(target => System.IO.Path.GetDirectoryName(System.IO.Path.TrimEndingDirectorySeparator(target.Path)) is null))
+                throw new IOException("不能剪切磁盘根目录。");
+            var data = new DataPackage { RequestedOperation = cut ? DataPackageOperation.Move : DataPackageOperation.Copy };
+            data.Properties["Fallery.TransferId"] = Guid.NewGuid().ToString("N");
+            data.SetStorageItems(items);
             Clipboard.SetContent(data);
             Clipboard.Flush();
-            GalleryState.Status = "已复制，可在目标文件夹按 Ctrl+V 粘贴";
+            GalleryState.Status = $"已{(cut ? "剪切" : "复制")} {items.Count} 项，可在目标文件夹按 Ctrl+V 粘贴";
         }
-        catch (Exception ex) { if (!_closed) GalleryState.Status = $"复制失败：{ex.Message}"; }
+        catch (Exception ex) { if (!_closed) GalleryState.Status = $"{(cut ? "剪切" : "复制")}失败：{ex.Message}"; }
     }
 
     private async Task HandleFileClipboardKeyAsync(VirtualKey key, DependencyObject? source)
     {
-        if (key == VirtualKey.C && ClipboardSelection(source) is { } item)
-            await CopyFileAsync(item.Path, item.Folder);
+        if (key is VirtualKey.C or VirtualKey.X)
+            await CopyFilesAsync(ClipboardSelection(source), key == VirtualKey.X);
         else if (key == VirtualKey.V)
         {
             string? destination = GalleryState.CurrentFolder;
@@ -83,11 +92,28 @@ public sealed partial class MainWindow
             var paths = items.Select(item => item.Path).Where(path => !string.IsNullOrEmpty(path)).ToArray();
             if (paths.Length != items.Count) throw new IOException("部分剪贴板项目没有本地文件路径，请先在资源管理器中保存到磁盘。");
             GalleryState.Status = $"正在粘贴 {paths.Length} 项…";
-            // 此入口只复制。即使来自外部应用的“剪切”，也不删除源文件。
-            var result = await FilePaste.CopyAsync(paths, destination, _lifetimeCts.Token);
+            bool move = content.RequestedOperation == DataPackageOperation.Move;
+            StopHoverPreview();
+            if (ViewerState.IsOpen) CloseViewer();
+            var result = await FilePaste.TransferAsync(paths, destination, move, ResolveFileConflictAsync, _lifetimeCts.Token);
             if (_closed || _closing) return;
-            GalleryState.Status = result.Errors.Count == 0 ? $"已粘贴 {result.Copied.Count} 项" :
-                $"已粘贴 {result.Copied.Count} 项，{result.Errors.Count} 项未完成：{result.Errors[0]}";
+            // 只在整批完成时通知剪切来源；失败/跳过时保留剪贴板以便重试剩余文件。
+            if (move && !result.Canceled && result.Skipped == 0 && result.Errors.Count == 0)
+            {
+                try
+                {
+                    content.ReportOperationCompleted(DataPackageOperation.Move);
+                    // 仅清理仍属于本次已完成剪切的剪贴板，不能覆盖用户期间复制的新内容。
+                    if (content.Properties.TryGetValue("Fallery.TransferId", out var id)
+                        && Clipboard.GetContent().Properties.TryGetValue("Fallery.TransferId", out var currentId) && Equals(id, currentId))
+                        Clipboard.Clear();
+                }
+                catch (Exception) { }
+            }
+            if (result.Copied.Count > 0) await RefreshAndSelectFilesAsync(result.Copied, destination);
+            GalleryState.Status = $"{(result.Canceled ? "粘贴已取消，已处理" : "已粘贴")} {result.Copied.Count} 项"
+                + (result.Skipped > 0 ? $"，跳过 {result.Skipped} 项" : "")
+                + (result.Errors.Count > 0 ? $"，{result.Errors.Count} 项未完成：{result.Errors[0]}" : "");
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { if (!_closed) GalleryState.Status = $"粘贴失败：{ex.Message}"; }

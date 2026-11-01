@@ -66,6 +66,7 @@ ICONS = [
     ("IconExpand", "arrow-down-01"),
     ("IconCollapse", "arrow-up-01"),
     ("IconCopy", "copy-01"),
+    ("IconSearch", "search-01"),
     ("IconPaste", "clipboard-paste"),
     ("IconCopyFile", "files-01"),
     ("IconTheme", "sun-moon"),

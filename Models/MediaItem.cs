@@ -199,7 +199,8 @@ public sealed partial class MediaItem : ObservableObject
     private static async Task<BitmapImage> DecodeThumbnailAsync(IRandomAccessStream thumb, uint size, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        var decoder = await BitmapDecoder.CreateAsync(thumb).AsTask(ct);
+        // 原生解码完成前保留输入流；回收只取消发布，不能提前释放仍被 WinUI 使用的流。
+        var decoder = await BitmapDecoder.CreateAsync(thumb);
         ct.ThrowIfCancellationRequested();
         var bitmap = new BitmapImage { AutoPlay = false };
         // 约束长边，避免极窄长图按列宽放大后占用大量解码内存。
@@ -207,7 +208,7 @@ public sealed partial class MediaItem : ObservableObject
             bitmap.DecodePixelWidth = (int)Math.Min(size, decoder.PixelWidth);
         else bitmap.DecodePixelHeight = (int)Math.Min(size, decoder.PixelHeight);
         thumb.Seek(0);
-        await bitmap.SetSourceAsync(thumb).AsTask(ct);
+        await bitmap.SetSourceAsync(thumb);
         ct.ThrowIfCancellationRequested();
         return bitmap;
     }

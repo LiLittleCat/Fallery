@@ -29,6 +29,7 @@ public sealed partial class MainWindow : Window
     private bool _initialized;
     private int _themeIndex;
     private MediaItem? _selectedItem;
+    private static readonly SemaphoreSlim ViewerImageDecodeSlots = new(2);
     private bool _closed;
     private bool _pickingFolder;
     private Windows.Foundation.Point? _panOrigin;
@@ -152,6 +153,7 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
+        EndMarqueeSelection(cancel: true);
         _closed = true;
         StopHoverPreview();
         _fullScreenControlsTimer.Stop();
@@ -159,6 +161,7 @@ public sealed partial class MainWindow : Window
         _folderMonitor?.Dispose();
         AppTitleBar.LayoutUpdated -= TitleBar_LayoutUpdated;
         _settingsDialog?.Hide();
+        _searchDialog?.Hide();
         CloseItemMenu();
         CloseAddressMenu();
         GalleryState.Dispose();
@@ -359,7 +362,9 @@ public sealed partial class MainWindow : Window
     private async Task NavigateCoreAsync(string folder, bool pushHistory, bool refresh, bool forward)
     {
         if (_closed || _closing) return;
+        EndMarqueeSelection(cancel: true);
         _navigationVersion++;
+        PrepareBrowseNavigation(folder);
         int version = _navigationVersion;
         int previewIndex = ViewerState.CurrentIndex;
         CloseItemMenu();
@@ -376,6 +381,7 @@ public sealed partial class MainWindow : Window
                 && !_closed && !_closing && version == _navigationVersion && !GalleryState.IsScanning)
             {
                 FolderTree.SelectedNode = _currentFolderNode;
+                RestoreBrowsePosition(_selectedItem?.Path);
                 if (IsFilmstrip && !ViewerState.IsOpen && previewIndex >= 0) await ShowInViewerAsync(previewIndex);
             }
         }
@@ -448,9 +454,12 @@ public sealed partial class MainWindow : Window
 
     private async void Tile_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
+        if (_marqueeStarted || _suppressMarqueeTap) { e.Handled = true; return; }
         if (sender is UIElement element && _realizedItems.TryGetValue(element, out var item))
         {
             e.Handled = true;
+            if (IsControlDown() || IsShiftDown()) return;
+            SelectItem(item);
             if (item.IsFolder) await NavigateAsync(item.Path);
             else await ShowInViewerAsync(GalleryState.MediaItems.IndexOf(item));
         }
@@ -478,7 +487,14 @@ public sealed partial class MainWindow : Window
     private async Task ShowInViewerAsync(int index, bool allowWhileScanning = false)
     {
         if ((GalleryState.IsScanning && !allowWhileScanning) || index < 0 || index >= ViewerState.Playlist.Count || _closed || _closing) return;
+        EndMarqueeSelection(cancel: true);
         StopHoverPreview();
+        if (!ViewerState.IsOpen)
+        {
+            SelectItem(ViewerState.Playlist[index]);
+            RememberBrowsePosition();
+            CancelBrowsePositionRestore();
+        }
         CaptureBrowseWindowPlacement();
         bool imageToImage = ViewerState.CurrentItem?.IsVideo == false && !ViewerState.Playlist[index].IsVideo;
         var request = ViewerState.BeginOpen(index);
@@ -522,10 +538,14 @@ public sealed partial class MainWindow : Window
                 if (ratio >= viewportWidth / viewportHeight)
                     bitmap.DecodePixelWidth = (int)Math.Clamp(viewportWidth * scale * 2, 256, 8192);
                 else bitmap.DecodePixelHeight = (int)Math.Clamp(viewportHeight * scale * 2, 256, 8192);
-                using (var stream = await file.OpenReadAsync().AsTask(ct))
+                await ViewerImageDecodeSlots.WaitAsync(ct);
+                try
                 {
-                    await bitmap.SetSourceAsync(stream).AsTask(ct);
+                    using var stream = await file.OpenReadAsync().AsTask(ct);
+                    // 原生解码结束前保留流，切换请求通过完成后的令牌检查丢弃旧图。
+                    await bitmap.SetSourceAsync(stream);
                 }
+                finally { ViewerImageDecodeSlots.Release(); }
                 ct.ThrowIfCancellationRequested();
 
                 ViewerImage.Source = bitmap;
@@ -562,26 +582,27 @@ public sealed partial class MainWindow : Window
         ViewerVideo.IsHitTestVisible = false;
     }
 
-    private void CloseViewer()
+    private void CloseViewer() => CloseViewerCore(restoreFocus: true);
+
+    private void CloseViewerCore(bool restoreFocus)
     {
         bool wasVisible = Viewer.Visibility == Visibility.Visible;
         if (!_closed) SetViewerFullScreen(false);
         _panOrigin = null;
         ViewerImage.ReleasePointerCaptures();
         // 返回浏览区时高亮刚才看的那一项，方便接着找。
-        if (!IsFilmstrip && ViewerState.CurrentItem is { } viewed)
-        {
-            SelectItem(viewed);
-            BringItemIntoView(viewed);
-        }
+        string? viewedPath = !IsFilmstrip ? ViewerState.CurrentItem?.Path : null;
+        if (viewedPath is not null) SelectItem(ViewerState.CurrentItem);
         ViewerState.Close();
         StopVideo();
         ClearViewerImage();
         RestoreBrowseWindowPlacement();
-        if (wasVisible && !_closed)
+        if (wasVisible && !IsFilmstrip && !_closed) RestoreBrowsePosition(viewedPath);
+        if (wasVisible && !_closed && restoreFocus)
         {
-            if (_sidebarVisible) FolderTree.Focus(FocusState.Programmatic);
-            else GalleryScroller.Focus(FocusState.Programmatic);
+            if (_sidebarVisible && (_currentFolderNode ?? FolderTree.SelectedNode) is { } node)
+                FocusTreeNode(FolderTree, node, FocusState.Pointer);
+            else GalleryScroller.Focus(FocusState.Pointer);
         }
     }
 
@@ -682,12 +703,27 @@ public sealed partial class MainWindow : Window
 
     private async void Root_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (_marqueeStarted)
+        {
+            if (e.Key == VirtualKey.Escape) EndMarqueeSelection(cancel: true);
+            e.Handled = true;
+            return;
+        }
         if (_settingsDialog is not null) return;
         bool control = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
             & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
         bool alt = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu)
             & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
-        if (control && !alt && !IsShiftDown() && e.Key is VirtualKey.C or VirtualKey.V)
+        if (_searchDialog is not null) return;
+        if (await HandleExplorerKeyAsync(e, control, alt))
+        { e.Handled = true; return; }
+        if (control && !alt && e.Key == VirtualKey.F)
+        {
+            e.Handled = true;
+            await ShowSearchAsync();
+            return;
+        }
+        if (control && !alt && !IsShiftDown() && e.Key is VirtualKey.C or VirtualKey.V or VirtualKey.X)
         {
             if (_deleting || _pickingFolder || _itemMenu is not null || _addressFlyout is not null
                 || IsClipboardTextTarget(e.OriginalSource as DependencyObject)) return;
@@ -733,6 +769,12 @@ public sealed partial class MainWindow : Window
                 | Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu))
                 & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0) return;
         if (_addressFlyout is not null || _itemMenu is not null) return;
+        if (e.Key == VirtualKey.Escape && _videoVolumeFlyoutOpen)
+        {
+            e.Handled = true;
+            VideoVolumeFlyout.Hide();
+            return;
+        }
         // 不抢占输入框、主题下拉框及播放进度/音量滑块的按键。
         for (var element = e.OriginalSource as DependencyObject; element is not null;
              element = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element))
@@ -749,8 +791,8 @@ public sealed partial class MainWindow : Window
                 case VirtualKey.Escape:
                     e.Handled = true;
                     if (IsFilmstrip && _presenterBeforeFullScreen is not null) SetViewerFullScreen(false);
-                    else if (IsFilmstrip) await SetDisplayModeAsync(GalleryDisplayMode.Masonry);
-                    else CloseViewer();
+                    else if (IsFilmstrip) { await SetDisplayModeAsync(GalleryDisplayMode.Masonry); await ReturnToFolderTreeAsync(); }
+                    else await CloseViewerAndReturnToTreeAsync();
                     break;
                 case VirtualKey.Delete:
                     e.Handled = true;

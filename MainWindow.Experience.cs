@@ -54,6 +54,7 @@ public sealed partial class MainWindow
 
     private void InitializeExperience()
     {
+        InitializeMarqueeSelection();
         AppWindow.Changed += AppWindow_Changed;
         AppWindow.Closing += AppWindow_Closing;
         _settingsTimer.Tick += SettingsTimer_Tick;
@@ -66,6 +67,7 @@ public sealed partial class MainWindow
         GallerySurface.PointerCanceled += Gallery_PointerCanceled;
         GallerySurface.PointerCaptureLost += Gallery_PointerCanceled;
         GallerySurface.RightTapped += (_, args) => args.Handled = true;
+        GallerySurface.Tapped += GalleryBlank_Tapped;
     }
 
     private async Task RestoreSettingsAsync()
@@ -80,6 +82,7 @@ public sealed partial class MainWindow
         _maximized = settings.Maximized && _videoWindowDefaultsApplied;
         if (_maximized && AppWindow.Presenter is OverlappedPresenter presenter) presenter.Maximize();
         ApplyTheme(settings.Theme);
+        ApplyBackgroundOpacity(settings.BackgroundOpacity);
         ThumbSize.Value = settings.ThumbnailSize;
         SidebarColumn.Width = new GridLength(settings.SidebarWidth);
         _sidebarWidth = settings.SidebarWidth;
@@ -123,6 +126,7 @@ public sealed partial class MainWindow
         VideoWindowDefaultsApplied = _videoWindowDefaultsApplied,
         LastFolder = GalleryState.CurrentFolder ?? _lastFolderToRestore,
         Theme = _themeIndex,
+        BackgroundOpacity = _backgroundOpacity,
         ThumbnailSize = ThumbSize.Value,
         SidebarWidth = _sidebarVisible ? SidebarColumn.ActualWidth : _sidebarWidth,
         TreeSortField = _treeSortField,
@@ -224,8 +228,10 @@ public sealed partial class MainWindow
 
     private void Gallery_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
+        _suppressMarqueeTap = false;
         if (_closed || _closing || GalleryState.IsScanning || (Viewer.Visibility == Visibility.Visible && !IsFilmstrip)
             || e.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Mouse) return;
+        if (TryStartMarquee(e)) return;
         var point = e.GetCurrentPoint(GallerySurface);
         if (!point.Properties.IsRightButtonPressed || point.Properties.IsLeftButtonPressed || point.Properties.IsMiddleButtonPressed) return;
         for (var source = e.OriginalSource as DependencyObject; source is not null;
@@ -247,6 +253,7 @@ public sealed partial class MainWindow
 
     private void Gallery_PointerMoved(object sender, PointerRoutedEventArgs e)
     {
+        if (_marqueePointer?.PointerId == e.Pointer.PointerId) { MoveMarquee(e); return; }
         if (_gesturePointer?.PointerId != e.Pointer.PointerId) return;
         string? label = GetGesture(e) switch
         {
@@ -262,6 +269,15 @@ public sealed partial class MainWindow
 
     private async void Gallery_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
+        if (_marqueePointer?.PointerId == e.Pointer.PointerId)
+        {
+            if (e.GetCurrentPoint(GalleryScroller).Properties.IsLeftButtonPressed) return;
+            _marqueeViewportPoint = e.GetCurrentPoint(GalleryScroller).Position;
+            UpdateMarqueeFromViewport();
+            EndMarqueeSelection(cancel: false);
+            e.Handled = true;
+            return;
+        }
         if (_gesturePointer?.PointerId != e.Pointer.PointerId) return;
         if (e.GetCurrentPoint(GallerySurface).Properties.IsRightButtonPressed) return;
         var action = GetGesture(e);
@@ -287,6 +303,7 @@ public sealed partial class MainWindow
 
     private void Gallery_PointerCanceled(object sender, PointerRoutedEventArgs e)
     {
+        if (_marqueePointer?.PointerId == e.Pointer.PointerId) EndMarqueeSelection(cancel: true);
         if (_gesturePointer?.PointerId == e.Pointer.PointerId) CancelGesture();
     }
 

@@ -20,6 +20,7 @@ public sealed partial class MainWindow
     private MediaItem? _videoItem;
     private bool _updatingSeek;
     private bool _userSeeking;
+    private bool _videoVolumeFlyoutOpen;
     private double _volume = 100;
     private bool _muted;
     private bool _playlistOpen;
@@ -31,6 +32,8 @@ public sealed partial class MainWindow
 
     private void InitializePlayback()
     {
+        VideoVolumeFlyout.Opened += (_, _) => { _videoVolumeFlyoutOpen = true; ShowFullScreenControls(); };
+        VideoVolumeFlyout.Closed += (_, _) => { _videoVolumeFlyoutOpen = false; ScheduleFullScreenControlsHide(); };
         _playlistThumbnailTemplate = PlaylistView.ItemTemplate;
         _videoTimer = DispatcherQueue.CreateTimer();
         _videoTimer.Interval = TimeSpan.FromMilliseconds(250);
@@ -50,10 +53,13 @@ public sealed partial class MainWindow
             var entry = new RadioMenuFlyoutItem
             {
                 Text = $"{rate:0.##}×", Tag = rate, GroupName = "PlaybackRate",
-                FontSize = 13, MinWidth = 0, MinHeight = 30, Padding = new Thickness(6, 4, 6, 4)
+                FontSize = 12, MinWidth = 0, MinHeight = 28, Padding = new Thickness(4, 3, 4, 3)
             };
             entry.Click += VideoRate_Click;
             VideoRateMenu.Items.Add(entry);
+            var compactEntry = new RadioMenuFlyoutItem { Text = entry.Text, Tag = rate, GroupName = "CompactPlaybackRate" };
+            compactEntry.Click += VideoRate_Click;
+            VideoCompactRateMenu.Items.Add(compactEntry);
         }
         UpdateRateLabel();
     }
@@ -156,6 +162,7 @@ public sealed partial class MainWindow
     /// <summary>停止前记下进度，下次打开同一文件从这里继续。</summary>
     private void DetachVideoControls(IPlayer? player)
     {
+        VideoVolumeFlyout.Hide();
         _videoTimer?.Stop();
         _userSeeking = false;
         if (player is not null && _videoItem?.Version is { } version && player.Duration > TimeSpan.Zero)
@@ -209,8 +216,10 @@ public sealed partial class MainWindow
     {
         bool silent = _muted || _volume == 0;
         VideoMuteIcon.Glyph = FluentIcons.Glyph(silent ? "IconMute" : "IconVolume");
-        string label = _muted ? "取消静音 (M)" : "静音 (M)";
-        ToolTipService.SetToolTip(VideoMuteButton, label);
+        string volumeLabel = $"调整音量 · {(_muted ? "已静音" : $"{_volume:0}%")}";
+        ToolTipService.SetToolTip(VideoMuteButton, volumeLabel);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(VideoMuteButton, volumeLabel);
+        if (VideoVolumeText is not null) VideoVolumeText.Text = $"{_volume:0}%";
     }
 
     private void ToggleVideoPlayback()
@@ -266,7 +275,7 @@ public sealed partial class MainWindow
     private void UpdateRateLabel()
     {
         VideoRateText.Text = $"{_rate:0.##}×";
-        foreach (var entry in VideoRateMenu.Items.OfType<RadioMenuFlyoutItem>())
+        foreach (var entry in VideoRateMenu.Items.Concat(VideoCompactRateMenu.Items).OfType<RadioMenuFlyoutItem>())
             entry.IsChecked = entry.Tag is double rate && rate == _rate;
     }
 
@@ -290,7 +299,7 @@ public sealed partial class MainWindow
     private void UpdateLoopLabel()
     {
         bool active = _loopStart is not null || _loopEnd is not null;
-        VideoLoopText.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+        VideoLoopText.Visibility = active && ViewerBar.ActualWidth >= 760 ? Visibility.Visible : Visibility.Collapsed;
         VideoLoopText.Text = $"{(_loopStart is { } a ? FormatTime(a) : "A")} – {(_loopEnd is { } b ? FormatTime(b) : "B")}";
     }
 
@@ -337,7 +346,15 @@ public sealed partial class MainWindow
     }
 
     private void VideoPlay_Click(object sender, RoutedEventArgs e) => ToggleVideoPlayback();
-    private void VideoMute_Click(object sender, RoutedEventArgs e) => ToggleMute();
+
+    private void VideoMoreMenu_Opening(object sender, object e)
+    {
+        VideoCompactFitItem.Visibility = FitVideoWindowButton.Visibility == Visibility.Collapsed ? Visibility.Visible : Visibility.Collapsed;
+        VideoCompactFitItem.IsEnabled = FitVideoWindowButton.IsEnabled;
+        VideoCompactRotateItem.Visibility = RotateMediaButton.Visibility == Visibility.Collapsed ? Visibility.Visible : Visibility.Collapsed;
+        VideoCompactRotateItem.IsEnabled = RotateMediaButton.IsEnabled;
+        VideoCompactRateMenu.Visibility = VideoRateButton.Visibility == Visibility.Collapsed ? Visibility.Visible : Visibility.Collapsed;
+    }
     private void ViewerVideo_Tapped(object sender, TappedRoutedEventArgs e) => ToggleVideoPlayback();
 
     private void ViewerVideo_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
@@ -455,6 +472,8 @@ public sealed partial class MainWindow
         ImageZoomPanel.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
         RotateImageLeftButton.Visibility = FlipImageToggle.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
         FitVideoWindowButton.IsEnabled = video && _videoPlayer is { VideoWidth: > 0, VideoHeight: > 0 };
+        if (!video) VideoVolumeFlyout.Hide();
+        UpdateViewerBarLayout();
         ViewerFullScreenIcon.Glyph = FluentIcons.Glyph(fullScreen ? "IconExitFullScreen" : "IconFullScreen");
         ApplyFullScreenControls();
     }

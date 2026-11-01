@@ -29,6 +29,9 @@ internal static class ThumbnailDiskCacheChecks
         check(new DirectoryInfo(root).EnumerateFiles().Sum(f => f.Length) <= 40,
             "重启后的磁盘缓存也必须按字节预算淘汰，而非只限制数量");
         var modified = versions[0] with { ModifiedTicks = versions[0].ModifiedTicks + 1 };
+        await cache.RemoveManyAsync([versions[0]]);
+        check(await cache.ReadAsync(versions[0], 128, default) is null
+            && await cache.ReadAsync(versions[2], 128, default) is not null, "删除只清理对应版本的磁盘缩略图，保留其他文件缓存");
         check(await cache.ReadAsync(modified, 128, default) is null, "文件版本变化必须使磁盘缓存失效");
         await cache.StoreAsync(modified, 256, bytes, cache.Generation, default);
         check(await cache.ReadAsync(modified, 128, default) is null, "加载中变化的文件不得以错误版本写入磁盘");
@@ -49,5 +52,13 @@ internal static class ThumbnailDiskCacheChecks
         var unavailable = new ThumbnailDiskCache(blocked);
         await unavailable.StoreAsync(versions[0], 128, bytes, unavailable.Generation, default);
         check(await unavailable.ReadAsync(versions[0], 128, default) is null, "缓存目录不可用必须允许回退正常加载");
+        var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+        MediaCache.StoreThumbnail(versions[0], 128, bitmap);
+        MediaCache.StoreThumbnail(versions[1], 128, bitmap);
+        MediaCache.AspectRatios.Set(versions[0], 1.5);
+        await MediaCache.RemoveDeletedAsync([versions[0].Path], [versions[0]]);
+        check(MediaCache.GetThumbnail(versions[0], 128) is null && MediaCache.GetThumbnail(versions[1], 128) is not null,
+            "删除后的内存缩略图必须按路径移除，不能清空无关文件缓存");
+        check(!MediaCache.AspectRatios.TryGet(versions[0], out _), "删除后同时移除宽高比缓存");
     }
 }

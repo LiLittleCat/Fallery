@@ -28,13 +28,18 @@ public partial class App : Application
         try
         {
             int checks = 0;
-            void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); checks++; }
+            void Check(bool condition, string message)
+            {
+                if (!condition) throw new InvalidOperationException(message);
+                checks++;
+                if (checks % 25 == 0) File.AppendAllText(report, $"\nCHECKPOINT {checks}: {message}");
+            }
             var workspace = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../.."));
             var settingsPath = Path.Combine(workspace, "work", "validation", "experience-checks", "settings.json");
             var store = new AppSettingsStore(settingsPath);
             // 隐藏宿主也会真实播放测试视频，测试配置必须从首次加载起静音。
             await store.SaveAsync(new AppSettings { Width = 1100, Height = 720, VideoWindowDefaultsApplied = true, Theme = 2, ThumbnailSize = 320,
-                SidebarWidth = 300, SortField = MediaSortField.Size, Descending = true, Muted = true, Volume = 0 });
+                BackgroundOpacity = 82, SidebarWidth = 300, SortField = MediaSortField.Size, Descending = true, Muted = true, Volume = 0 });
             // 直接实例化生产窗口，不激活、不发送输入，设置写入隔离的测试目录。
             window = new MainWindow(store, monitorFolderChanges: false);
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -52,7 +57,17 @@ public partial class App : Application
             root.Measure(new Windows.Foundation.Size(1100, 720));
             root.Arrange(new Windows.Foundation.Rect(0, 0, 1100, 720));
             root.UpdateLayout();
+            if (Environment.GetEnvironmentVariable("FALLERY_FOLDER_SAMPLE") is { Length: > 0 } folderSample)
+            {
+                await RunFolderDiagnosticAsync(window, folderSample, report);
+                window.Close();
+                window = null;
+                Exit();
+                return;
+            }
             Check((int)Get("_themeIndex")! == 2, "实际主题控件没有恢复");
+            Check(Math.Abs(((Border)root.FindName("BackdropTint")).Opacity - 0.82) < 0.001,
+                "背景不透明度应从保存设置恢复到独立背景层");
             Check(((Slider)root.FindName("ThumbSize")).Value == 320, "实际缩略图控件没有恢复");
             var folder = Path.Combine(workspace, "work", "validation", "experience", "01-图片");
             await Invoke("NavigateAsync", folder, false, false);
@@ -74,6 +89,22 @@ public partial class App : Application
             Check(((Grid)root.FindName("SidebarPanel")).Visibility == Visibility.Visible && ((ColumnDefinition)Get("SidebarColumn")!).ActualWidth == 300,
                 "恢复文件树应恢复原宽度");
             Check(((TextBlock)root.FindName("StatusText")).Text == window.GalleryState.Status, "状态栏的 x:Bind 未跟随 GalleryViewModel 更新");
+            Check(((Button)root.FindName("SearchButton")).Content is FontIcon, "全电脑搜索入口应有对应图标");
+            var searchRows = new ListView
+            {
+                Width = 500, Height = 100,
+                ItemTemplate = (DataTemplate)root.Resources["SearchResultTemplate"],
+                ItemsSource = new[] { new MainWindow.SearchRow(new SearchEntry(@"C:\相册\搜索测试.jpg", MediaKind.Image, false), Fallery.Controls.FluentIcons.Glyph("IconImage")) }
+            };
+            ((Grid)root).Children.Add(searchRows);
+            searchRows.Measure(new Windows.Foundation.Size(500, 100));
+            searchRows.Arrange(new Windows.Foundation.Rect(0, 0, 500, 100));
+            root.UpdateLayout();
+            Check(Descendants(searchRows).OfType<TextBlock>().Any(t => t.Text == "搜索测试.jpg")
+                && Descendants(searchRows).OfType<TextBlock>().Any(t => t.Text == @"C:\相册"),
+                "实际搜索行必须显示绑定的文件名和所在目录");
+            ((Grid)root).Children.Remove(searchRows);
+            checks += await RunIdenticalImagesLayoutChecksAsync(window);
             Check(items.Count == 2 && items[0].File.Version!.Value.Length >= items[1].File.Version!.Value.Length, "实际导航未按已保存的大小降序排列");
             var segments = (StackPanel)root.FindName("AddressSegments");
             Check(segments.Children.Count == window.GalleryState.Breadcrumbs.Count * 2
@@ -149,8 +180,8 @@ public partial class App : Application
             await Invoke("GoBackAsync");
             Check(window.ViewerState.CurrentIndex == 0, "横排模式返回目录后应自动打开首项");
             var imageMenu = (MenuFlyout)typeof(MainWindow).GetMethod("BuildItemMenu", flags)!.Invoke(window, new object?[] { items[0].Path, false, null, true })!;
-            Check(imageMenu.Items.OfType<MenuFlyoutItem>().Select(i => i.Tag).SequenceEqual(new[] { "open", "reveal", "copy-path", "copy-file", "paste", "delete" }),
-                "媒体菜单应提供打开、定位、复制和删除入口");
+            Check(imageMenu.Items.OfType<MenuFlyoutItem>().Select(i => i.Tag).SequenceEqual(new[] { "open", "reveal", "copy-path", "copy-file", "cut", "rename", "paste", "delete" }),
+                "媒体菜单应提供打开、定位、复制、剪切、重命名、粘贴和删除入口");
             var treeMenu = (MenuFlyout)typeof(MainWindow).GetMethod("BuildItemMenu", flags)!.Invoke(window, new object?[] { folder, true, firstNode, true })!;
             Check(treeMenu.Items.OfType<MenuFlyoutItem>().Any(i => Equals(i.Tag, "paste") && i.KeyboardAcceleratorTextOverride == "Ctrl+V"),
                 "文件夹菜单应提供粘贴及快捷键提示");
@@ -282,6 +313,30 @@ public partial class App : Application
             ((Grid)root.FindName("VideoControls")).Visibility = Visibility.Visible;
             ((StackPanel)root.FindName("ImageZoomPanel")).Visibility = Visibility.Collapsed;
             ((StackPanel)root.FindName("VideoAudioPanel")).Visibility = Visibility.Visible;
+            ((Button)root.FindName("RotateImageLeftButton")).Visibility = Visibility.Collapsed;
+            ((ToggleButton)root.FindName("FlipImageToggle")).Visibility = Visibility.Collapsed;
+            var compactBar = (Grid)root.FindName("ViewerBar");
+            var compactSeek = (Slider)root.FindName("VideoSeek");
+            foreach (int logicalWidth in new[] { 320, 640, 1000, 1400 })
+            {
+                double scale = root.XamlRoot.RasterizationScale;
+                window.AppWindow.Resize(new Windows.Graphics.SizeInt32((int)(logicalWidth * scale), (int)(650 * scale)));
+                await Task.Delay(50);
+                root.UpdateLayout();
+                Check(compactBar.ActualHeight <= 48 && compactSeek.ActualWidth >= 36,
+                    $"{logicalWidth} DIP 窗口应保留单行控制栏和可拖动的进度条（栏高 {compactBar.ActualHeight}，进度宽 {compactSeek.ActualWidth}）");
+                foreach (string name in new[] { "VideoPlayButton", "VideoSeek", "VideoMuteButton", "DetailsToggle", "PlaylistToggle", "ViewerFullScreenButton" })
+                {
+                    var control = (FrameworkElement)root.FindName(name);
+                    var point = control.TransformToVisual(compactBar).TransformPoint(new Windows.Foundation.Point());
+                    Check(point.X >= 0 && point.X + control.ActualWidth <= compactBar.ActualWidth + 1
+                        && point.Y >= 0 && point.Y + control.ActualHeight <= compactBar.ActualHeight + 1,
+                        $"{logicalWidth} DIP 单行栏内的 {name} 不应溢出");
+                }
+            }
+            Check(((Button)root.FindName("VideoMuteButton")).Flyout == (Flyout)root.FindName("VideoVolumeFlyout")
+                && ((Slider)root.FindName("VideoVolume")).Visibility == Visibility.Visible,
+                "声音按钮应打开音量浮层，窄窗口不能隐藏浮层中的滑块");
             Check(((MediaPlayerElement)root.FindName("ViewerVideo")).Stretch == Microsoft.UI.Xaml.Media.Stretch.Uniform,
                 "视频应在现有窗口内等比完整显示");
             Check(Grid.GetColumn((ToggleButton)root.FindName("DetailsToggle")) == 2
@@ -455,6 +510,14 @@ public partial class App : Application
                 && ((StackPanel)((ScrollViewer)settingsDialog.Content).Content).Children.OfType<ComboBox>().Count() == 2,
                 "设置面板应提供可保存或取消的主题和视图选项");
             await Invoke("ApplyPreferencesAsync", 1, GalleryDisplayMode.LargeIcons, false, 280d);
+            var opacitySlider = ((StackPanel)((ScrollViewer)settingsDialog.Content).Content).Children.OfType<StackPanel>()
+                .SelectMany(panel => panel.Children.OfType<Slider>()).Single(slider => slider.Name == "SettingsBackgroundOpacity");
+            opacitySlider.IsThumbToolTipEnabled = false;
+            opacitySlider.Value = 95;
+            Check(Math.Abs(((Border)root.FindName("BackdropTint")).Opacity - 0.95) < 0.001 && root.Opacity == 1,
+                "背景滑块应即时修改背景层，不改变整个界面的透明度");
+            var opacitySettings = (AppSettings)typeof(MainWindow).GetMethod("CaptureSettings", flags)!.Invoke(window, null)!;
+            Check(opacitySettings.BackgroundOpacity == 95, "背景不透明度必须进入设置保存快照");
             Check(window.GalleryState.DisplayMode == GalleryDisplayMode.LargeIcons && !window.GalleryState.ShowFileNames
                 && (int)Get("_themeIndex")! == 1 && ((Slider)root.FindName("ThumbSize")).Value == 280,
                 "设置保存必须应用到现有控件和视图");
@@ -1188,6 +1251,9 @@ public partial class App : Application
                 typeof(MainWindow).GetMethod("CloseViewer", flags)!.Invoke(window, null);
             }
             typeof(MainWindow).GetMethod("ApplyTheme", flags)!.Invoke(window, new object[] { 1 });
+            File.AppendAllText(report, "\nBEGIN browse position checks");
+            checks += await RunBrowsePositionChecksAsync(window, workspace);
+            checks += await RunSelectionChecksAsync(window);
             ((Slider)root.FindName("ThumbSize")).Value = 360;
             var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             window.Closed += (_, _) => closed.TrySetResult();

@@ -97,6 +97,18 @@ public sealed class ThumbnailDiskCache(string directory, long byteLimit = 512L *
         lock (_gate) { try { Initialize(); Remove(Key(version)); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }
     });
 
+    public Task RemoveManyAsync(IReadOnlyCollection<FileVersion> versions) => Task.Run(() =>
+    {
+        lock (_gate)
+        {
+            try { Initialize(); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }
+            foreach (var version in versions)
+                try { Remove(Key(version)); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+    });
+
     public Task ClearAsync()
     {
         Interlocked.Increment(ref _generation);

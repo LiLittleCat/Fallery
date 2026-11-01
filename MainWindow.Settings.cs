@@ -9,6 +9,15 @@ namespace Fallery;
 public sealed partial class MainWindow
 {
     private ContentDialog? _settingsDialog;
+    private double _backgroundOpacity = 70;
+
+    private void ApplyBackgroundOpacity(double value)
+    {
+        _backgroundOpacity = double.IsFinite(value) ? Math.Clamp(value, 0, 100) : 70;
+        // 只覆盖系统材质，不改变文字、控件或媒体自身的透明度。
+        BackdropTint.Opacity = _backgroundOpacity / 100;
+        QueueSettingsSave();
+    }
     private (string Folder, bool PushHistory, bool Forward)? _pendingBrowseNavigation;
 
     private void UpdateBrowseMenus()
@@ -99,6 +108,14 @@ public sealed partial class MainWindow
         var mode = new ComboBox { Name = "SettingsView", Header = "默认视图", HorizontalAlignment = HorizontalAlignment.Stretch,
             ItemsSource = new[] { "自适应视图", "瀑布视图", "网格视图", "大图 + 底部缩略图" },
             SelectedIndex = Math.Max(0, Array.IndexOf(DisplayModeOrder, GalleryState.DisplayMode)) };
+        var opacity = new Slider { Name = "SettingsBackgroundOpacity", Header = $"背景不透明度 · {_backgroundOpacity:0}%",
+            Minimum = 0, Maximum = 100, StepFrequency = 1, Value = _backgroundOpacity };
+        var opacityHint = new TextBlock { Text = "越低越通透，越高越实；100% 为不透明背景。", FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] };
+        var opacitySection = new StackPanel { Spacing = 4 };
+        opacitySection.Children.Add(opacity);
+        opacitySection.Children.Add(opacityHint);
         var names = new CheckBox { Name = "SettingsNames", Content = "显示文件名", IsChecked = GalleryState.ShowFileNames };
         var cards = new CheckBox { Name = "SettingsCards", Content = "显示卡片背景", IsChecked = GalleryState.ShowCards };
         var size = new Slider { Name = "SettingsSize", Header = "缩略图大小", Minimum = 120, Maximum = 480,
@@ -108,7 +125,7 @@ public sealed partial class MainWindow
         var feedback = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap };
         clear.Click += async (_, _) => { await ClearCacheAsync(); feedback.Text = GalleryState.Status; };
         var content = new StackPanel { Spacing = 16, MinWidth = 320 };
-        foreach (var element in new UIElement[] { theme, mode, names, cards, size, association, clear, feedback }) content.Children.Add(element);
+        foreach (var element in new UIElement[] { theme, opacitySection, mode, names, cards, size, association, clear, feedback }) content.Children.Add(element);
         var dialog = new ContentDialog
         {
             XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = "设置",
@@ -116,7 +133,12 @@ public sealed partial class MainWindow
             PrimaryButtonText = "完成", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Primary,
         };
         // 每项改动立即应用以便预览；取消时恢复打开面板前的状态。
-        var original = (Theme: _themeIndex, Mode: GalleryState.DisplayMode, Names: GalleryState.ShowFileNames, Cards: GalleryState.ShowCards, Size: ThumbSize.Value);
+        var original = (Theme: _themeIndex, Opacity: _backgroundOpacity, Mode: GalleryState.DisplayMode, Names: GalleryState.ShowFileNames, Cards: GalleryState.ShowCards, Size: ThumbSize.Value);
+        opacity.ValueChanged += (_, args) =>
+        {
+            ApplyBackgroundOpacity(args.NewValue);
+            opacity.Header = $"背景不透明度 · {_backgroundOpacity:0}%";
+        };
         // 只应用改动的那一项：缩略图大小走原有的布局刷新，不重建全部卡片。
         theme.SelectionChanged += (_, _) =>
         {
@@ -147,6 +169,7 @@ public sealed partial class MainWindow
             try
             {
                 GalleryState.ShowCards = original.Cards;
+                ApplyBackgroundOpacity(original.Opacity);
                 await ApplyPreferencesAsync(original.Theme, original.Mode, original.Names, original.Size);
             }
             finally { deferral.Complete(); }

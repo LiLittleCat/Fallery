@@ -15,6 +15,7 @@ public sealed partial class MainWindow
 
     private void InitializeViewModels()
     {
+        InitializeBrowsePositions();
         ViewerState.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(ViewerState.IsOpen)) UpdateViewerBackdrop();
@@ -22,6 +23,8 @@ public sealed partial class MainWindow
         };
         GalleryState.ItemsChanging += () =>
         {
+            EndMarqueeSelection(cancel: true);
+            RememberBrowsePosition();
             ReleaseGalleryThumbnails();
             // 保留显式断开数据源，确保布局先回收旧卡片再创建新的绑定。
             Gallery.ItemsSource = null;
@@ -33,10 +36,13 @@ public sealed partial class MainWindow
             if (_selectedItem is not null && !GalleryState.Items.Contains(_selectedItem)) _selectedItem = null;
             if (live && _liveRefreshSelection is { } selectedPath)
                 _selectedItem = GalleryState.Items.FirstOrDefault(item => string.Equals(item.Path, selectedPath, StringComparison.OrdinalIgnoreCase));
+            if (live) RestoreItemSelection(_selectedPaths.ToArray(), _selectedItem?.Path, _selectionAnchor);
             Gallery.ItemsSource = GalleryState.Items;
-            if (!AdoptLaunchPlaylist()) ViewerState.SetPlaylist(GalleryState.MediaItems);
+            bool adopted = AdoptLaunchPlaylist();
+            if (!adopted) ViewerState.SetPlaylist(GalleryState.MediaItems);
             if (live)
             {
+                CancelBrowsePositionRestore();
                 if (wasViewing && !ViewerState.IsOpen) CloseViewer();
                 int version = _navigationVersion;
                 double vertical = _liveRefreshOffset, horizontal = _liveRefreshHorizontalOffset;
@@ -47,10 +53,11 @@ public sealed partial class MainWindow
                     GalleryScroller.ChangeView(horizontal, vertical, null, disableAnimation: true);
                 });
             }
-            else GalleryScroller.ChangeView(null, 0, null, disableAnimation: true);
+            else RestoreBrowsePosition(adopted ? _selectedItem?.Path : null);
+            _displayedBrowseFolder = GalleryState.CurrentFolder;
             UpdateGalleryVisibility();
         };
-        GalleryState.LayoutInvalidated += () => Masonry.Refresh();
+        GalleryState.LayoutInvalidated += () => { Masonry.Refresh(); QueueBrowsePositionRestore(); };
         GalleryState.FolderCommitted += (folder, ct) =>
         {
             RefreshAddressBar();

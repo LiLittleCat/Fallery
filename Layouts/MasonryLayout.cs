@@ -26,6 +26,15 @@ public sealed class MasonryLayout : VirtualizingLayout
     /// <summary>最近一次布局中某项的位置，用于把选中项滚到视口内；滚动路径不调用。</summary>
     public TileBounds? BoundsOf(int index) =>
         _lastGeometry is { } geometry && index >= 0 && index < geometry.Bounds.Length ? geometry.Bounds[index] : null;
+    public IEnumerable<int> IntersectingIndices(double x, double y, double width, double height)
+    {
+        if (_lastGeometry is not { } geometry || width <= 0 || height <= 0) yield break;
+        foreach (int index in geometry.GetVisibleIndices(y, height))
+        {
+            var bounds = geometry.Bounds[index];
+            if (bounds.X < x + width && bounds.X + bounds.Width > x) yield return index;
+        }
+    }
     public bool UniformTiles { get; set; }
     public bool JustifiedRows { get; set; }
     public bool ShowFileNames { get; set; } = true;

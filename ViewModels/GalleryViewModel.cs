@@ -207,12 +207,12 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>删除后只从当前列表移除该项，不整页重扫，也不打乱排序。</summary>
-    public bool RemoveItem(string path)
+    public bool RemoveItem(string path) => RemoveItems(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { path });
+
+    public bool RemoveItems(IReadOnlySet<string> paths)
     {
-        int index = Items.FindIndex(i => string.Equals(i.Path, path, StringComparison.OrdinalIgnoreCase));
-        if (index < 0) return false;
-        var next = new List<MediaItem>(Items);
-        next.RemoveAt(index);
+        var next = Items.Where(item => !paths.Contains(item.Path)).ToList();
+        if (next.Count == Items.Count) return false;
         ReplaceItems(next);
         if (CurrentFolder is { } folder) _directories.Set(folder.ToUpperInvariant(), next, Math.Max(1, next.Count));
         UpdateStatus();

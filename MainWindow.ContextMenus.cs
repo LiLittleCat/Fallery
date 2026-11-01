@@ -78,7 +78,9 @@ public sealed partial class MainWindow
         CloseItemMenu();
         if (node is not null) FolderTree.SelectedNode = node;
         else if (GalleryState.Items.FirstOrDefault(item => string.Equals(item.Path, path, StringComparison.OrdinalIgnoreCase)) is { } selected)
-            SelectItem(selected);
+        {
+            if (!_selectedPaths.Contains(selected.Path)) SelectItem(selected);
+        }
         var menu = BuildItemMenu(path, folder, node, allowDelete);
         _itemMenu = menu;
         menu.Closed += (_, _) => { if (ReferenceEquals(_itemMenu, menu)) _itemMenu = null; };
@@ -88,9 +90,11 @@ public sealed partial class MainWindow
     private MenuFlyout BuildItemMenu(string path, bool folder, TreeViewNode? node = null, bool allowDelete = true)
     {
         var menu = new MenuFlyout();
+        var targets = node is null && allowDelete ? ContextFileTargets(path, folder) : [(path, folder)];
+        bool multiple = targets.Length > 1;
         void Add(string text, string key, Func<Task> action)
         {
-            string icon = key switch
+            string? icon = key switch
             {
                 "open" => folder ? "IconFolder" : "IconOpen",
                 "expand" => node?.IsExpanded == true ? "IconCollapse" : "IconExpand",
@@ -98,11 +102,14 @@ public sealed partial class MainWindow
                 "copy-path" => "IconCopy",
                 "copy-file" => "IconCopyFile",
                 "paste" => "IconPaste",
+                "new-folder" => "IconNewFolder",
+                "identical-images" => "IconSearch",
+                "cut" or "rename" => null,
                 "delete" => "IconDelete",
                 "exclude" => "IconFilter",
                 _ => "IconRefresh",
             };
-            var entry = new MenuFlyoutItem { Text = text, Tag = key, Icon = FluentIcons.Create(icon) };
+            var entry = new MenuFlyoutItem { Text = text, Tag = key, Icon = icon is null ? null : FluentIcons.Create(icon) };
             entry.Click += async (_, _) =>
             {
                 try { await action(); }
@@ -110,7 +117,7 @@ public sealed partial class MainWindow
             };
             menu.Items.Add(entry);
         }
-        if (node is null) Add(folder ? "打开文件夹" : "打开", "open", async () =>
+        if (node is null && !multiple) Add(folder ? "打开文件夹" : "打开", "open", async () =>
         {
             if (folder) await NavigateAsync(path);
             else
@@ -128,24 +135,41 @@ public sealed partial class MainWindow
                 else { await EnsureChildrenLoadedAsync(node); node.IsExpanded = true; }
             });
         }
-        Add("在资源管理器中定位", "reveal", () => RevealPathAsync(path, folder));
+        if (!multiple) Add("在资源管理器中定位", "reveal", () => RevealPathAsync(path, folder));
+        if (node is null && allowDelete && CanFindIdenticalImages(targets))
+            Add("查找并清理相同图片", "identical-images", () => FindIdenticalImagesAsync(targets));
         menu.Items.Add(new MenuFlyoutSeparator());
         Add("复制完整路径", "copy-path", () =>
         {
             var data = new DataPackage();
-            data.SetText(path);
+            data.SetText(string.Join(Environment.NewLine, targets.Select(target => target.Path)));
             Clipboard.SetContent(data);
             Clipboard.Flush();
             GalleryState.Status = "已复制完整路径";
             return Task.CompletedTask;
         });
-        Add(folder ? "复制文件夹" : "复制文件", "copy-file", () => CopyFileAsync(path, folder));
+        Add(multiple ? $"复制 {targets.Length} 项" : folder ? "复制文件夹" : "复制文件", "copy-file", () => CopyFilesAsync(targets));
         ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+C";
-        string? destination = folder ? path : System.IO.Path.GetDirectoryName(path);
+        if (allowDelete && System.IO.Path.GetDirectoryName(System.IO.Path.TrimEndingDirectorySeparator(path)) is not null)
+        {
+            Add(multiple ? $"剪切 {targets.Length} 项" : "剪切", "cut", () => CopyFilesAsync(targets, true));
+            ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+X";
+            if (!multiple && (!ViewerState.IsOpen || IsFilmstrip))
+            {
+                Add("重命名", "rename", () => RenameItemAsync(path, folder));
+                ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "F2";
+            }
+        }
+        if (!allowDelete && string.Equals(path, GalleryState.CurrentFolder, StringComparison.OrdinalIgnoreCase))
+        {
+            Add("新建文件夹", "new-folder", () => { NewFolder_Click(this, new RoutedEventArgs()); return Task.CompletedTask; });
+            ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+Shift+N";
+        }
+        string? destination = multiple ? GalleryState.CurrentFolder : folder ? path : System.IO.Path.GetDirectoryName(path);
         Add("粘贴", "paste", () => destination is null ? Task.CompletedTask : PasteFilesAsync(destination));
         ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+V";
         ((MenuFlyoutItem)menu.Items[^1]).IsEnabled = destination is not null && !_pasting && ClipboardHasFiles();
-        if (folder)
+        if (folder && !multiple)
             Add("刷新此目录", "refresh", async () =>
             {
                 if (node is not null)
@@ -162,7 +186,7 @@ public sealed partial class MainWindow
             && !string.Equals(System.IO.Path.TrimEndingDirectorySeparator(path), System.IO.Path.TrimEndingDirectorySeparator(root), StringComparison.OrdinalIgnoreCase))
         {
             menu.Items.Add(new MenuFlyoutSeparator());
-            Add("删除", "delete", () => DeleteWithConfirmationAsync(path, folder, IsShiftDown()));
+            Add(multiple ? $"删除 {targets.Length} 项" : "删除", "delete", () => DeleteSelectionWithConfirmationAsync(targets, IsShiftDown()));
             ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Delete";
         }
         return menu;
