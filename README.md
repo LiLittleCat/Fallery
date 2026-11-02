@@ -2,11 +2,13 @@
   <img src="logo/final/fallery-icon-fluent-1024.png" width="96" alt="Fallery icon">
 </p>
 
-# Fallery
+<h1 align="center">Fallery</h1>
 
-**Fallery = Falls + Gallery.** A waterfall-style media browser for Windows, with built-in image viewing and video and audio playback.
+<p align="center">
+  <strong>Fallery = Falls + Gallery.</strong> A waterfall-style media browser for Windows, with built-in image viewing and video and audio playback.
+</p>
 
-English · [简体中文](README.zh-CN.md)
+<p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
 
 ![Fallery's dark masonry view](docs/screenshots/masonry-dark-beaa11082d55.png)
 

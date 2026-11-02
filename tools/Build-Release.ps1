@@ -26,12 +26,6 @@ if ((Test-Path -LiteralPath $releaseDirectory) -and (Get-ChildItem -LiteralPath 
 }
 $buildRoot = Join-Path $repoRoot ('work/release-builds/' + [Guid]::NewGuid().ToString('N'))
 if ($ReleaseNotes) { $ReleaseNotes = (Resolve-Path -LiteralPath $ReleaseNotes).Path }
-else {
-    $notes = & (Join-Path $PSScriptRoot 'Get-ReleaseNotes.ps1') -Version $Version
-    New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
-    $ReleaseNotes = Join-Path $buildRoot 'release-notes.md'
-    $notes | Set-Content -LiteralPath $ReleaseNotes -Encoding utf8
-}
 $publishDirectory = Join-Path $buildRoot 'publish'
 $packageId = if ($Channel -eq 'stable') { 'Fallery.App' } else { 'Fallery.Preview.App' }
 $mainExe = if ($Channel -eq 'stable') { 'Fallery.exe' } else { 'Fallery.Preview.exe' }
@@ -47,7 +41,6 @@ Push-Location $repoRoot
 try {
     Invoke-DotNet @('tool', 'restore')
     if (!$SkipChecks) {
-        & (Join-Path $repoRoot 'Tests/ReleaseChecks.ps1')
         Invoke-DotNet @('run', '--project', 'Tests/CoreChecks/CoreChecks.csproj', '--', $repoRoot)
         Invoke-DotNet @('run', '--project', 'Tests/UpdateChecks/UpdateChecks.csproj')
         Invoke-DotNet @('run', '--project', 'Tests/LanguageChecks/LanguageChecks.csproj', '--', $repoRoot)
@@ -61,7 +54,8 @@ try {
     $packArguments = @('tool', 'run', 'vpk', '--', 'pack', '--packId', $packageId, '--packVersion', $Version,
         '--packTitle', $title, '--packAuthors', 'LiLittleCat', '--packDir', $publishDirectory, '--mainExe', $mainExe,
         '--channel', $feedChannel, '--runtime', "win-$Architecture", '--outputDir', $releaseDirectory,
-        '--icon', (Join-Path $repoRoot 'Assets/Fallery.ico'), '--releaseNotes', $ReleaseNotes, '--delta', 'None')
+        '--icon', (Join-Path $repoRoot 'Assets/Fallery.ico'), '--delta', 'None')
+    if ($ReleaseNotes) { $packArguments += @('--releaseNotes', $ReleaseNotes) }
     # 签名参数通过 VPK_SIGN_PARAMS / VPK_AZURE_TRUSTED_SIGN_FILE 由打包工具读取，不写入仓库或日志。
     Invoke-DotNet $packArguments
     $feedPath = Join-Path $releaseDirectory "releases.$feedChannel.json"

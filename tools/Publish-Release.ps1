@@ -42,14 +42,11 @@ foreach ($manifest in $manifests) {
 if (@($uploadFiles | ForEach-Object { [IO.Path]::GetFileName($_) } | Group-Object | Where-Object Count -gt 1).Count) { throw '两种架构的资产文件名重复。' }
 if ($ValidateOnly) { Write-Host "本地发布校验通过：$($uploadFiles.Count) 个资产，两个架构。未上传文件。"; return }
 if (!(Get-Command gh -ErrorAction SilentlyContinue)) { throw '请先安装 GitHub CLI 并登录，或在 CI 设置 GH_TOKEN。' }
-if (!$ReleaseNotes) {
-    $notes = & (Join-Path $PSScriptRoot 'Get-ReleaseNotes.ps1') -Version $Version
-    $notesDirectory = Join-Path (Split-Path -Parent $PSScriptRoot) 'work/release-notes'
-    New-Item -ItemType Directory -Path $notesDirectory -Force | Out-Null
-    $ReleaseNotes = Join-Path $notesDirectory "$Version.md"
-    $notes | Set-Content -LiteralPath $ReleaseNotes -Encoding utf8
+$notesArguments = if ($ReleaseNotes) {
+    @('--notes-file', (Resolve-Path -LiteralPath $ReleaseNotes).Path)
+} else {
+    @('--notes', "See the [changelog](https://github.com/$Repository/blob/v$Version/CHANGELOG.md).")
 }
-$ReleaseNotes = (Resolve-Path -LiteralPath $ReleaseNotes).Path
 $tag = "v$Version"
 function Invoke-Gh([string[]]$Arguments) {
     & gh @Arguments
@@ -65,11 +62,11 @@ if ($LASTEXITCODE -eq 0) {
 } else {
     $tagCommit = & gh api "repos/$Repository/commits/$tag" --jq .sha 2>$null
     if ($LASTEXITCODE -eq 0 -and $tagCommit -ne $Commit) { throw '现有标签指向不同的源码提交。' }
-    $arguments = @('release', 'create', $tag, '--repo', $Repository, '--target', $Commit, '--title', "Fallery $Version", '--notes-file', $ReleaseNotes, '--draft')
+    $arguments = @('release', 'create', $tag, '--repo', $Repository, '--target', $Commit, '--title', "Fallery $Version", '--draft') + $notesArguments
     if ($Channel -eq 'preview') { $arguments += '--prerelease' }
     Invoke-Gh $arguments
 }
 Invoke-Gh (@('release', 'upload', $tag, '--repo', $Repository, '--clobber') + $uploadFiles)
-Invoke-Gh @('release', 'edit', $tag, '--repo', $Repository, '--notes-file', $ReleaseNotes)
+Invoke-Gh (@('release', 'edit', $tag, '--repo', $Repository) + $notesArguments)
 if ($Publish) { Invoke-Gh @('release', 'edit', $tag, '--repo', $Repository, '--draft=false') }
 Write-Host "发行页面：https://github.com/$Repository/releases"

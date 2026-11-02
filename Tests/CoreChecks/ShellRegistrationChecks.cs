@@ -7,7 +7,7 @@ internal static class ShellRegistrationChecks
     {
         string key = $@"Software\FalleryCoreChecks\Shell-{Guid.NewGuid():N}";
         using var root = Registry.CurrentUser.CreateSubKey(key);
-        const string firstExe = @"C:\Apps\瀑廊 便携版\Fallery.exe";
+        const string firstExe = @"C:\Apps\媒体工具 便携版\Fallery.exe";
         const string installedExe = @"C:\Program Files\Fallery\Fallery.exe";
         string[] extensions = ["JPG", ".mp4"];
         string[] targets = [@"SystemFileAssociations\.jpg", @"SystemFileAssociations\.mp4", "Directory", @"Directory\Background", "Drive"];

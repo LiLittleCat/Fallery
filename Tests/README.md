@@ -12,8 +12,6 @@
 
 ## 安装和更新流程
 
-`./Tests/ReleaseChecks.ps1` 检查 Changelog 的当前项目版本、单版本提取、链接保留，以及缺失/重复/空版本条目的拒绝行为；CI 和发版工作流均运行此检查。
-
 构建、发版与数据目录见 [DEPLOYMENT.md](../DEPLOYMENT.md)。普通构建默认 dev，真实用户数据改用 `%LOCALAPPDATA%\Fallery.Dev`，旧的 `%LOCALAPPDATA%\Fallery` 留给正式安装版。
 
 ```powershell

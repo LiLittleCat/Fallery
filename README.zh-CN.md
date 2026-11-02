@@ -2,11 +2,13 @@
   <img src="logo/final/fallery-icon-fluent-1024.png" width="96" alt="Fallery 图标">
 </p>
 
-# Fallery
+<h1 align="center">Fallery</h1>
 
-**Fallery = Falls + Gallery。** 一款 Windows 瀑布流媒体浏览器，支持图片查看、视频和音频播放。
+<p align="center">
+  <strong>Fallery = Falls + Gallery。</strong> 一款 Windows 瀑布流媒体浏览器，支持图片查看、视频和音频播放。
+</p>
 
-[English](README.md) · 简体中文
+<p align="center"><a href="README.md">English</a> · 简体中文</p>
 
 ![深色瀑布流视图](docs/screenshots/masonry-dark-beaa11082d55.png)
 

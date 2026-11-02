@@ -1,4 +1,4 @@
-# Fallery（瀑廊）开发规则
+# Fallery 开发规则
 
 Windows 图片浏览器与影音播放器，C# / .NET 10、WinUI 3、CommunityToolkit.Mvvm；最低 Windows 10 19041，支持 x64 / ARM64。项目采用 MIT 许可证。
 
@@ -20,6 +20,7 @@ dotnet run --project Tests/LanguageChecks/LanguageChecks.csproj -- .
 ```
 
 - ARM64 使用 `-p:Platform=ARM64`；SDK 版本以 `global.json` 为准。
+- 默认在 GitHub Actions 构建、检查并生成 x64/ARM64 发行草稿，由用户选择发布；本地构建不能代替远端交付，只有用户要求时才在本地构建。已发布版本不覆盖，新构建递增版本号。
 - 代码修改必须编译通过且无新增警告；按改动范围执行相关检查，纯文档修改检查链接及 `git diff --check`。
 - **不使用 Computer Use**。界面改动编译后启动程序，提供具体人工验收步骤；隐藏宿主检查和截图不能替代真实交互验收。
 - 自动检查使用隔离数据，从启动起保持 `Muted=true`、`Volume=0`，不得修改用户应用或系统音量。完成后退出测试进程，不对用户文件执行测试删除。
@@ -59,6 +60,7 @@ dotnet run --project Tests/LanguageChecks/LanguageChecks.csproj -- .
 ## 提交规范
 
 - 每次修改都在同一提交中维护 `CHANGELOG.md` 的 `Unreleased`，用英文简述实际影响（包括文档、构建和测试）；遵循 Keep a Changelog 的 Added / Changed / Deprecated / Removed / Fixed / Security 分类，合并重复项，不堆砌提交记录。发版时归入版本号与 ISO 日期，同步项目版本和比较链接，保留空的 `Unreleased`；已发布记录只作事实纠错。
+- Changelog 由开发者或代理随修改维护，不添加自动读取、提取或校验 Changelog 的构建脚本或 CI 步骤。需要完整发行说明时手动整理并通过 `-ReleaseNotes` 提供。
 - 所有提交使用带 scope 的 Conventional Commits：`type(scope): description`，如 `feat(i18n): add live language switching`、`fix(viewer): preserve viewer state`、`docs(dev): simplify development guide`。scope 必填，描述实际改动的模块。
 - 提交标题、正文和脚注只描述本项目的改动，不提已移除的外部参考项目、其作者或链接；提交中的新增文档、注释和其他文本同样遵守。
 - 提交前检查完整提交消息与暂存差异，不只检查标题；保留真实第三方组件依法需要的许可声明。
