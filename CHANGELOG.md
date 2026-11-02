@@ -6,18 +6,16 @@ All notable changes to Fallery are documented here, following
 
 ## [Unreleased]
 
-## [0.1.1] - 2026-11-02
-
 ### Changed
 
 - Documented v0.1.0 release verification, public downloads, and remaining installation and upgrade checks.
 - Centered the title, introduction, and language links in both READMEs and removed the former Chinese project name.
-- Kept changelog maintenance in the development rules; release notes can be supplied explicitly or linked from the release page.
-- Build release packages on GitHub Actions and leave the release as a draft for manual publication.
+- Kept changelog maintenance in the development rules and automatic version-specific release notes in the build and publication workflows.
+- Build packages on GitHub Actions by default, with optional release-draft creation and manual publication.
 
 ### Removed
 
-- Automatic changelog extraction and validation from build scripts and CI.
+- WebP metadata reading checks that depend on optional Windows property handlers.
 
 ## [0.1.0] - 2026-11-02
 
@@ -38,6 +36,5 @@ All notable changes to Fallery are documented here, following
 
 - Core checks now verify basic information fallback on Windows systems without a WebP property handler.
 
-[Unreleased]: https://github.com/LiLittleCat/Fallery/compare/v0.1.1...HEAD
-[0.1.1]: https://github.com/LiLittleCat/Fallery/compare/v0.1.0...v0.1.1
+[Unreleased]: https://github.com/LiLittleCat/Fallery/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/LiLittleCat/Fallery/releases/tag/v0.1.0

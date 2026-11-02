@@ -1,5 +1,7 @@
 # 验证
 
+核心检查不再执行依赖可选 Windows 属性处理器的 WebP 元数据读取测试；图片元数据检查保留 JPEG、PNG 和取消处理。
+
 ## 语言检查
 
 `dotnet run --project Tests/LanguageChecks/LanguageChecks.csproj -- .` 校验中英文资源覆盖、代码/XAML 引用、格式占位符、语言切换及取消时的多窗口冲突。CI 和本地发版检查已包含该项目。
@@ -11,6 +13,8 @@
 人工检查：设置中选择 English，应立即更新当前及其他窗口；切回中文或取消设置验证回退。播放中切换语言应保持进度/音量，文件名和路径保持原样。完成后退出全部窗口并重开，确认语言恢复；检查英文按钮和菜单没有截断。系统提供的对话框/元数据仍可能使用系统语言。
 
 ## 安装和更新流程
+
+`./Tests/ReleaseChecks.ps1` 检查 Changelog 的当前项目版本、单版本提取、链接保留，以及缺失/重复/空版本条目的拒绝行为；CI 和发版工作流均运行此检查。
 
 构建、发版与数据目录见 [DEPLOYMENT.md](../DEPLOYMENT.md)。普通构建默认 dev，真实用户数据改用 `%LOCALAPPDATA%\Fallery.Dev`，旧的 `%LOCALAPPDATA%\Fallery` 留给正式安装版。
 

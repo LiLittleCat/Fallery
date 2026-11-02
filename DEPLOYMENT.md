@@ -4,10 +4,10 @@
 
 ## GitHub Actions 发版
 
-1. 将 `CHANGELOG.md` 的 `Unreleased` 归入本次版本与日期，更新比较链接及 `Fallery.csproj` 版本，提交并推送代码。普通 main 推送/PR 运行 `Build and checks`。Changelog 按 AGENTS.md 的要求手动维护，不参与构建校验。
-2. 打开仓库 Actions → **Build release** → **Run workflow**，选择要构建的分支，填写三段版本号（例如 `0.1.0`）与 `stable`。预览版用 `0.2.0-preview.1` 与 `preview`，两者必须匹配。
-3. 工作流先检查，再在 Windows runner 上分别构建 x64、ARM64。SDK 由 `global.json` 固定，NuGet 与本地 vpk 版本固定。两个架构全部成功后下载产物、校验提交和哈希，创建 `v<版本>` 的 **Release 草稿**。
-4. 从 Actions artifacts 或 Release 草稿下载匹配机器架构的 `*-Setup.exe`，完成安装验收。审核更新内容与两个架构的完整资产后，在 GitHub Release 页面点击 **Publish release**。
+1. 提交并推送代码。普通 main 推送/PR 运行 `Build and checks`。构建不自动升级版本；用户决定发新版时，再将 `CHANGELOG.md` 的 `Unreleased` 归入新版本与日期，同步比较链接及 `Fallery.csproj` 版本。发行说明自动读取 Changelog 中的对应版本。
+2. 打开仓库 Actions → **Build release** → **Run workflow**，选择分支、版本号（例如 `0.1.0`）与 `stable`。预览版用 `0.2.0-preview.1` 与 `preview`。默认不勾选 `create_release`，只构建并上传安装包；需要发行草稿时才勾选，已发布版本不可覆盖。
+3. 工作流先检查，再分别构建 x64、ARM64。完成后在运行页面的 **Artifacts** 下载 `release-x64` 或 `release-arm64`，解压取得 Setup.exe、Portable.zip 及更新文件。SDK、NuGet 与 vpk 版本固定；构建产物保留 14 天。
+4. 勾选 `create_release` 时，两个架构全部成功后校验提交和哈希，创建 `v<版本>` 的 **Release 草稿**。审核更新内容与完整资产后，由用户在 GitHub Release 页面点击 **Publish release**。
 5. 客户端只读取已发布版本；草稿不会推送给用户。已发布版本禁止覆盖，修复后提高版本号重新构建。同一提交/版本/通道的失败草稿可重跑上传；不同提交使用新的版本，或先人工处理旧草稿及标签。
 
 工作流位于 `.github/workflows/ci.yml` 与 `.github/workflows/release.yml`，仅发版最后一个 job 拥有 `contents: write`。使用 GitHub 自动提供的 token，不需要把私人 token 写入代码。版本号通过环境变量传给验证过的参数，不拼进 shell 脚本。
@@ -29,7 +29,7 @@
 ./tools/Build-Release.ps1 -Version 0.2.0-preview.1 -Channel preview -Architecture x64
 ```
 
-输出在 `work/releases/<通道>/<版本>/win-<架构>`。脚本拒绝非空输出目录，避免混入旧包；重试可指定新的 `-OutputRoot ./work/retry-releases`。每次 publish 都使用 `work/release-builds/<GUID>` 下的独立中间目录，不覆盖正在使用的开发输出。`-ReleaseNotes <文件>` 可提供手动整理的本次更新说明；未指定时安装包不附带更新说明，GitHub 发行页面链接到对应标签的 Changelog。`-SkipChecks` 仅供已经在前置 job 完成检查的场景。
+输出在 `work/releases/<通道>/<版本>/win-<架构>`。脚本拒绝非空输出目录，避免混入旧包；重试可指定新的 `-OutputRoot ./work/retry-releases`。每次 publish 都使用 `work/release-builds/<GUID>` 下的独立中间目录，不覆盖正在使用的开发输出。`-ReleaseNotes <文件>` 可指定本次更新说明，默认从 `CHANGELOG.md` 提取对应版本；`-SkipChecks` 仅供已经在前置 job 完成检查的场景。
 
 | 产物 | 用途 |
 | --- | --- |
@@ -154,6 +154,6 @@ HKCU\Software\RegisteredApplications  （Fallery 值）
 
 仍需验收：干净 Windows 机器安装；ARM64 实机运行；安装 N 版后从已发布 N+1 版完成检查→下载→确认→所有窗口退出→替换→重启，确认设置/续播和打开方式；取消/断网/保存失败重试；卸载后数据保留。按项目要求不使用 Computer Use，真实界面由用户手动检查。
 
-实现入口：`tools/Build-Release.ps1`、`tools/Publish-Release.ps1`、`Program.cs`、`Services/AppIdentity.cs`、`Services/AppUpdateService.cs`、`Services/VelopackUpdates.cs`、`Services/VelopackUpdateBackend.cs`、`Services/UpdateDataBackup.cs`、`Views/MainWindow/MainWindow.Updates.cs`。
+实现入口：`tools/Build-Release.ps1`、`tools/Publish-Release.ps1`、`tools/Get-ReleaseNotes.ps1`、`Program.cs`、`Services/AppIdentity.cs`、`Services/AppUpdateService.cs`、`Services/VelopackUpdates.cs`、`Services/VelopackUpdateBackend.cs`、`Services/UpdateDataBackup.cs`、`Views/MainWindow/MainWindow.Updates.cs`。
 
 Velopack 官方参考：[启动与更新](https://docs.velopack.io/integrating/overview)、[安装布局](https://docs.velopack.io/packaging/installer)、[更新源](https://docs.velopack.io/integrating/update-sources)、[数据保留](https://docs.velopack.io/integrating/preserved-files)。
