@@ -25,12 +25,12 @@ public sealed partial class MainWindow
         TreeTimeHiddenItem.IsChecked = !_treeShowModifiedTime;
         TreeTimeModifiedItem.IsChecked = _treeShowModifiedTime && _treeTimeField == FolderTimeField.Modified;
         TreeTimeCreatedItem.IsChecked = _treeShowModifiedTime && _treeTimeField == FolderTimeField.Created;
-        TreeTimeIcon.Glyph = Controls.FluentIcons.Glyph(_treeTimeField == FolderTimeField.Created ? "IconSortCreated" : "IconSortModified");
         string timeLabel = !_treeShowModifiedTime ? AppText.Get("DoNotShow") : _treeTimeField == FolderTimeField.Created ? AppText.Get("DateCreated") : AppText.Get("DateModified");
         LiveText.Set(TreeTimeButton, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, AppText.Format("FolderDates", timeLabel)));
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TreeTimeButton, AppText.Format("FolderDates", timeLabel));
         NewFolderButton.IsEnabled = GalleryState.CurrentFolder is not null;
-        LiveText.Set(TreeExclusionsItem, "Text", localized => localized.Text = AppText.Format("ManageExcludedFolders", _treeExcludedFolders.Count));
+        LiveText.Set(TreeExclusionsButton, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized,
+            AppText.Format("ManageExcludedFolders", _treeExcludedFolders.Count + FolderExclusionRules.Names.Length)));
     }
 
     private async void TreeSort_Click(object sender, RoutedEventArgs e)

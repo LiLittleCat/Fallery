@@ -37,19 +37,7 @@ public static class FolderScanner
 
     // 本应用只看图片和视频：版本库、依赖和工具链缓存里的图片多是图标资源，目录却极深，
     // 递归查找媒体、A/D 遍历和文件夹封面都不进入。只收录不会和相册重名的名称。
-    private static readonly HashSet<string> ExcludedDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".git", ".svn", ".hg", ".jj",
-        "node_modules", "bower_components", ".npm", ".pnpm-store", ".yarn", ".bun", ".nvm", ".deno",
-        ".next", ".nuxt", ".turbo", ".parcel-cache", ".svelte-kit", ".angular", ".expo",
-        ".cargo", ".rustup", ".gradle", ".m2", ".ivy2", ".sbt", ".sdkman", ".konan",
-        "__pycache__", ".venv", "venv", "site-packages", ".tox", ".nox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
-        ".conda", "miniconda3", "anaconda3", ".pyenv", ".rbenv", ".gem", ".pub-cache", ".dart_tool",
-        ".nuget", ".dotnet", ".vs", ".idea", ".vscode", ".vscode-server", ".fleet",
-        "Pods", "DerivedData", ".swiftpm", "CMakeFiles", ".terraform", ".docker", ".android", ".cache",
-    };
-
-    public static bool IsExcludedDirectory(string path) => ExcludedDirectoryNames.Contains(Path.GetFileName(Path.TrimEndingDirectorySeparator(path)));
+    public static bool IsExcludedDirectory(string path) => FolderExclusionRules.Contains(path);
 
     private static EnumerationOptions TopLevel(bool showHidden) => showHidden ? TopLevelWithHidden : TopLevelOnly;
 

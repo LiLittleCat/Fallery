@@ -37,6 +37,9 @@ public partial class App : Application
 
     internal MainWindow OpenWindow(string? path) => _windows.OpenWindow(path);
 
+    internal Task RefreshFolderExclusionsAsync() =>
+        Task.WhenAll(_windows.Windows.ToArray().Select(window => window.RefreshFolderExclusionsAsync()));
+
     internal async Task ApplyUpdateAsync(MainWindow requestingWindow)
     {
         if (IsUpdating) return;

@@ -23,7 +23,16 @@ public partial class App
         AppSettings Capture(MainWindow target) => (AppSettings)typeof(MainWindow).GetMethod("CaptureSettings", flags)!.Invoke(target, null)!;
         var root = (FrameworkElement)window.Content;
         var dialog = (ContentDialog)typeof(MainWindow).GetMethod("BuildSettingsDialog", flags)!.Invoke(window, null)!;
-        var content = (StackPanel)((ScrollViewer)dialog.Content).Content;
+        var tabs = (TabView)dialog.Content;
+        StackPanel Page(int index) => (StackPanel)((ScrollViewer)((TabViewItem)tabs.TabItems[index]).Content).Content;
+        var content = Page(0);
+        Check(tabs.TabItems.Count == 3 && tabs.TabItems.Cast<TabViewItem>().All(tab => !tab.IsClosable), "Settings has three fixed tabs");
+        var excludedNames = Page(1).Children.OfType<ListView>().Single(list => list.Name == "SettingsExcludedNames");
+        string[] originalExclusions = FolderExclusionRules.Names;
+        Check(excludedNames.SelectedItems.Cast<string>().Order(StringComparer.OrdinalIgnoreCase).SequenceEqual(originalExclusions, StringComparer.OrdinalIgnoreCase), "Both settings entry points show active exclusion rules");
+        excludedNames.SelectedItems.Clear();
+        Check(FolderExclusionRules.Names.SequenceEqual(originalExclusions), "Editing a settings draft must not change active scan rules before Done");
+        foreach (string name in originalExclusions) excludedNames.SelectedItems.Add(name);
         ComboBox Combo(string name) => content.Children.OfType<ComboBox>().Single(control => control.Name == name);
         var language = Combo("SettingsLanguage");
         var theme = Combo("SettingsTheme");
@@ -44,7 +53,7 @@ public partial class App
             var otherRoot = (FrameworkElement)other.Content;
             Check(language.SelectedIndex == 0, "Default language selection");
             Check(((RadioMenuFlyoutItem)root.FindName("SortNameItem")).Text == "名称", "Chinese XAML menu");
-            var settingsScroll = (ScrollViewer)dialog.Content;
+            var settingsScroll = tabs;
             settingsScroll.Measure(new Windows.Foundation.Size(700, 500));
             double chineseWidth = settingsScroll.DesiredSize.Width;
             var discardedControl = CreateDiscardedLocalizedControl();
@@ -59,7 +68,8 @@ public partial class App
             Check((string)language.Header == "Language", "Language setting label updates");
             Check(((TextBlock)((StackPanel)content.Children[2]).Children[1]).Text == AppText.Get("LowerValuesAreMoreTransparentIsFullyOpaque"), "Opacity hint updates after GC");
             Check((string)((Slider)content.Children[6]).Header == "Thumbnail size", "Thumbnail size header updates after GC");
-            Check(((TextBlock)((StackPanel)content.Children[7]).Children[0]).Text == "Context menu and Open with", "Association heading updates after GC");
+            Check(((TextBlock)((StackPanel)Page(2).Children[0]).Children[0]).Text == "Context menu and Open with", "Association heading updates after GC");
+            Check((string)((TabViewItem)tabs.TabItems[1]).Header == "Folders", "Settings tab headers update live");
             settingsScroll.Measure(new Windows.Foundation.Size(700, 500));
             Check(Math.Abs(settingsScroll.DesiredSize.Width - chineseWidth) < 0.1, "Settings width must not depend on language");
             Check(((TextBlock)tile.FindName("ListType")).Text == "Folder", "Existing list item type updates");

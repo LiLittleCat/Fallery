@@ -39,6 +39,7 @@ if (args.Length == 3 && args[1] == "--search-sample")
     return;
 }
 int checks = 0;
+checks += await FolderExclusionChecks.RunAsync(fixture);
 void Check(bool condition, string name)
 {
     if (!condition) throw new InvalidOperationException(name);
@@ -386,12 +387,14 @@ Check(NavigationGesture.Classify(20, 0) == NavigationAction.None && NavigationGe
 
 var settingsPath = Path.Combine(fixture, "settings", "settings.json");
 var settingsStore = new AppSettingsStore(settingsPath);
-Check(await settingsStore.LoadAsync() == new AppSettings(), "首次启动应使用默认设置");
+bool SameSettings(AppSettings actual, AppSettings expected) =>
+    System.Text.Json.JsonSerializer.Serialize(actual.Normalize()) == System.Text.Json.JsonSerializer.Serialize(expected.Normalize());
+Check(SameSettings(await settingsStore.LoadAsync(), new AppSettings()), "首次启动应使用默认设置");
 var savedSettings = new AppSettings { Width = 1100, Height = 700, Maximized = true, LastFolder = navRoot, Theme = 2,
     BackgroundOpacity = 82, SidebarWidth = 300, ThumbnailSize = 320, SortField = MediaSortField.Modified, Descending = true };
-Check(await settingsStore.SaveAsync(savedSettings) && await settingsStore.LoadAsync() == savedSettings, "所有设置必须完整往返保存");
+Check(await settingsStore.SaveAsync(savedSettings) && SameSettings(await settingsStore.LoadAsync(), savedSettings), "所有设置必须完整往返保存");
 File.WriteAllText(settingsPath, "{broken json");
-Check(await settingsStore.LoadAsync() == new AppSettings(), "损坏设置不能阻止启动");
+Check(SameSettings(await settingsStore.LoadAsync(), new AppSettings()), "损坏设置不能阻止启动");
 File.WriteAllText(settingsPath, "{\"Theme\":2}");
 Check((await settingsStore.LoadAsync()).BackgroundOpacity == 70, "旧设置缺少背景不透明度时应使用更实的默认背景");
 Check(new AppSettings { BackgroundOpacity = double.NaN }.Normalize().BackgroundOpacity == 70
@@ -420,10 +423,10 @@ Check(timeEntry.ModifiedText == new DateTime(timeEntry.CreatedTicks!.Value, Date
 var timeSettings = savedSettings with { TreeShowModifiedTime = true, TreeTimeField = FolderTimeField.Created };
 Check(await settingsStore.SaveAsync(timeSettings) && (await settingsStore.LoadAsync()).TreeTimeField == FolderTimeField.Created,
     "文件树创建时间显示选择可持久化");
-Check(await settingsStore.SaveAsync(viewSettings) && await settingsStore.LoadAsync() == viewSettings,
+Check(await settingsStore.SaveAsync(viewSettings) && SameSettings(await settingsStore.LoadAsync(), viewSettings),
     "视图模式和文件名开关必须跨启动保存");
 Check((await Task.WhenAll(Enumerable.Range(0, 10).Select(i => settingsStore.SaveAsync(savedSettings with { Width = 1000 + i })))).All(ok => ok), "并发保存不能互相覆盖临时文件或写出半份 JSON");
-Check(await settingsStore.SaveAsync(savedSettings) && await settingsStore.LoadAsync() == savedSettings, "退出时最后保存必须生效");
+Check(await settingsStore.SaveAsync(savedSettings) && SameSettings(await settingsStore.LoadAsync(), savedSettings), "退出时最后保存必须生效");
 Check(!Directory.EnumerateFiles(Path.GetDirectoryName(settingsPath)!, "*.tmp").Any(), "原子保存不应遗留临时文件");
 Check(!await new AppSettingsStore(Path.GetDirectoryName(settingsPath)!).SaveAsync(savedSettings), "设置目标不可写时应安全返回失败");
 

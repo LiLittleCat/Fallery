@@ -31,6 +31,7 @@
     <Compile Include="../../Models/MediaItem.cs" Link="Models/MediaItem.cs" />
     <Compile Include="../../Models/FolderEntry.cs" Link="Models/FolderEntry.cs" />
     <Compile Include="../../Services/FolderScanner.cs" Link="Services/FolderScanner.cs" />
+    <Compile Include="../../Services/FolderExclusionRules.cs" Link="Services/FolderExclusionRules.cs" />
     <Compile Include="../../Services/BoundedCache.cs" Link="Services/BoundedCache.cs" />
     <Compile Include="../../Services/MediaCache.cs" Link="Services/MediaCache.cs" />
     <Compile Include="../../Services/ThumbnailDiskCache.cs" Link="Services/ThumbnailDiskCache.cs" />

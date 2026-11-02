@@ -93,6 +93,31 @@ public partial class App
             root.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 243, 245, 247));
             AppText.SetLanguage("zh-CN");
             await Capture("justified-light-zh.png");
+            if (Environment.GetEnvironmentVariable("FALLERY_SETTINGS_SCREENSHOTS") == "1")
+            {
+                var dialog = (ContentDialog)typeof(MainWindow).GetMethod("BuildSettingsDialog", flags)!.Invoke(window, null)!;
+                var tabs = (TabView)dialog.Content;
+                dialog.Content = null;
+                var preview = new Border { Child = tabs, Padding = new Thickness(24), CornerRadius = new CornerRadius(8),
+                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                    Background = root.Background };
+                Grid.SetRowSpan(preview, 3);
+                root.Children.Add(preview);
+                try
+                {
+                    foreach (string language in new[] { "zh-CN", "en-US" })
+                    {
+                        AppText.SetLanguage(language);
+                        // 应用页显示真实数据目录，不纳入任何截图。
+                        for (int index = 0; index < 2; index++)
+                        {
+                            tabs.SelectedIndex = index;
+                            await Capture(Path.Combine(demo, $"settings-{language}-{index}.png"));
+                        }
+                    }
+                }
+                finally { root.Children.Remove(preview); }
+            }
             File.AppendAllText(report, "\nPASS: three README captures from generated art and isolated settings; no desktop capture");
 
             async Task Capture(string name)

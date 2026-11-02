@@ -394,30 +394,38 @@
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" MaxHeight="240" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                 <Grid x:Name="TreeToolbar" Margin="8,0,4,4" ColumnSpacing="4">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <TextBlock  FontSize="12" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"  controls:Localization.Keys="Text=Folder"/>
+                    <TextBlock FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" controls:Localization.Keys="Text=Folder"/>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
-                        <Button Style="{StaticResource IconButtonStyle}"   controls:Localization.Keys="ToolTipService.ToolTip=FolderTreeSettings;AutomationProperties.Name=FolderTreeSettings">
-                            <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSettings}" />
-                            <Button.Flyout>
-                                <MenuFlyout MenuFlyoutPresenterStyle="{StaticResource NavigationMenuPresenterStyle}" Placement="BottomEdgeAlignedLeft" ShouldConstrainToRootBounds="True">
-                                    <RadioMenuFlyoutItem x:Name="TreeSortNameItem"  Tag="Name" GroupName="TreeSortField" IsChecked="True" Click="TreeSort_Click"  controls:Localization.Keys="Text=Name"/>
-                                    <RadioMenuFlyoutItem x:Name="TreeSortModifiedItem"  Tag="Modified" GroupName="TreeSortField" Click="TreeSort_Click"  controls:Localization.Keys="Text=DateModified"/>
-                                    <RadioMenuFlyoutItem x:Name="TreeSortCreatedItem"  Tag="Created" GroupName="TreeSortField" Click="TreeSort_Click"  controls:Localization.Keys="Text=DateCreated"/>
-                                    <MenuFlyoutSeparator />
-                                    <RadioMenuFlyoutItem x:Name="TreeAscendingItem"  Tag="Ascending" GroupName="TreeSortDirection" IsChecked="True" Click="TreeSort_Click"  controls:Localization.Keys="Text=Ascending"/>
-                                    <RadioMenuFlyoutItem x:Name="TreeDescendingItem"  Tag="Descending" GroupName="TreeSortDirection" Click="TreeSort_Click"  controls:Localization.Keys="Text=Descending"/>
-                                    <MenuFlyoutSeparator />
-                                    <MenuFlyoutItem x:Name="TreeExclusionsItem"  Click="TreeExclusions_Click"  controls:Localization.Keys="Text=ManageExcludedFolders8781a8"/>
-                                </MenuFlyout>
-                            </Button.Flyout>
-                        </Button>
                         <Button x:Name="NewFolderButton" Style="{StaticResource IconButtonStyle}" IsEnabled="False" Click="NewFolder_Click"
                                   controls:Localization.Keys="ToolTipService.ToolTip=CreateFolderInCurrentLocation;AutomationProperties.Name=NewFolder">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconNewFolder}" />
                         </Button>
+                        <DropDownButton x:Name="TreeSortButton" Style="{StaticResource IconDropDownStyle}" controls:Localization.Keys="ToolTipService.ToolTip=FolderSort;AutomationProperties.Name=FolderSort">
+                            <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSort}" />
+                            <DropDownButton.Flyout>
+                                <MenuFlyout MenuFlyoutPresenterStyle="{StaticResource NavigationMenuPresenterStyle}" Placement="BottomEdgeAlignedLeft" ShouldConstrainToRootBounds="True">
+                                    <RadioMenuFlyoutItem x:Name="TreeSortCreatedItem" Tag="Created" GroupName="TreeSortField" Click="TreeSort_Click" controls:Localization.Keys="Text=DateCreated">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortCreated}" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="TreeSortNameItem" Tag="Name" GroupName="TreeSortField" IsChecked="True" Click="TreeSort_Click" controls:Localization.Keys="Text=Name">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortName}" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="TreeSortModifiedItem" Tag="Modified" GroupName="TreeSortField" Click="TreeSort_Click" controls:Localization.Keys="Text=DateModified">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortModified}" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <RadioMenuFlyoutItem x:Name="TreeAscendingItem" Tag="Ascending" GroupName="TreeSortDirection" IsChecked="True" Click="TreeSort_Click" controls:Localization.Keys="Text=Ascending">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconAscending}" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="TreeDescendingItem" Tag="Descending" GroupName="TreeSortDirection" Click="TreeSort_Click" controls:Localization.Keys="Text=Descending">
+                                        <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconDescending}" /></RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                </MenuFlyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
                         <Button x:Name="TreeTimeButton" Style="{StaticResource IconButtonStyle}"
                                   controls:Localization.Keys="ToolTipService.ToolTip=FolderDatesf0aa31;AutomationProperties.Name=FolderDatesf0aa31">
-                            <FontIcon x:Name="TreeTimeIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortModified}" />
+                            <FontIcon x:Name="TreeTimeIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconHiddenItems}" />
                             <Button.Flyout>
                                 <MenuFlyout Placement="Bottom" ShouldConstrainToRootBounds="True"
                                             MenuFlyoutPresenterStyle="{StaticResource NavigationMenuPresenterStyle}">
@@ -430,6 +438,10 @@
                                     </RadioMenuFlyoutItem>
                                 </MenuFlyout>
                             </Button.Flyout>
+                        </Button>
+                        <Button x:Name="TreeExclusionsButton" Style="{StaticResource IconButtonStyle}" Click="TreeExclusions_Click"
+                                controls:Localization.Keys="ToolTipService.ToolTip=ExcludedFolders;AutomationProperties.Name=ExcludedFolders">
+                            <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFolderHidden}" />
                         </Button>
                     </StackPanel>
                 </Grid>

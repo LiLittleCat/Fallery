@@ -20,6 +20,7 @@ public sealed record AppSettings
     public bool TreeShowModifiedTime { get; init; }
     public FolderTimeField TreeTimeField { get; init; }
     public string[] TreeExcludedFolders { get; init; } = [];
+    public string[] ExcludedDirectoryNames { get; init; } = [.. FolderExclusionRules.Defaults];
     public MediaSortField SortField { get; init; }
     public bool Descending { get; init; }
     public GalleryDisplayMode DisplayMode { get; init; }
@@ -51,6 +52,7 @@ public sealed record AppSettings
         TreeTimeField = Enum.IsDefined(TreeTimeField) ? TreeTimeField : FolderTimeField.Modified,
         TreeExcludedFolders = (TreeExcludedFolders ?? []).Select(NormalizeFolder).OfType<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+        ExcludedDirectoryNames = FolderExclusionRules.Normalize(ExcludedDirectoryNames),
         DisplayMode = Enum.IsDefined(DisplayMode) ? DisplayMode : GalleryDisplayMode.Masonry,
         Filter = Enum.IsDefined(Filter) ? Filter : MediaFilter.All,
         Volume = double.IsFinite(Volume) ? Math.Clamp(Volume, 0, 100) : 100,

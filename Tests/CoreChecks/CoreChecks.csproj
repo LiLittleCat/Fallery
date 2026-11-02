@@ -16,6 +16,7 @@
     <Compile Include="../../Models/MediaFile.cs" Link="MediaFile.cs" />
     <Compile Include="../../Models/FolderEntry.cs" Link="FolderEntry.cs" />
     <Compile Include="../../Services/FolderScanner.cs" Link="FolderScanner.cs" />
+    <Compile Include="../../Services/FolderExclusionRules.cs" Link="FolderExclusionRules.cs" />
     <Compile Include="../../Services/FolderAddress.cs" Link="FolderAddress.cs" />
     <Compile Include="../../Services/BoundedCache.cs" Link="BoundedCache.cs" />
     <Compile Include="../../Services/FolderNavigator.cs" Link="FolderNavigator.cs" />

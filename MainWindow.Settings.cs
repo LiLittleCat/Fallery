@@ -123,7 +123,7 @@ public sealed partial class MainWindow
             Minimum = 0, Maximum = 100, StepFrequency = 1, Value = _backgroundOpacity }, "Header", localized => localized.Header = AppText.Format("BackgroundOpacity", _backgroundOpacity));
         var opacityHint = LiveText.Set(new TextBlock { Text = AppText.Get("LowerValuesAreMoreTransparentIsFullyOpaque"), FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] }, "Text", localized => localized.Text = AppText.Get("LowerValuesAreMoreTransparentIsFullyOpaque"));
+            Opacity = 0.7 }, "Text", localized => localized.Text = AppText.Get("LowerValuesAreMoreTransparentIsFullyOpaque"));
         var opacitySection = new StackPanel { Spacing = 4 };
         opacitySection.Children.Add(opacity);
         opacitySection.Children.Add(opacityHint);
@@ -136,24 +136,47 @@ public sealed partial class MainWindow
         var feedback = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap };
         clear.Click += async (_, _) => { await ClearCacheAsync(); LiveText.SetOnce(feedback, "Text", localized => localized.Text = GalleryState.Status); };
         // WinUI 的滚动条覆盖在内容之上，给它单独留出右侧空间。
-        var content = new StackPanel { Spacing = 16, Margin = new Thickness(0, 0, 24, 4) };
-        foreach (var element in new UIElement[] { language, theme, opacitySection, mode, names, cards, size, association, clear, feedback, BuildUpdateSection() }) content.Children.Add(element);
+        var content = new StackPanel { Spacing = 16 };
+        foreach (var element in new UIElement[] { language, theme, opacitySection, mode, names, cards, size }) content.Children.Add(element);
+        var folders = BuildFolderExclusionsSection();
+        var system = new StackPanel { Spacing = 16 };
+        foreach (var element in new UIElement[] { association, clear, feedback, BuildUpdateSection() }) system.Children.Add(element);
         double ContentWidth() => Root.ActualWidth > 0 ? Math.Clamp(Root.ActualWidth - 112, 0, 400) : 400;
-        var scroll = new ScrollViewer
+        double ContentHeight() => Root.ActualHeight > 0 ? Math.Clamp(Root.ActualHeight - 220, 120, 500) : 500;
+        var tabs = new TabView
         {
-            Content = content, Width = ContentWidth(), MaxHeight = 500, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalScrollMode = ScrollMode.Disabled,
+            Name = "SettingsTabs", Width = ContentWidth(), Height = ContentHeight(),
+            IsAddTabButtonVisible = false, CanDragTabs = false, CanReorderTabs = false, TabWidthMode = TabViewWidthMode.Equal,
         };
+        foreach (var (key, page) in new[] { ("SettingsGeneralTab", content), ("SettingsFoldersTab", folders.Content), ("SettingsAppTab", system) })
+        {
+            page.Margin = new Thickness(0, 12, 24, 4);
+            var scroll = new ScrollViewer { Content = page, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalScrollMode = ScrollMode.Disabled };
+            tabs.TabItems.Add(LiveText.Set(new TabViewItem { Content = scroll, IsClosable = false },
+                "Header", control => control.Header = AppText.Get(key)));
+        }
         var dialog = LiveText.Set(LiveText.Set(LiveText.Set(new ContentDialog
         {
             XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = AppText.Get("Settings"),
-            Content = scroll,
+            Content = tabs,
             PrimaryButtonText = AppText.Get("Done"), CloseButtonText = AppText.Get("Cancel"), DefaultButton = ContentDialogButton.Primary,
         }, "Title", localized => localized.Title = AppText.Get("Settings")), "PrimaryButtonText", localized => localized.PrimaryButtonText = AppText.Get("Done")), "CloseButtonText", localized => localized.CloseButtonText = AppText.Get("Cancel"));
         // 固定内容宽度，避免语言和长说明改变弹窗尺寸；小窗口仍按可用宽度收窄。
-        SizeChangedEventHandler resize = (_, _) => scroll.Width = ContentWidth();
-        dialog.Opened += (_, _) => { scroll.Width = ContentWidth(); Root.SizeChanged += resize; };
+        void Resize() { tabs.Width = ContentWidth(); tabs.Height = ContentHeight(); }
+        SizeChangedEventHandler resize = (_, _) => Resize();
+        dialog.Opened += (_, _) => { Resize(); Root.SizeChanged += resize; };
         dialog.Closed += (_, _) => Root.SizeChanged -= resize;
+        dialog.PrimaryButtonClick += async (_, args) =>
+        {
+            var deferral = args.GetDeferral();
+            dialog.IsPrimaryButtonEnabled = false;
+            try { await folders.Apply(); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            { GalleryState.Status = AppText.Format("ExclusionRemovedButFolderRefreshFailed", ex.Message); }
+            finally { dialog.IsPrimaryButtonEnabled = true; deferral.Complete(); }
+        };
         // 每项改动立即应用以便预览；取消时恢复打开面板前的状态。
         var original = (Theme: _themeIndex, Opacity: _backgroundOpacity, Mode: GalleryState.DisplayMode, Names: GalleryState.ShowFileNames, Cards: GalleryState.ShowCards, Size: ThumbSize.Value);
         language.SelectionChanged += (_, _) =>
@@ -259,13 +282,16 @@ public sealed partial class MainWindow
         return panel;
     }
 
-    private async void Settings_Click(object sender, RoutedEventArgs e)
+    private async void Settings_Click(object sender, RoutedEventArgs e) => await ShowSettingsAsync(0);
+
+    private async Task ShowSettingsAsync(int tab)
     {
         if (_settingsDialog is not null || _closed || _closing) return;
         StopHoverPreview();
         CloseAddressMenu();
         CloseItemMenu();
         var dialog = BuildSettingsDialog();
+        ((TabView)dialog.Content).SelectedIndex = tab;
         _settingsDialog = dialog;
         try { await dialog.ShowAsync(); }
         finally { if (ReferenceEquals(_settingsDialog, dialog)) _settingsDialog = null; }

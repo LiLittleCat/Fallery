@@ -92,6 +92,7 @@ public sealed partial class MainWindow
         _treeTimeField = settings.TreeTimeField;
         _treeExcludedFolders.Clear();
         _treeExcludedFolders.AddRange(settings.TreeExcludedFolders);
+        FolderExclusionRules.Initialize(settings.ExcludedDirectoryNames);
         UpdateTreeToolbar();
         GalleryState.SortField = settings.SortField;
         GalleryState.Descending = settings.Descending;
@@ -134,6 +135,7 @@ public sealed partial class MainWindow
         TreeShowModifiedTime = _treeShowModifiedTime,
         TreeTimeField = _treeTimeField,
         TreeExcludedFolders = [.. _treeExcludedFolders],
+        ExcludedDirectoryNames = FolderExclusionRules.Names,
         SortField = GalleryState.SortField,
         Descending = GalleryState.Descending,
         DisplayMode = GalleryState.DisplayMode,

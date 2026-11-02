@@ -578,11 +578,12 @@ public partial class App : Application
                 "筛选无结果时应说明筛选条件，而非误报目录为空");
             await Invoke("SetFilterAsync", MediaFilter.All, true);
             var settingsDialog = (ContentDialog)typeof(MainWindow).GetMethod("BuildSettingsDialog", flags)!.Invoke(window, null)!;
+            var settingsContent = (StackPanel)((ScrollViewer)((TabViewItem)((TabView)settingsDialog.Content).TabItems[0]).Content).Content;
             Check(settingsDialog.PrimaryButtonText == "完成" && settingsDialog.CloseButtonText == "取消"
-                && ((StackPanel)((ScrollViewer)settingsDialog.Content).Content).Children.OfType<ComboBox>().Count() == 2,
+                && settingsContent.Children.OfType<ComboBox>().Count() == 3,
                 "设置面板应提供可保存或取消的主题和视图选项");
             await Invoke("ApplyPreferencesAsync", 1, GalleryDisplayMode.LargeIcons, false, 280d);
-            var opacitySlider = ((StackPanel)((ScrollViewer)settingsDialog.Content).Content).Children.OfType<StackPanel>()
+            var opacitySlider = settingsContent.Children.OfType<StackPanel>()
                 .SelectMany(panel => panel.Children.OfType<Slider>()).Single(slider => slider.Name == "SettingsBackgroundOpacity");
             opacitySlider.IsThumbToolTipEnabled = false;
             opacitySlider.Value = 95;

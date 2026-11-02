@@ -57,3 +57,5 @@ The image-generation source is committed; generated sample-media files are not n
 重新构建后，截图使用最新生产界面。涉及控件名称、私有方法或导航行为的变更时，同步维护 `Tests/ExperienceChecks/App.ReadmeScreenshots.cs`，不得为配图修改生产界面或绕过清单校验。新增场景时同步 README 图片链接及命令中的成功标识。生成后逐张打开图片，核对布局、语言、缺图、敏感路径及元数据；截图不能替代交互、视频或性能验收。
 
 公开的中英文 README 只保留产品介绍与展示图，不重新加入样例生成、隔离配置或隐私说明段落。维护说明保留在本文。
+
+同时设置 `FALLERY_SETTINGS_SCREENSHOTS=1` 可在 `work/readme-demo` 输出中英文“常规/文件夹”标签内容的诊断图；使用真实控件放入临时预览容器，不代表完整 ContentDialog 外壳。应用标签含真实数据目录，禁止纳入截图。诊断图不提交，运行后清除这两个环境变量。

@@ -33,7 +33,7 @@ Keep the folder tree and navigation visible while stepping through a collection.
 
 ### Light theme · 简体中文
 
-Switch languages in **Settings → Language** without restarting. All open windows update together; **Done** keeps the choice, and **Cancel** restores the previous language.
+Switch languages in **Settings → General → Language** without restarting. All open windows update together; **Done** keeps the choice, and **Cancel** restores the previous language.
 
 ![Fallery's light justified layout with the Simplified Chinese interface](docs/screenshots/justified-light-zh.png)
 
