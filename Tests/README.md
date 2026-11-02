@@ -1,5 +1,22 @@
 # 验证
 
+## 安装和更新流程
+
+构建、发版与数据目录见 [DEPLOYMENT.md](../DEPLOYMENT.md)。普通构建默认 dev，真实用户数据改用 `%LOCALAPPDATA%\Fallery.Dev`，旧的 `%LOCALAPPDATA%\Fallery` 留给正式安装版。
+
+```powershell
+dotnet run --project Tests/UpdateChecks/UpdateChecks.csproj
+dotnet build Tests/ExperienceChecks/ExperienceChecks.csproj -p:Platform=x64
+$env:FALLERY_UPDATE_CHECKS = '1'
+Start-Process -FilePath './Tests/ExperienceChecks/bin/x64/Debug/net10.0-windows10.0.22621.0/win-x64/ExperienceChecks.exe' -WindowStyle Hidden -Wait
+Remove-Item Env:FALLERY_UPDATE_CHECKS
+Get-Content './Tests/ExperienceChecks/bin/x64/Debug/net10.0-windows10.0.22621.0/win-x64/experience-checks.txt'
+```
+
+更新检查使用隔离临时包和 SDK TestVelopackLocator，覆盖取消/重试、并发、保存失败、重启顺序、产品/通道/降级与坏包校验；不执行安装器或替换实际程序。隐藏宿主直接检查生产设置面板和保存接线，不注入输入，假播放器保持静音。
+
+必须人工验收：安装两个递增版本，从“设置 → 版本与更新”检查、下载、确认重启，验证多窗口关闭及设置/续播保留；取消和断网可重试；卸载取消关联但保留数据。私有仓库的客户端匿名请求预期失败，不能把它当作“已是最新”；公开仓库并发布完整 Release 后再验收在线通道。
+
 ## 横排缩略图完整边界
 
 - 在“大图 + 底部缩略图”模式切换显示文件名和卡片背景，缩略图底边、文件名、选中边框应完整。

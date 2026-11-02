@@ -14,7 +14,7 @@ public sealed class ResumeStore(string path)
     private readonly SemaphoreSlim _gate = new(1);
     private List<Entry>? _entries;
 
-    public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fallery", "resume.json");
+    public static string DefaultPath => Path.Combine(AppIdentity.DataDirectory, "resume.json");
     public static ResumeStore Shared { get; } = new(DefaultPath);
 
     public sealed record Entry(string Path, long Length, long ModifiedTicks, double Seconds, long SavedTicks);
@@ -30,7 +30,7 @@ public sealed class ResumeStore(string path)
     }
 
     /// <summary>开头和结尾附近不记录，看完的视频下次从头播放。</summary>
-    public async Task SaveAsync(FileVersion version, TimeSpan position, TimeSpan duration)
+    public async Task<bool> SaveAsync(FileVersion version, TimeSpan position, TimeSpan duration)
     {
         var entries = await LoadAsync();
         List<Entry> snapshot;
@@ -45,7 +45,7 @@ public sealed class ResumeStore(string path)
         await _gate.WaitAsync();
         try
         {
-            await Task.Run(() =>
+            return await Task.Run(() =>
             {
                 try
                 {
@@ -53,8 +53,9 @@ public sealed class ResumeStore(string path)
                     var temporary = path + ".tmp";
                     File.WriteAllText(temporary, JsonSerializer.Serialize(snapshot));
                     File.Move(temporary, path, overwrite: true);
+                    return true;
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
             });
         }
         finally { _gate.Release(); }

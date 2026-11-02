@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Services/AppIdentity.cs" Link="AppIdentity.cs" />
     <Compile Include="../../Services/Playback/VideoKeyframes.cs" Link="VideoKeyframes.cs" />
     <Compile Include="../AudioFixture.cs" Link="AudioFixture.cs" />
     <Compile Include="../../Services/MediaDates.cs" Link="MediaDates.cs" />

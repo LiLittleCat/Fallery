@@ -302,11 +302,11 @@ using (var registryRoot = Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"S
     {
         FileAssociation.Register(@"C:\Apps\Fallery\Fallery.exe", new[] { ".mp4", "JPG" }, registryRoot);
         Check(FileAssociation.RegisteredExecutable(registryRoot) == @"C:\Apps\Fallery\Fallery.exe", "注册后应能读回 exe 路径");
-        using (var command = registryRoot.OpenSubKey(@"Classes\Fallery.Media\shell\open\command"))
+        using (var command = registryRoot.OpenSubKey($@"Classes\{FileAssociation.ProgId}\shell\open\command"))
             Check(command?.GetValue("") as string == "\"C:\\Apps\\Fallery\\Fallery.exe\" \"%1\"", "打开命令必须带引号传入文件路径");
         using (var progIds = registryRoot.OpenSubKey(@"Classes\.jpg\OpenWithProgids"))
             Check(progIds?.GetValueNames().Contains(FileAssociation.ProgId) == true, "扩展名统一小写并挂到打开方式列表");
-        using (var caps = registryRoot.OpenSubKey(@"Fallery\Capabilities\FileAssociations"))
+        using (var caps = registryRoot.OpenSubKey($@"{AppIdentity.Name}\Capabilities\FileAssociations"))
             Check(caps?.GetValue(".mp4") as string == FileAssociation.ProgId, "默认应用能力表应列出支持的扩展名");
         FileAssociation.Unregister(new[] { ".mp4", ".jpg" }, registryRoot);
         using (var progIds = registryRoot.OpenSubKey(@"Classes\.jpg\OpenWithProgids"))
@@ -323,6 +323,8 @@ await FileClipboardChecks.RunAsync(Path.Combine(fixture, "clipboard-checks"), Ch
 var resumePath = Path.Combine(fixture, "resume", "resume.json");
 var resumeVersion = new FileVersion(@"C:\VIDEOS\A.MP4", 1000, 42);
 var resume = new Fallery.Services.Playback.ResumeStore(resumePath);
+Check(!await new Fallery.Services.Playback.ResumeStore(fixture).SaveAsync(resumeVersion, TimeSpan.FromSeconds(90), TimeSpan.FromMinutes(10)),
+    "续播目标是目录时明确返回失败，更新不能把失败保存当作完成");
 await resume.SaveAsync(resumeVersion, TimeSpan.FromSeconds(90), TimeSpan.FromMinutes(10));
 Check(await new Fallery.Services.Playback.ResumeStore(resumePath).GetAsync(resumeVersion) == TimeSpan.FromSeconds(90), "播放进度应写盘并能被新实例读回");
 Check(await resume.GetAsync(resumeVersion with { ModifiedTicks = 43 }) is null, "文件被替换后不能沿用旧进度");

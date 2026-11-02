@@ -17,7 +17,7 @@ public static class ShellRegistrationCommand
             if (args[0] == "--register-shell") FileAssociation.Register(exePath, extensions, softwareRoot);
             else FileAssociation.Unregister(extensions, softwareRoot, expectedExePath: exePath);
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException or ArgumentException)
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException or ArgumentException or InvalidOperationException)
         {
             exitCode = 1;
         }

@@ -1,0 +1,86 @@
+name: Build release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号，例如 0.1.0 或 0.2.0-preview.1'
+        required: true
+        type: string
+      channel:
+        description: '发行通道'
+        required: true
+        default: stable
+        type: choice
+        options: [stable, preview]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.channel }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.403'
+      - name: Check core and update behavior
+        shell: pwsh
+        run: |
+          dotnet run --project Tests/CoreChecks/CoreChecks.csproj -- .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/UpdateChecks/UpdateChecks.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  build:
+    needs: checks
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.403'
+      - name: Build installer and update feed
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+          RELEASE_ARCH: ${{ matrix.architecture }}
+          RELEASE_SOURCE: https://github.com/${{ github.repository }}
+        run: |
+          ./tools/Build-Release.ps1 -Version $env:RELEASE_VERSION -Channel $env:RELEASE_CHANNEL -Architecture $env:RELEASE_ARCH -UpdateSource $env:RELEASE_SOURCE -SkipChecks
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.architecture }}
+          path: work/releases/**
+          if-no-files-found: error
+          retention-days: 14
+  draft:
+    needs: build
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: work/downloaded-releases
+      - name: Create complete release draft
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          ./tools/Publish-Release.ps1 -Version $env:RELEASE_VERSION -Channel $env:RELEASE_CHANNEL -ArtifactsDirectory ./work/downloaded-releases -Repository $env:RELEASE_REPOSITORY -Commit $env:RELEASE_COMMIT

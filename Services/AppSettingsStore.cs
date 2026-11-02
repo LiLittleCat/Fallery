@@ -72,7 +72,7 @@ public sealed record AppSettings
 public sealed class AppSettingsStore(string path)
 {
     private readonly SemaphoreSlim _writeGate = new(1);
-    public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fallery", "settings.json");
+    public static string DefaultPath => Path.Combine(AppIdentity.DataDirectory, "settings.json");
     public static AppSettingsStore Shared { get; } = new(DefaultPath);
 
     public Task<AppSettings> LoadAsync() => Task.Run(() =>

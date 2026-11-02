@@ -42,6 +42,7 @@ public sealed partial class MainWindow : Window
         if (settingsStore is not null) _settingsStore = settingsStore;
         _startupPath = startupPath;
         InitializeComponent();
+        Title = AppTitleBar.Title = AppIdentity.DisplayName;
         _openWindowCount++;
         // Win10 不支持 Mica，换成系统亚克力，避免透明外框露出黑底。
         if (!Microsoft.UI.Composition.SystemBackdrops.MicaController.IsSupported())
@@ -499,6 +500,7 @@ public sealed partial class MainWindow : Window
         StopHoverPreview();
         if (!ViewerState.IsOpen)
         {
+            ResetViewerSidePanel();
             SelectItem(ViewerState.Playlist[index]);
             RememberBrowsePosition();
             CancelBrowsePositionRestore();
@@ -615,6 +617,7 @@ public sealed partial class MainWindow : Window
         string? viewedPath = !IsFilmstrip ? ViewerState.CurrentItem?.Path : null;
         if (viewedPath is not null) SelectItem(ViewerState.CurrentItem);
         ViewerState.Close();
+        ResetViewerSidePanel();
         StopVideo();
         ClearViewerImage();
         RestoreBrowseWindowPlacement();
@@ -713,8 +716,11 @@ public sealed partial class MainWindow : Window
     private void ImageScroller_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        if (IsFilmstrip) SetViewerFullScreen(_presenterBeforeFullScreen is null);
-        else CloseViewer();
+        if (!ViewerState.IsOpen || ViewerState.CurrentItem?.IsImage != true || ViewerImage.Source is null) return;
+        _panOrigin = null;
+        ViewerImage.ReleasePointerCaptures();
+        if (ImageScroller.ZoomFactor > 1.0001f) FitImageToViewport();
+        else ZoomTo(2);
     }
     private void CloseViewer_Click(object sender, RoutedEventArgs e) => CloseViewer();
     private async void Prev_Click(object sender, RoutedEventArgs e) => await ShowInViewerAsync(ViewerState.CurrentIndex - 1);
@@ -724,6 +730,7 @@ public sealed partial class MainWindow : Window
 
     private async void Root_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (_closed || _closing) { e.Handled = true; return; }
         if (_marqueeStarted)
         {
             if (e.Key == VirtualKey.Escape) EndMarqueeSelection(cancel: true);

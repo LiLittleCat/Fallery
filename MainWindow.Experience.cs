@@ -104,10 +104,8 @@ public sealed partial class MainWindow
         _volume = settings.Volume;
         _muted = settings.Muted;
         VideoVolume.Value = _volume;
-        _playlistOpen = settings.PlaylistOpen;
         SetPlaylistThumbnails(settings.PlaylistShowThumbnails);
-        _detailsOpen = settings.DetailsOpen;
-        ApplyDetailsLayout();
+        ResetViewerSidePanel();
         GalleryState.RestoreRecentFolders(settings.RecentFolders);
         RestoreFavoriteFolders(settings.FavoriteFolders);
         ApplyDisplayOptions();
@@ -145,9 +143,9 @@ public sealed partial class MainWindow
         ShowHidden = GalleryState.ShowHidden,
         Volume = _volume,
         Muted = _muted,
-        PlaylistOpen = _playlistOpen,
+        PlaylistOpen = false,
         PlaylistShowThumbnails = _playlistShowThumbnails,
-        DetailsOpen = _detailsOpen,
+        DetailsOpen = false,
         RecentFolders = [.. GalleryState.RecentFolders],
         FavoriteFolders = [.. _favoriteFolders],
     };
@@ -195,6 +193,7 @@ public sealed partial class MainWindow
         GalleryState.Cancel();
         CloseViewer();
         // 退出前等最后一次写入完成，避免异步保存被进程结束打断。
+        await _resumeSaveTask;
         if (_settingsReady) await _settingsStore.SaveAsync(CaptureSettings());
         _allowClose = true;
         DispatcherQueue.TryEnqueue(Close);

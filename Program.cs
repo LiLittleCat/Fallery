@@ -10,11 +10,17 @@ namespace Fallery;
 public static class Program
 {
     private static readonly System.Collections.Concurrent.ConcurrentQueue<AppActivationArguments> PendingActivations = new();
-    private const string InstanceKey = "Fallery.Main";
+    private const string InstanceKey = AppIdentity.InstanceKey;
 
     [STAThread]
     private static int Main(string[] args)
     {
+        Velopack.VelopackApp.Build()
+            .SetAutoApplyOnStartup(false)
+            .OnAfterInstallFastCallback(_ => VelopackUpdates.RegisterShell())
+            .OnAfterUpdateFastCallback(_ => VelopackUpdates.RegisterShell())
+            .OnBeforeUninstallFastCallback(_ => VelopackUpdates.UnregisterShell())
+            .Run();
         if (ShellRegistrationCommand.TryExecute(args, Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Fallery.exe"),
             FolderScanner.SupportedExtensions, out int exitCode)) return exitCode;
         WinRT.ComWrappersSupport.InitializeComWrappers();

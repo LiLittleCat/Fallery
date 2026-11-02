@@ -127,7 +127,7 @@ public sealed partial class MainWindow
         var feedback = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap };
         clear.Click += async (_, _) => { await ClearCacheAsync(); feedback.Text = GalleryState.Status; };
         var content = new StackPanel { Spacing = 16, MinWidth = 320 };
-        foreach (var element in new UIElement[] { theme, opacitySection, mode, names, cards, size, association, clear, feedback }) content.Children.Add(element);
+        foreach (var element in new UIElement[] { theme, opacitySection, mode, names, cards, size, association, clear, feedback, BuildUpdateSection() }) content.Children.Add(element);
         var dialog = new ContentDialog
         {
             XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = "设置",
@@ -184,6 +184,11 @@ public sealed partial class MainWindow
     {
         var panel = new StackPanel { Spacing = 8 };
         panel.Children.Add(new TextBlock { Text = "右键菜单与打开方式", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
+        if (AppIdentity.IsDevelopment)
+        {
+            panel.Children.Add(new TextBlock { Text = "开发版使用独立数据，不修改正式版的右键菜单和打开方式。", TextWrapping = TextWrapping.Wrap });
+            return panel;
+        }
         var status = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap,
             Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] };
         var register = new Button { Content = "注册右键菜单与打开方式" };
@@ -198,7 +203,7 @@ public sealed partial class MainWindow
                     ? "已注册右键菜单与打开方式。Windows 11 请在“显示更多选项”中查看右键入口。"
                     : "已注册打开方式。再次点击注册可补全文件和文件夹的右键入口。"
                 : $"已注册到其他位置：{registered}\n程序移动后请重新注册。";
-            unregister.IsEnabled = registered is not null;
+            unregister.IsEnabled = current;
         }
         register.Click += (_, _) =>
         {
@@ -208,7 +213,7 @@ public sealed partial class MainWindow
         };
         unregister.Click += (_, _) =>
         {
-            try { FileAssociation.Unregister(FolderScanner.SupportedExtensions); }
+            try { FileAssociation.Unregister(FolderScanner.SupportedExtensions, expectedExePath: exe); }
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException) { status.Text = $"取消注册失败：{ex.Message}"; return; }
             Refresh();
         };

@@ -14,9 +14,10 @@
     <ApplicationManifest>../../app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Services/AppIdentity.cs" Link="Services/AppIdentity.cs" />
     <Compile Include="../../Services/MediaDates.cs" Link="MediaDates.cs" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.*" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.*" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <Page Include="../../Controls/MediaTile.xaml" Link="Controls/MediaTile.xaml" />
     <Page Include="../../Themes/Icons.xaml" Link="Themes/Icons.xaml" />
     <Content Include="../../Assets/Fonts/*.ttf" Link="Assets/Fonts/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />

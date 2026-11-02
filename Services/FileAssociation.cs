@@ -9,14 +9,15 @@ namespace Fallery.Services;
 /// </summary>
 public static class FileAssociation
 {
-    public const string ProgId = "Fallery.Media";
-    public const string ContextVerb = "Fallery.Open";
-    private const string AppKey = "Fallery.exe";
-    private const string CapabilitiesPath = @"Software\Fallery\Capabilities";
+    public const string ProgId = AppIdentity.Name + ".Media";
+    public const string ContextVerb = AppIdentity.Name + ".Open";
+    private const string AppKey = AppIdentity.Name + ".exe";
+    private const string CapabilitiesPath = @"Software\" + AppIdentity.Name + @"\Capabilities";
 
     /// <summary>注册当前 exe；softwareRoot 默认是 HKCU\Software，测试时可传入隔离的子键。</summary>
     public static void Register(string exePath, IEnumerable<string> extensions, RegistryKey? softwareRoot = null)
     {
+        if (softwareRoot is null && AppIdentity.IsDevelopment) throw new InvalidOperationException("开发版不注册系统打开方式，请使用安装版。");
         using var software = softwareRoot is null ? Registry.CurrentUser.CreateSubKey("Software") : null;
         var root = softwareRoot ?? software!;
         exePath = Path.GetFullPath(exePath);
@@ -26,7 +27,7 @@ public static class FileAssociation
 
         using (var app = root.CreateSubKey($@"Classes\Applications\{AppKey}"))
         {
-            app.SetValue("FriendlyAppName", "Fallery");
+            app.SetValue("FriendlyAppName", AppIdentity.DisplayName);
             using (var open = app.CreateSubKey(@"shell\open\command")) open.SetValue("", command);
             using var types = app.CreateSubKey("SupportedTypes");
             foreach (var extension in list) types.SetValue(extension, "");
@@ -45,12 +46,12 @@ public static class FileAssociation
         }
         using (var capabilities = root.CreateSubKey(CapabilitiesPath.Replace(@"Software\", "")))
         {
-            capabilities.SetValue("ApplicationName", "Fallery");
+            capabilities.SetValue("ApplicationName", AppIdentity.DisplayName);
             capabilities.SetValue("ApplicationDescription", "瀑布流图片浏览器和视频播放器");
             using var associations = capabilities.CreateSubKey("FileAssociations");
             foreach (var extension in list) associations.SetValue(extension, ProgId);
         }
-        using (var registered = root.CreateSubKey("RegisteredApplications")) registered.SetValue("Fallery", CapabilitiesPath);
+        using (var registered = root.CreateSubKey("RegisteredApplications")) registered.SetValue(AppIdentity.Name, CapabilitiesPath);
         foreach (var extension in list)
             RegisterVerb(root, $@"SystemFileAssociations\{extension}", exePath, "%1");
         // 尾部加 \.，避免磁盘根目录的反斜杠与命令行结束引号发生转义。
@@ -63,7 +64,7 @@ public static class FileAssociation
     private static void RegisterVerb(RegistryKey root, string target, string exePath, string argument)
     {
         using var verb = root.CreateSubKey($@"Classes\{target}\shell\{ContextVerb}");
-        verb.SetValue("", "用 Fallery 打开");
+        verb.SetValue("", $"用 {AppIdentity.DisplayName} 打开");
         verb.SetValue("Icon", $"\"{exePath}\",0");
         verb.SetValue("MultiSelectModel", "Single");
         using var command = verb.CreateSubKey("command");
@@ -87,6 +88,7 @@ public static class FileAssociation
 
     public static void Unregister(IEnumerable<string> extensions, RegistryKey? softwareRoot = null, string? expectedExePath = null)
     {
+        if (softwareRoot is null && AppIdentity.IsDevelopment) throw new InvalidOperationException("开发版不修改系统打开方式，请使用安装版。");
         using var software = softwareRoot is null ? Registry.CurrentUser.OpenSubKey("Software", writable: true) : null;
         var root = softwareRoot ?? software;
         if (root is null) return;
@@ -97,8 +99,8 @@ public static class FileAssociation
         var list = extensions.Concat(supported?.GetValueNames() ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         root.DeleteSubKeyTree($@"Classes\Applications\{AppKey}", throwOnMissingSubKey: false);
         root.DeleteSubKeyTree($@"Classes\{ProgId}", throwOnMissingSubKey: false);
-        root.DeleteSubKeyTree(@"Fallery\Capabilities", throwOnMissingSubKey: false);
-        using (var registered = root.OpenSubKey("RegisteredApplications", writable: true)) registered?.DeleteValue("Fallery", throwOnMissingValue: false);
+        root.DeleteSubKeyTree(AppIdentity.Name + @"\Capabilities", throwOnMissingSubKey: false);
+        using (var registered = root.OpenSubKey("RegisteredApplications", writable: true)) registered?.DeleteValue(AppIdentity.Name, throwOnMissingValue: false);
         foreach (var extension in list)
         {
             var name = extension.StartsWith('.') ? extension.ToLowerInvariant() : "." + extension.ToLowerInvariant();

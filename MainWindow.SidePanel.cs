@@ -6,6 +6,13 @@ public sealed partial class MainWindow
 {
     private bool _applyingSidePanel;
 
+    private void ResetViewerSidePanel()
+    {
+        _detailsOpen = false;
+        _playlistOpen = false;
+        ApplyViewerSidePanel();
+    }
+
     private void InitializeViewerSidePanel()
     {
         // 使用系统默认阴影，不注册显式接收层，避免 Win10 初始化时触发 XAML 原生异常。
@@ -33,7 +40,7 @@ public sealed partial class MainWindow
         _applyingSidePanel = true;
         try
         {
-            // 兼容旧设置中两个面板同时打开的状态，右侧始终只显示一种内容。
+            // 右侧始终只显示一种内容。
             if (_detailsOpen) _playlistOpen = false;
             bool playlist = _playlistOpen && !IsFilmstrip;
             bool visible = _detailsOpen || playlist;

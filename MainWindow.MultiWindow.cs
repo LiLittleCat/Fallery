@@ -10,7 +10,7 @@ public sealed partial class MainWindow
 
     private void RequestNewWindow(string? path)
     {
-        if (_closed || _closing) return;
+        if (_closed || _closing || App.Current?.IsUpdating == true) return;
         NewWindowRequested?.Invoke(path);
     }
 }

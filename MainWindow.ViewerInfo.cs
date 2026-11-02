@@ -73,7 +73,6 @@ public sealed partial class MainWindow
         _detailsOpen = open;
         if (open) _playlistOpen = false;
         ApplyViewerSidePanel();
-        QueueSettingsSave();
     }
 
     private void ApplyDetailsLayout() => ApplyViewerSidePanel();

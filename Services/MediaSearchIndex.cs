@@ -17,7 +17,7 @@ public sealed record SearchIndexStatus(int Count, bool Building, bool Limited, i
 public sealed class MediaSearchIndex(string storagePath, int entryLimit = 1_000_000)
 {
     public static MediaSearchIndex Shared { get; } = new(Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fallery", "Search", "media-v1.idx"));
+        AppIdentity.DataDirectory, "Search", "media-v1.idx"));
     private Task<bool>? _initialLoad;
 
     public Task<bool> EnsureLoadedAsync(CancellationToken ct)

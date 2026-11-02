@@ -480,11 +480,13 @@
                         </DataTemplate>
                     </TreeView.ItemTemplate>
                 </TreeView>
-                <Border x:Name="FolderTreeStickyHeader" Grid.Row="2" VerticalAlignment="Top" Margin="4,0,16,0"
-                        Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" CornerRadius="4"
+                <Grid x:Name="FolderTreeStickyHeader" Grid.Row="2" VerticalAlignment="Top" Margin="-4,0,-2,0"
+                        Visibility="Collapsed"
                         PointerWheelChanged="FolderTreeStickyHeader_PointerWheelChanged">
-                    <ItemsControl x:Name="FolderTreeStickyItems">
+                    <!-- 底色贯穿侧栏；两侧留白不拦截文件树和滚动条的输入。 -->
+                    <Border Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" IsHitTestVisible="False"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1" />
+                    <ItemsControl x:Name="FolderTreeStickyItems" Margin="8,0,18,1">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Grid Height="32" ColumnSpacing="4">
@@ -508,7 +510,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </Border>
+                </Grid>
             </Grid>
             <toolkit:GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Width="6" Background="Transparent"
                                   HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"

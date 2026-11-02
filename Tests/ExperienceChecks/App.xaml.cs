@@ -58,6 +58,15 @@ public partial class App : Application
             root.Arrange(new Windows.Foundation.Rect(0, 0, 1100, 720));
             root.UpdateLayout();
             checks += await RunVideoGestureChecksAsync(window);
+            if (Environment.GetEnvironmentVariable("FALLERY_UPDATE_CHECKS") == "1")
+            {
+                checks += await RunUpdateWindowChecksAsync(window);
+                File.AppendAllText(report, $"\nPASS: {checks} gesture and update window checks (isolated settings, no injected input)");
+                window.Close();
+                window = null;
+                Exit();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("FALLERY_SEEK_BOUNDARY_CHECKS") == "1")
             {
                 string sample = Environment.GetEnvironmentVariable("FALLERY_SEEK_SAMPLE")

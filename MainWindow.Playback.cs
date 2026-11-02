@@ -17,6 +17,7 @@ public sealed partial class MainWindow
 {
     private static readonly double[] PlaybackRates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
     private readonly ResumeStore _resumeStore = ResumeStore.Shared;
+    private Task<bool> _resumeSaveTask = Task.FromResult(true);
     private DispatcherQueueTimer? _videoTimer;
     private MediaItem? _videoItem;
     private bool _updatingSeek;
@@ -174,7 +175,7 @@ public sealed partial class MainWindow
         _videoTimer?.Stop();
         _userSeeking = false;
         if (player is not null && _videoItem?.Version is { } version && player.Duration > TimeSpan.Zero)
-            _ = _resumeStore.SaveAsync(version, player.Position, player.Duration);
+            _resumeSaveTask = _resumeStore.SaveAsync(version, player.Position, player.Duration);
         _videoItem = null;
     }
 
@@ -215,7 +216,7 @@ public sealed partial class MainWindow
         UpdatePlayIcon(false);
         _taskbarProgress?.Clear();
         if (_videoItem?.Version is { } version)
-            _ = _resumeStore.SaveAsync(version, TimeSpan.Zero, player.Duration);
+            _resumeSaveTask = _resumeStore.SaveAsync(version, TimeSpan.Zero, player.Duration);
         int next = ViewerState.CurrentIndex + 1;
         if (!ViewerState.CanNext || !ViewerState.Playlist[next].IsPlaybackMedia) return;
         try { await ShowInViewerAsync(next); }
@@ -487,7 +488,6 @@ public sealed partial class MainWindow
         _playlistOpen = open;
         if (open) _detailsOpen = false;
         ApplyViewerSidePanel();
-        QueueSettingsSave();
     }
 
     private void ApplyPlaylistLayout() => ApplyViewerSidePanel();

@@ -16,13 +16,26 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- Program.cs 自定义入口实现单实例转发 -->
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
-    <DefaultItemExcludes>$(DefaultItemExcludes);work/**;Tests/**;logo/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);work/**;Tests/**;logo/**;bin/**;obj/**;publish/**</DefaultItemExcludes>
 
     <!-- 非打包 + 自包含：输出目录直接拷走就能运行 -->
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <SelfContained>true</SelfContained>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <FalleryChannel Condition="'$(FalleryChannel)' == ''">dev</FalleryChannel>
+    <AssemblyName Condition="'$(FalleryChannel)' == 'preview'">Fallery.Preview</AssemblyName>
+    <DefineConstants Condition="'$(FalleryChannel)' == 'stable'">$(DefineConstants);FALLERY_STABLE</DefineConstants>
+    <DefineConstants Condition="'$(FalleryChannel)' == 'preview'">$(DefineConstants);FALLERY_PREVIEW</DefineConstants>
   </PropertyGroup>
+
+  <Target Name="ValidateFalleryChannel" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(FalleryChannel)' != 'dev' and '$(FalleryChannel)' != 'stable' and '$(FalleryChannel)' != 'preview'" Text="FalleryChannel must be dev, stable or preview." />
+  </Target>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="FalleryUpdateSource" Value="$(FalleryUpdateSource)" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- 窗口标题栏和任务栏图标在运行时从输出目录读取 -->
@@ -33,10 +46,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 版本号以 NuGet 上最新稳定版为准 -->
+    <!-- 发布构建固定依赖版本，避免同一个版本号产出不同运行时。 -->
     <PackageReference Include="CommunityToolkit.WinUI.Controls.Sizers" Version="8.2.251219" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.*" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.*" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
 </Project>

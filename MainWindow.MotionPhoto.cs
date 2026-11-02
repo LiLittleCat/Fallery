@@ -52,7 +52,7 @@ public sealed partial class MainWindow
         string? temporary = null;
         try
         {
-            temporary = await MotionPhoto.ExtractAsync(clip, Path.Combine(Path.GetTempPath(), "Fallery-Motion"), cts.Token);
+            temporary = await MotionPhoto.ExtractAsync(clip, AppIdentity.MotionDirectory, cts.Token);
             cts.Token.ThrowIfCancellationRequested();
             _motionTemporaryFile = temporary;
             // 使用同一个系统播放内核，但不接入普通视频的连播、进度保存和媒体快捷键。
