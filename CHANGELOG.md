@@ -1,8 +1,29 @@
-# Fallery 0.1.0
+# Changelog
 
-- 支持图片、视频和音频浏览，提供多种视图及独立窗口。
-- 图片查看器双击放大，再双击恢复适应窗口；退出重进默认收起详情和播放列表。
-- 增加每用户安装包、应用内检查更新、下载和确认重启更新。
-- 正式版、预览版和本地开发版使用独立数据目录。
+All notable changes to Fallery are documented here, following
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-当前使用 Windows 系统解码器，部分媒体格式需要系统扩展。升级保留用户数据。
+## [Unreleased]
+
+## [0.1.0] - 2026-11-02
+
+### Added
+
+- Masonry, justified, grid, filmstrip, and list views with virtualized browsing and cached thumbnails.
+- Folder previews, favorites, navigation history, keyboard shortcuts, gestures, and independent windows.
+- Image and GIF viewing, zoom and pan, full screen, photo metadata, and motion photo playback.
+- Video and audio playback with playlists, playback speed, resume positions, and A–B repeat, using Windows codecs.
+- Search, sorting, media filters, folder exclusions, file operations, and duplicate image detection.
+- Light, dark, and system themes; live English and Simplified Chinese language switching.
+- x64 and ARM64 installers, portable builds, and in-app update checks, downloads, and restart confirmation.
+- Separate stable, preview, and development data directories, with settings and playback backups before in-app updates.
+- English and Chinese documentation, sample screenshots, and an MIT license credited to Yi Liu.
+- GitHub Actions release builds, update feeds, SHA-256 checksums, and version-specific release notes.
+
+### Fixed
+
+- Core checks now verify basic information fallback on Windows systems without a WebP property handler.
+
+[Unreleased]: https://github.com/LiLittleCat/Fallery/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/LiLittleCat/Fallery/releases/tag/v0.1.0

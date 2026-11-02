@@ -58,6 +58,7 @@ dotnet run --project Tests/LanguageChecks/LanguageChecks.csproj -- .
 
 ## 提交规范
 
+- 每次修改都在同一提交中维护 `CHANGELOG.md` 的 `Unreleased`，用英文简述实际影响（包括文档、构建和测试）；遵循 Keep a Changelog 的 Added / Changed / Deprecated / Removed / Fixed / Security 分类，合并重复项，不堆砌提交记录。发版时归入版本号与 ISO 日期，同步项目版本和比较链接，保留空的 `Unreleased`；已发布记录只作事实纠错。
 - 所有提交使用带 scope 的 Conventional Commits：`type(scope): description`，如 `feat(i18n): add live language switching`、`fix(viewer): preserve viewer state`、`docs(dev): simplify development guide`。scope 必填，描述实际改动的模块。
 - 提交标题、正文和脚注只描述本项目的改动，不提已移除的外部参考项目、其作者或链接；提交中的新增文档、注释和其他文本同样遵守。
 - 提交前检查完整提交消息与暂存差异，不只检查标题；保留真实第三方组件依法需要的许可声明。

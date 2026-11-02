@@ -24,9 +24,14 @@ $releaseDirectory = [IO.Path]::GetFullPath((Join-Path $OutputRoot "$Channel/$Ver
 if ((Test-Path -LiteralPath $releaseDirectory) -and (Get-ChildItem -LiteralPath $releaseDirectory -Force | Select-Object -First 1)) {
     throw "输出目录非空，避免混入旧包，请指定新的 OutputRoot：$releaseDirectory"
 }
-if ($ReleaseNotes) { $ReleaseNotes = (Resolve-Path -LiteralPath $ReleaseNotes).Path }
-else { $ReleaseNotes = Join-Path $repoRoot 'CHANGELOG.md' }
 $buildRoot = Join-Path $repoRoot ('work/release-builds/' + [Guid]::NewGuid().ToString('N'))
+if ($ReleaseNotes) { $ReleaseNotes = (Resolve-Path -LiteralPath $ReleaseNotes).Path }
+else {
+    $notes = & (Join-Path $PSScriptRoot 'Get-ReleaseNotes.ps1') -Version $Version
+    New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
+    $ReleaseNotes = Join-Path $buildRoot 'release-notes.md'
+    $notes | Set-Content -LiteralPath $ReleaseNotes -Encoding utf8
+}
 $publishDirectory = Join-Path $buildRoot 'publish'
 $packageId = if ($Channel -eq 'stable') { 'Fallery.App' } else { 'Fallery.Preview.App' }
 $mainExe = if ($Channel -eq 'stable') { 'Fallery.exe' } else { 'Fallery.Preview.exe' }
@@ -42,6 +47,7 @@ Push-Location $repoRoot
 try {
     Invoke-DotNet @('tool', 'restore')
     if (!$SkipChecks) {
+        & (Join-Path $repoRoot 'Tests/ReleaseChecks.ps1')
         Invoke-DotNet @('run', '--project', 'Tests/CoreChecks/CoreChecks.csproj', '--', $repoRoot)
         Invoke-DotNet @('run', '--project', 'Tests/UpdateChecks/UpdateChecks.csproj')
         Invoke-DotNet @('run', '--project', 'Tests/LanguageChecks/LanguageChecks.csproj', '--', $repoRoot)

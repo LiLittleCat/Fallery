@@ -42,7 +42,13 @@ foreach ($manifest in $manifests) {
 if (@($uploadFiles | ForEach-Object { [IO.Path]::GetFileName($_) } | Group-Object | Where-Object Count -gt 1).Count) { throw '两种架构的资产文件名重复。' }
 if ($ValidateOnly) { Write-Host "本地发布校验通过：$($uploadFiles.Count) 个资产，两个架构。未上传文件。"; return }
 if (!(Get-Command gh -ErrorAction SilentlyContinue)) { throw '请先安装 GitHub CLI 并登录，或在 CI 设置 GH_TOKEN。' }
-if (!$ReleaseNotes) { $ReleaseNotes = Join-Path (Split-Path -Parent $PSScriptRoot) 'CHANGELOG.md' }
+if (!$ReleaseNotes) {
+    $notes = & (Join-Path $PSScriptRoot 'Get-ReleaseNotes.ps1') -Version $Version
+    $notesDirectory = Join-Path (Split-Path -Parent $PSScriptRoot) 'work/release-notes'
+    New-Item -ItemType Directory -Path $notesDirectory -Force | Out-Null
+    $ReleaseNotes = Join-Path $notesDirectory "$Version.md"
+    $notes | Set-Content -LiteralPath $ReleaseNotes -Encoding utf8
+}
 $ReleaseNotes = (Resolve-Path -LiteralPath $ReleaseNotes).Path
 $tag = "v$Version"
 function Invoke-Gh([string[]]$Arguments) {

@@ -28,6 +28,8 @@ For a portable build, extract `*-Portable.zip` and run the application.
 
 Installed builds can check for updates in **Settings → App → Version and updates**.
 
+See the [changelog](CHANGELOG.md) for release history.
+
 ## Supported media
 
 | Media | Examples |

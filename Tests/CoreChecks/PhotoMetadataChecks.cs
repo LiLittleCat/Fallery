@@ -100,9 +100,16 @@ internal static class PhotoMetadataChecks
         }
         var webpDetails = await MediaDetailsReader.ReadAsync(Path.Combine(directory, "without-exif.webp"), MediaKind.Image, CancellationToken.None)
             .WaitAsync(TimeSpan.FromSeconds(5));
-        check(webpDetails.Width == 32 && webpDetails.Height == 24
+        // Windows Server / 干净系统可能没有 WebP 属性处理器，不能假定已安装 Store 扩展。
+        var webpSample = await StorageFile.GetFileFromPathAsync(Path.Combine(directory, "without-exif.webp"));
+        var webpProperties = await webpSample.Properties.GetImagePropertiesAsync();
+        bool hasWebpProperties = webpProperties.Width > 0 && webpProperties.Height > 0;
+        check((hasWebpProperties
+                ? webpDetails.Width == 32 && webpDetails.Height == 24
+                : webpDetails.Width == 0 && webpDetails.Height == 0 && webpDetails.Length == webp.Length)
             && !webpDetails.Groups.Any(group => group.Group is "拍摄" or "地理位置"),
-            "WebP 详情保留尺寸，缺失 EXIF 不生成空分组");
+            "WebP 有系统支持时保留尺寸，否则保留基础信息；缺失 EXIF 不生成空分组");
+        if (!hasWebpProperties) Console.WriteLine("WebP dimension check unavailable: Windows has no WebP property handler; basic-info fallback checked.");
         using var canceled = new CancellationTokenSource();
         canceled.Cancel();
         bool observed = false;

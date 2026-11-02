@@ -1,10 +1,10 @@
 # 构建、发版、更新与数据目录
 
-更新时间：2026-11-02。已接入 Velopack 1.2.161，保持非打包 WinUI、自包含部署。源码与二进制发行使用同一仓库 LiLittleCat/Fallery；仓库暂时私有，后续由用户改为 public。
+更新时间：2026-11-02。已接入 Velopack 1.2.161，保持非打包 WinUI、自包含部署。源码与二进制发行使用同一公开仓库 LiLittleCat/Fallery，首个版本为 `v0.1.0`。
 
 ## GitHub Actions 发版
 
-1. 更新 `CHANGELOG.md`，提交并推送代码到 GitHub（首次需把工作流推送到默认分支）。普通 main 推送/PR 运行 `Build and checks`，构建开发版并运行核心和更新检查。
+1. 将 `CHANGELOG.md` 的 `Unreleased` 归入本次版本与日期，更新比较链接及 `Fallery.csproj` 版本，提交并推送代码。普通 main 推送/PR 运行 `Build and checks`。Changelog 遵循 Keep a Changelog；构建及发行说明默认只提取本次版本，缺失、重复或空版本条目会拒绝打包。
 2. 打开仓库 Actions → **Build release** → **Run workflow**，选择要构建的分支，填写三段版本号（例如 `0.1.0`）与 `stable`。预览版用 `0.2.0-preview.1` 与 `preview`，两者必须匹配。
 3. 工作流先检查，再在 Windows runner 上分别构建 x64、ARM64。SDK 由 `global.json` 固定，NuGet 与本地 vpk 版本固定。两个架构全部成功后下载产物、校验提交和哈希，创建 `v<版本>` 的 **Release 草稿**。
 4. 从 Actions artifacts 或 Release 草稿下载匹配机器架构的 `*-Setup.exe`，完成安装验收。审核更新内容与两个架构的完整资产后，在 GitHub Release 页面点击 **Publish release**。
@@ -12,7 +12,7 @@
 
 工作流位于 `.github/workflows/ci.yml` 与 `.github/workflows/release.yml`，仅发版最后一个 job 拥有 `contents: write`。使用 GitHub 自动提供的 token，不需要把私人 token 写入代码。版本号通过环境变量传给验证过的参数，不拼进 shell 脚本。
 
-**私有仓库限制**：GitHub Actions 可以构建，已授权的用户可以从网页下载安装包；客户端不带 GitHub 凭据，无法匿名读取私有仓库的 Releases。检查失败会提示仓库可能未公开/没有发行版/访问受限。以后仓库变为 public、存在已发布的完整 Release 后，同一更新地址继续使用，无需改客户端。不要把 token 打入安装包，也不要把 HTTP 404 解释为“已是最新”。
+客户端匿名读取公开仓库中已发布的 Releases，不需要用户提供 GitHub 凭据。未发布草稿不可用于更新；若仓库转为私有或网络受限，检查会失败，不会把 HTTP 404 解释为“已是最新”。不要把 token 打入安装包。
 
 提交并推送后，在 Actions 页面确认远端工作流结果；普通推送不会创建发行版，发版需手动触发上述流程。
 
@@ -29,7 +29,7 @@
 ./tools/Build-Release.ps1 -Version 0.2.0-preview.1 -Channel preview -Architecture x64
 ```
 
-输出在 `work/releases/<通道>/<版本>/win-<架构>`。脚本拒绝非空输出目录，避免混入旧包；重试可指定新的 `-OutputRoot ./work/retry-releases`。每次 publish 都使用 `work/release-builds/<GUID>` 下的独立中间目录，不覆盖正在使用的开发输出。`-ReleaseNotes <文件>` 可指定本次更新说明，默认 `CHANGELOG.md`；`-SkipChecks` 仅供已经在前置 job 完成检查的场景。
+输出在 `work/releases/<通道>/<版本>/win-<架构>`。脚本拒绝非空输出目录，避免混入旧包；重试可指定新的 `-OutputRoot ./work/retry-releases`。每次 publish 都使用 `work/release-builds/<GUID>` 下的独立中间目录，不覆盖正在使用的开发输出。`-ReleaseNotes <文件>` 可指定本次更新说明，默认从 `CHANGELOG.md` 提取对应版本；`-SkipChecks` 仅供已经在前置 job 完成检查的场景。
 
 | 产物 | 用途 |
 | --- | --- |
@@ -59,7 +59,7 @@ $commit = git rev-parse HEAD
 
 默认只创建草稿。明确需要直接发布时追加 `-Publish`；脚本仍先上传全部资产，成功后才发布。未提交源码构建的包允许 `-ValidateOnly` 和本地试用，但不允许发布，避免发行标签无法对应实际代码。脚本要求 x64/ARM64 来自同一提交，版本与通道匹配，所有哈希正确且文件名不重复；不修改仓库可见性。
 
-不要只上传 Setup.exe：客户端更新依赖 feed 和 nupkg。暂时私有时可使用网页安装升级，之后公开仓库无需更换更新源。
+不要只上传 Setup.exe：客户端更新依赖 feed 和 nupkg，两个架构的完整资产必须一起发布。
 
 ## 应用内更新行为
 
@@ -150,6 +150,6 @@ HKCU\Software\RegisteredApplications  （Fallery 值）
 
 仍需验收：把代码推送后实际运行 GitHub 工作流；干净 Windows 机器安装；ARM64 实机运行；安装 N 版后从已发布 N+1 版完成检查→下载→确认→所有窗口退出→替换→重启，确认设置/续播和打开方式；取消/断网/保存失败重试；卸载后数据保留。按项目要求不使用 Computer Use，真实界面由用户手动检查。
 
-实现入口：`tools/Build-Release.ps1`、`tools/Publish-Release.ps1`、`Program.cs`、`Services/AppIdentity.cs`、`Services/AppUpdateService.cs`、`Services/VelopackUpdates.cs`、`Services/VelopackUpdateBackend.cs`、`Services/UpdateDataBackup.cs`、`MainWindow.Updates.cs`。
+实现入口：`tools/Build-Release.ps1`、`tools/Publish-Release.ps1`、`tools/Get-ReleaseNotes.ps1`、`Program.cs`、`Services/AppIdentity.cs`、`Services/AppUpdateService.cs`、`Services/VelopackUpdates.cs`、`Services/VelopackUpdateBackend.cs`、`Services/UpdateDataBackup.cs`、`Views/MainWindow/MainWindow.Updates.cs`。
 
 Velopack 官方参考：[启动与更新](https://docs.velopack.io/integrating/overview)、[安装布局](https://docs.velopack.io/packaging/installer)、[更新源](https://docs.velopack.io/integrating/update-sources)、[数据保留](https://docs.velopack.io/integrating/preserved-files)。
