@@ -18,12 +18,13 @@ var zh = Read("zh-CN");
 var en = Read("en-US");
 Check(zh.Keys.Order().SequenceEqual(en.Keys.Order()), "Language resource keys differ");
 string workspace = Path.GetFullPath(args.FirstOrDefault() ?? ".");
-var sources = Directory.GetFiles(workspace, "*.cs").Concat(new[] { "Controls", "Models", "Services", "ViewModels" }
+var sources = Directory.GetFiles(workspace, "*.cs").Concat(new[] { "Controls", "Models", "Services", "ViewModels", "Views" }
     .SelectMany(folder => Directory.GetFiles(Path.Combine(workspace, folder), "*.cs", SearchOption.AllDirectories)));
 foreach (string file in sources)
     foreach (Match reference in Regex.Matches(File.ReadAllText(file), "AppText\\.(?:Get|Format)\\(\"([^\"]+)\""))
         Check(zh.ContainsKey(reference.Groups[1].Value), $"Unknown resource in {file}: {reference.Groups[1].Value}");
-foreach (string file in Directory.GetFiles(workspace, "*.xaml").Concat(Directory.GetFiles(Path.Combine(workspace, "Controls"), "*.xaml")))
+foreach (string file in Directory.GetFiles(workspace, "*.xaml").Concat(new[] { "Controls", "Views" }
+    .SelectMany(folder => Directory.GetFiles(Path.Combine(workspace, folder), "*.xaml", SearchOption.AllDirectories))))
     foreach (var property in XDocument.Load(file).Descendants().Attributes().Where(attribute => attribute.Name.LocalName == "Localization.Keys"))
         foreach (string binding in property.Value.Split(';'))
             Check(zh.ContainsKey(binding.Split('=')[1]), $"Unknown XAML resource in {file}: {binding}");

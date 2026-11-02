@@ -16,39 +16,39 @@
 Program.cs                 自定义入口：单进程多窗口，再次启动时转发创建新窗口的请求
 WindowManager.cs           窗口集合、新窗口请求及独立关闭生命周期
 App.xaml(.cs)              创建 MainWindow，转发重定向的启动请求
-MainWindow.xaml(.cs)       界面、文件树、原生图片/视频控件及键盘处理
-MainWindow.MarqueeSelection.cs 空白左键框选、几何命中、修饰键选择、边缘滚动及取消
-MainWindow.Experience.cs   排序、快捷导航、手势及设置接线
-MainWindow.ViewModels.cs   视图模型事件接线、树定位取消及缓存清理入口
-MainWindow.Navigation.cs   资源管理器式地址栏、路径编辑、每级子目录菜单、最近位置下拉及前进接线
-MainWindow.BrowsePosition.cs 浏览目录位置缓存、返回选中项与滚动锚点恢复
-MainWindow.Selection.cs    Ctrl/Shift 多选、范围锚点、计数与批量操作目标
-MainWindow.Playback.cs     视频控制栏、音量/进度、右侧播放列表及查看器浮层按钮显隐
-MainWindow.Delete.cs       删除确认、回收站/永久删除及删除后的列表、查看器和文件树同步
-MainWindow.IdenticalImages.cs 相同图片扫描范围、虚拟化结果选择/预览及回收站清理确认
+Views/MainWindow/MainWindow.xaml(.cs)       界面、文件树、原生图片/视频控件及键盘处理
+Views/MainWindow/MainWindow.MarqueeSelection.cs 空白左键框选、几何命中、修饰键选择、边缘滚动及取消
+Views/MainWindow/MainWindow.Experience.cs   排序、快捷导航、手势及设置接线
+Views/MainWindow/MainWindow.ViewModels.cs   视图模型事件接线、树定位取消及缓存清理入口
+Views/MainWindow/MainWindow.Navigation.cs   资源管理器式地址栏、路径编辑、每级子目录菜单、最近位置下拉及前进接线
+Views/MainWindow/MainWindow.BrowsePosition.cs 浏览目录位置缓存、返回选中项与滚动锚点恢复
+Views/MainWindow/MainWindow.Selection.cs    Ctrl/Shift 多选、范围锚点、计数与批量操作目标
+Views/MainWindow/MainWindow.Playback.cs     视频控制栏、音量/进度、右侧播放列表及查看器浮层按钮显隐
+Views/MainWindow/MainWindow.Delete.cs       删除确认、回收站/永久删除及删除后的列表、查看器和文件树同步
+Views/MainWindow/MainWindow.IdenticalImages.cs 相同图片扫描范围、虚拟化结果选择/预览及回收站清理确认
 Controls/FileThumbnail.cs 虚拟化列表逐项小预览，复用 MediaItem 的并发、缓存和取消机制
 Controls/PathComboBox.cs 路径选择的等宽弹出层，避免超长路径撑出窗口
-MainWindow.DeletedData.cs  应用内删除后的缩略图缓存及搜索索引同步
+Views/MainWindow/MainWindow.DeletedData.cs  应用内删除后的缩略图缓存及搜索索引同步
 Services/IdenticalImages.cs 流式内容摘要匹配、目录范围限制和删除前版本/内容复核
-MainWindow.FolderChanges.cs 外部目录变更的合并刷新、文件树同步与删除回退
+Views/MainWindow/MainWindow.FolderChanges.cs 外部目录变更的合并刷新、文件树同步与删除回退
 Services/FolderChangeMonitor.cs 当前目录/后代与上级的文件系统监听及生命周期
-MainWindow.SidePanel.cs    互斥右侧面板、窗口内浮层布局
-MainWindow.WindowPlacement.cs 覆盖式查看器打开前保存、返回时恢复浏览窗口位置/尺寸/最大化状态
-MainWindow.Launch.cs       打开方式启动：先播放后扫描、接管播放列表、选中文件、切到前台
-MainWindow.ViewerInfo.cs   查看器底栏信息、详细信息内容及图片缩放（适应/比例/滑块）
-MainWindow.ViewerDetails.cs 详情面板的图标分组、信息排版与行内操作按钮
-MainWindow.MotionPhoto.cs  JPG 实况照片的识别接线、播放/声音浮层与临时资源释放
+Views/MainWindow/MainWindow.SidePanel.cs    互斥右侧面板、窗口内浮层布局
+Views/MainWindow/MainWindow.WindowPlacement.cs 覆盖式查看器打开前保存、返回时恢复浏览窗口位置/尺寸/最大化状态
+Views/MainWindow/MainWindow.Launch.cs       打开方式启动：先播放后扫描、接管播放列表、选中文件、切到前台
+Views/MainWindow/MainWindow.ViewerInfo.cs   查看器底栏信息、详细信息内容及图片缩放（适应/比例/滑块）
+Views/MainWindow/MainWindow.ViewerDetails.cs 详情面板的图标分组、信息排版与行内操作按钮
+Views/MainWindow/MainWindow.MotionPhoto.cs  JPG 实况照片的识别接线、播放/声音浮层与临时资源释放
 Services/MotionPhoto.cs    JPEG XMP 实况视频定位、MP4 范围校验和只读提取
 Services/PhotoMetadata.cs  可选 EXIF 相机/镜头/曝光/GPS 展示及原始镜头标签补读
-MainWindow.Views.cs        视图切换、文件名显示、内嵌大图与横排缩略图同步
-MainWindow.ListView.cs     列表视图的列头排序、宽度及横向滚动同步
-MainWindow.MultiWindow.cs  Ctrl+N、菜单及文件夹右键新窗口入口
-MainWindow.ContextMenus.cs 文件树、媒体及预览右键菜单，资源管理器定位和剪贴板
-MainWindow.Clipboard.cs    文件复制/粘贴、快捷键目标与文本编辑保护
-MainWindow.Search.cs       全电脑搜索窗口、Ctrl+F、查询取消和结果打开
+Views/MainWindow/MainWindow.Views.cs        视图切换、文件名显示、内嵌大图与横排缩略图同步
+Views/MainWindow/MainWindow.ListView.cs     列表视图的列头排序、宽度及横向滚动同步
+Views/MainWindow/MainWindow.MultiWindow.cs  Ctrl+N、菜单及文件夹右键新窗口入口
+Views/MainWindow/MainWindow.ContextMenus.cs 文件树、媒体及预览右键菜单，资源管理器定位和剪贴板
+Views/MainWindow/MainWindow.Clipboard.cs    文件复制/粘贴、快捷键目标与文本编辑保护
+Views/MainWindow/MainWindow.Search.cs       全电脑搜索窗口、Ctrl+F、查询取消和结果打开
 Services/MediaSearchIndex.cs 本地磁盘文件名索引、磁盘快照、匹配语法与结果排序
 Services/FilePaste.cs      文件/文件夹异步复制、同名副本与递归目标保护
-MainWindow.Settings.cs     顶部筛选、排序状态和设置面板
+Views/MainWindow/MainWindow.Settings.cs     顶部筛选、排序状态和设置面板
 ViewModels/GalleryViewModel.cs  扫描、导航历史、排序、宽高比恢复/探测及取消
 ViewModels/ViewerViewModel.cs   播放列表、当前项、查看器状态及加载取消
 Controls/MediaTile.xaml(.cs) 可回收媒体卡片，显式绑定/清理名称、类型、封面及通知订阅
