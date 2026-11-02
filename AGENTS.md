@@ -30,6 +30,7 @@ dotnet run --project Tests/LanguageChecks/LanguageChecks.csproj -- .
 - 保持非打包、自包含（`WindowsPackageType=None`），用 Velopack 构建安装和更新包，不改 MSIX。开发、正式和预览版的数据与进程身份分离。
 - 一进程、同一 UI 线程管理多个独立窗口；窗口分别持有导航、选择、查看器和播放器。公共缓存及持久化服务共享，最后一个窗口关闭才清理公共内存缓存。
 - `GalleryViewModel` 管扫描、导航、排序；`ViewerViewModel` 管播放列表与加载取消；窗口保留原生控件资源及交互接线。
+- 主窗口 XAML、code-behind 及分部文件集中在 `Views/MainWindow/`，命名空间保持 `Fallery`；新增窗口接线文件放在该目录，不再堆到根目录。
 - 保留 `ScrollViewer + ItemsRepeater + MasonryLayout` 虚拟化；禁止改成一次性创建全部元素。滚动路径不加 O(n) WinRT 调用。
 - 卡片显式 Bind/清理订阅与图片引用；布局负责回收实际 UIElement，不能只清索引。Arrange 只使用 Measure 已准备的元素。
 - 文件和缓存以完整路径、大小、UTC 修改时间校验。保留有界 LRU、并发限制、取消与代次保护；清缓存后旧任务不能写回。不引入 SQLite。
@@ -52,6 +53,8 @@ dotnet run --project Tests/LanguageChecks/LanguageChecks.csproj -- .
 - 截图夹具 `Tests/ExperienceChecks/App.ReadmeScreenshots.cs` 在独立进程内渲染真实 WinUI XAML（`RenderTargetBitmap`），输出 `docs/screenshots/` 的三张 PNG；界面结构变化时同步维护夹具。
 - 只使用生成器清单核验的样例、隔离设置及缓存，禁止个人图库、收藏、最近路径和桌面内容。样例及缓存留在忽略的 `work/readme-demo`。
 - 检查报告 PASS 并逐张复核布局、语言、隐私与元数据；不把截图当作交互通过。公开 README 不加入样例生成或隐私说明段落。
+- 截图后运行 `python tools/Refresh-ReadmeImageLinks.py`，以图片内容哈希命名并同步两份 README，避免同路径预览仍显示旧图；图片和引用一起提交。
+- README 只展示开头的主图，不再添加下方的主题或查看方式展示区；其他截图可保留作检查素材。
 
 ## 提交规范
 

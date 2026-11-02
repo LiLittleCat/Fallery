@@ -31,9 +31,13 @@ try {
 } finally {
     Remove-Item Env:FALLERY_README_SCREENSHOTS -ErrorAction SilentlyContinue
 }
+python tools/Refresh-ReadmeImageLinks.py
+if ($LASTEXITCODE -ne 0) { throw 'Screenshot link refresh failed' }
 ```
 
 Inspect `experience-checks.txt` beside the executable for `PASS` and visually review all three PNGs before publishing. Screenshots are written here; generated media, settings and thumbnail caches stay in the ignored `work/readme-demo` directory.
+
+The link-refresh script gives each PNG a SHA-256 suffix and updates both READMEs. Changed images get new paths so Markdown previews cannot reuse the previous image at the same URL. It removes obsolete generated revisions; always run it after capturing, and commit the images together with both READMEs.
 
 ## Privacy boundaries
 
