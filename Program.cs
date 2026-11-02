@@ -25,6 +25,7 @@ public static class Program
             FolderScanner.SupportedExtensions, out int exitCode)) return exitCode;
         WinRT.ComWrappersSupport.InitializeComWrappers();
         if (RedirectToRunningInstance()) return 0;
+        AppText.SetLanguage(AppSettingsStore.Shared.LoadAsync().GetAwaiter().GetResult().Language);
         Application.Start(callback =>
         {
             SynchronizationContext.SetSynchronizationContext(new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread()));

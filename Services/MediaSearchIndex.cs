@@ -11,7 +11,11 @@ public sealed record SearchEntry(string Path, MediaKind Kind, bool Hidden)
     public string Parent => System.IO.Path.GetDirectoryName(Path) ?? Path;
 }
 public sealed record SearchMatches(IReadOnlyList<SearchEntry> Items, int Total);
-public sealed record SearchIndexStatus(int Count, bool Building, bool Limited, int Skipped, string Message);
+public sealed record SearchIndexStatus(int Count, bool Building, bool Limited, int Skipped, string Message)
+{
+    public string Language { get; } = AppText.Language;
+    public string DisplayMessage => AppText.TranslateStatus(Message, Language);
+}
 
 // 索引只保存路径和类型，不解码媒体。索引与查询均运行于后台，界面只接收有限结果。
 public sealed class MediaSearchIndex(string storagePath, int entryLimit = 1_000_000)
@@ -29,7 +33,7 @@ public sealed class MediaSearchIndex(string storagePath, int entryLimit = 1_000_
     private Dictionary<string, SearchEntry> _entries = new(StringComparer.OrdinalIgnoreCase);
     private const int Magic = 0x31534946;
     public event Action<SearchIndexStatus>? Progress;
-    public SearchIndexStatus Status { get; private set; } = new(0, false, false, 0, "尚未建立索引");
+    public SearchIndexStatus Status { get; private set; } = new(0, false, false, 0, AppText.Get("IndexNotBuiltYet"));
 
     public static string[] LocalRoots() => DriveInfo.GetDrives()
         .Where(d => d.DriveType is DriveType.Fixed or DriveType.Removable && Ready(d)).Select(d => d.RootDirectory.FullName).ToArray();
@@ -71,7 +75,7 @@ public sealed class MediaSearchIndex(string storagePath, int entryLimit = 1_000_
                 loaded[path] = new(path, kind, hidden);
             }
             lock (_gate) _entries = loaded;
-            Report(new(loaded.Count, false, limited, 0, "已载入上次索引，正在检查更新"));
+            Report(new(loaded.Count, false, limited, 0, AppText.Get("PreviousIndexLoadedCheckingForChanges")));
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return false; }
@@ -93,7 +97,7 @@ public sealed class MediaSearchIndex(string storagePath, int entryLimit = 1_000_
                 var clock = Stopwatch.StartNew();
                 // 逐层遍历各磁盘，避免某个盘的深层目录耗尽预算后才开始其他盘。
                 var pending = new Queue<(string Path, bool Hidden)>(roots.Distinct(StringComparer.OrdinalIgnoreCase).Select(p => (System.IO.Path.GetFullPath(p), false)));
-                Report(new(Status.Count, true, false, 0, "正在建立全电脑索引…"));
+                Report(new(Status.Count, true, false, 0, AppText.Get("IndexingThisComputer")));
                 while (pending.TryDequeue(out var directory))
                 {
                     ct.ThrowIfCancellationRequested();
@@ -123,7 +127,7 @@ public sealed class MediaSearchIndex(string storagePath, int entryLimit = 1_000_
                     if (limited) break;
                     if (clock.ElapsedMilliseconds >= 500)
                     {
-                        Report(new(building.Count, true, false, skipped, $"正在建立索引 · {building.Count:N0} 项"));
+                        Report(new(building.Count, true, false, skipped, AppText.Format("BuildingIndexItems", building.Count)));
                         clock.Restart();
                     }
                 }
@@ -132,14 +136,14 @@ public sealed class MediaSearchIndex(string storagePath, int entryLimit = 1_000_
                 {
                     int count;
                     lock (_gate) count = _entries.Count;
-                    Report(new(count, false, true, skipped, "未能读取任何索引目录，请检查磁盘是否可访问后刷新"));
+                    Report(new(count, false, true, skipped, AppText.Get("CouldNotReadAnyIndexedFoldersCheckThatThe")));
                     return;
                 }
                 lock (_gate) _entries = building;
-                string message = limited ? $"已到 {entryLimit:N0} 项上限，结果不完整" : $"索引就绪 · {building.Count:N0} 项 · 刷新可同步文件变动";
-                if (skipped > 0) message += $" · {skipped} 个目录不可访问";
+                string message = limited ? AppText.Format("ReachedTheItemLimitResultsAreIncomplete", entryLimit) : AppText.Format("IndexReadyItemsRefreshToSyncFileChanges", building.Count);
+                if (skipped > 0) message += AppText.Format("FoldersInaccessible", skipped);
                 try { Save(building.Values, ct, limited); }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { message += " · 索引未能保存"; }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { message += AppText.Get("IndexCouldNotBeSaved"); }
                 Report(new(building.Count, false, limited, skipped, message));
             }, ct).ConfigureAwait(false);
         }
@@ -147,7 +151,7 @@ public sealed class MediaSearchIndex(string storagePath, int entryLimit = 1_000_
         {
             int count;
             lock (_gate) count = _entries.Count;
-            Report(new(count, false, true, Status.Skipped, "索引更新已停止，已有结果仍可搜索"));
+            Report(new(count, false, true, Status.Skipped, AppText.Get("IndexingStoppedExistingResultsRemainSearchable")));
             throw;
         }
         finally { _buildGate.Release(); }
@@ -194,9 +198,9 @@ public sealed class MediaSearchIndex(string storagePath, int entryLimit = 1_000_
                     }
                     snapshot = _entries.Values.ToArray();
                 }
-                string message = $"索引已同步删除 · {snapshot.Length:N0} 项";
+                string message = AppText.Format("DeletedItemsRemovedFromIndexItems", snapshot.Length);
                 try { Save(snapshot, ct, Status.Limited); }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { message += " · 索引未能保存"; }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { message += AppText.Get("IndexCouldNotBeSaved"); }
                 Report(new(snapshot.Length, false, Status.Limited, Status.Skipped, message));
             }, ct).ConfigureAwait(false);
         }

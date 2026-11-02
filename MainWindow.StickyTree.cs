@@ -1,3 +1,4 @@
+using Fallery.Services;
 using Fallery.Controls;
 using Fallery.Models;
 using Microsoft.UI.Xaml;
@@ -12,7 +13,7 @@ public sealed partial class MainWindow
 {
     private sealed record StickyTreeRow(TreeViewNode Node, FolderEntry Entry, string Glyph)
     {
-        public string CollapseLabel => $"收起 {Entry.Name}";
+        public string CollapseLabel => AppText.Format("Collapse922d91", Entry.Name);
     }
 
     private ListView? _stickyTreeList;
@@ -90,7 +91,7 @@ public sealed partial class MainWindow
     {
         if (_stickyTreeRows.SequenceEqual(rows)) return;
         _stickyTreeRows = rows;
-        FolderTreeStickyItems.ItemsSource = rows;
+        LiveText.SetOnce(FolderTreeStickyItems, "ItemsSource", localized => localized.ItemsSource = rows);
         FolderTreeStickyHeader.Visibility = rows.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 

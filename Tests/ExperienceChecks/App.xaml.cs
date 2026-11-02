@@ -35,6 +35,12 @@ public partial class App : Application
                 if (checks % 25 == 0) File.AppendAllText(report, $"\nCHECKPOINT {checks}: {message}");
             }
             var workspace = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../.."));
+            if (Environment.GetEnvironmentVariable("FALLERY_README_SCREENSHOTS") == "1")
+            {
+                await CaptureReadmeScreenshotsAsync(workspace, report);
+                Exit();
+                return;
+            }
             var settingsPath = Path.Combine(workspace, "work", "validation", "experience-checks", "settings.json");
             var store = new AppSettingsStore(settingsPath);
             // 隐藏宿主也会真实播放测试视频，测试配置必须从首次加载起静音。
@@ -57,6 +63,15 @@ public partial class App : Application
             root.Measure(new Windows.Foundation.Size(1100, 720));
             root.Arrange(new Windows.Foundation.Rect(0, 0, 1100, 720));
             root.UpdateLayout();
+            if (Environment.GetEnvironmentVariable("FALLERY_LANGUAGE_CHECKS") == "1")
+            {
+                checks += await RunLanguageChecksAsync(window, store);
+                File.AppendAllText(report, $"\nPASS: {checks} language window checks (isolated settings, no injected input, muted fake player)");
+                window.Close();
+                window = null;
+                Exit();
+                return;
+            }
             checks += await RunVideoGestureChecksAsync(window);
             if (Environment.GetEnvironmentVariable("FALLERY_UPDATE_CHECKS") == "1")
             {

@@ -47,14 +47,14 @@ public sealed partial class MainWindow
             foreach (var target in targets)
                 items.Add(target.Folder ? await StorageFolder.GetFolderFromPathAsync(target.Path) : await StorageFile.GetFileFromPathAsync(target.Path));
             if (cut && targets.Any(target => System.IO.Path.GetDirectoryName(System.IO.Path.TrimEndingDirectorySeparator(target.Path)) is null))
-                throw new IOException("不能剪切磁盘根目录。");
+                throw new IOException(AppText.Get("CannotCutADriveRoot"));
             var data = new DataPackage { RequestedOperation = cut ? DataPackageOperation.Move : DataPackageOperation.Copy };
             data.SetStorageItems(items);
             Clipboard.SetContent(data);
             Clipboard.Flush();
-            GalleryState.Status = $"已{(cut ? "剪切" : "复制")} {items.Count} 项，可在目标文件夹按 Ctrl+V 粘贴";
+            GalleryState.Status = AppText.Format("ItemsPressCtrlVInTheDestinationFolderTo", (cut ? AppText.Get("Cut") : AppText.Get("Copy")), items.Count);
         }
-        catch (Exception ex) { if (!_closed) GalleryState.Status = $"{(cut ? "剪切" : "复制")}失败：{ex.Message}"; }
+        catch (Exception ex) { if (!_closed) GalleryState.Status = AppText.Format("Failed", (cut ? AppText.Get("Cut") : AppText.Get("Copy")), ex.Message); }
     }
 
     private async Task HandleFileClipboardKeyAsync(VirtualKey key, DependencyObject? source)
@@ -82,9 +82,9 @@ public sealed partial class MainWindow
         {
             var content = await FileClipboard.ReadAsync(WinRT.Interop.WindowNative.GetWindowHandle(this), _lifetimeCts.Token);
             if (content is null || content.Paths.Count == 0)
-            { GalleryState.Status = "剪贴板中没有可粘贴的文件或文件夹"; return; }
+            { GalleryState.Status = AppText.Get("TheClipboardContainsNoFilesOrFoldersToPaste"); return; }
             var paths = content.Paths;
-            GalleryState.Status = $"正在{(content.Move ? "移动" : "复制")} {paths.Count} 项…";
+            GalleryState.Status = AppText.Format("Items", (content.Move ? AppText.Get("Move") : AppText.Get("Copy")), paths.Count);
             bool move = content.Move;
             StopHoverPreview();
             if (ViewerState.IsOpen) CloseViewer();
@@ -92,12 +92,12 @@ public sealed partial class MainWindow
             if (_closed || _closing) return;
             FileClipboard.CompleteMove(content, result, WinRT.Interop.WindowNative.GetWindowHandle(this));
             if (result.Copied.Count > 0) await RefreshAndSelectFilesAsync(result.Copied, destination);
-            GalleryState.Status = $"{(result.Canceled ? "粘贴已取消，已处理" : "已粘贴")} {result.Copied.Count} 项"
-                + (result.Skipped > 0 ? $"，跳过 {result.Skipped} 项" : "")
-                + (result.Errors.Count > 0 ? $"，{result.Errors.Count} 项未完成：{result.Errors[0]}" : "");
+            GalleryState.Status = AppText.Format("Items724e38", (result.Canceled ? AppText.Get("PasteCanceledProcessed") : AppText.Get("Pasted")), result.Copied.Count)
+                + (result.Skipped > 0 ? AppText.Format("SkippedItems", result.Skipped) : "")
+                + (result.Errors.Count > 0 ? AppText.Format("ItemsIncomplete", result.Errors.Count, result.Errors[0]) : "");
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { if (!_closed) GalleryState.Status = $"粘贴失败：{ex.Message}"; }
+        catch (Exception ex) { if (!_closed) GalleryState.Status = AppText.Format("PasteFailed", ex.Message); }
         finally
         {
             _pasting = false;

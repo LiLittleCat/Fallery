@@ -11,6 +11,7 @@ public sealed record AppSettings
     public bool VideoWindowDefaultsApplied { get; init; }
     public string? LastFolder { get; init; }
     public int Theme { get; init; }
+    public string Language { get; init; } = "zh-CN";
     public double BackgroundOpacity { get; init; } = 70;
     public double ThumbnailSize { get; init; } = 240;
     public double SidebarWidth { get; init; } = 260;
@@ -41,6 +42,7 @@ public sealed record AppSettings
         Height = Math.Clamp(Height, 240, 4320),
         LastFolder = NormalizeFolder(LastFolder),
         Theme = Theme is >= 0 and <= 2 ? Theme : 0,
+        Language = AppText.NormalizeLanguage(Language),
         BackgroundOpacity = double.IsFinite(BackgroundOpacity) ? Math.Clamp(BackgroundOpacity, 0, 100) : 70,
         ThumbnailSize = double.IsFinite(ThumbnailSize) ? Math.Clamp(ThumbnailSize, 120, 480) : 240,
         SidebarWidth = double.IsFinite(SidebarWidth) ? Math.Clamp(SidebarWidth, 160, 480) : 260,

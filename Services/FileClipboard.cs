@@ -37,7 +37,7 @@ public static class FileClipboard
                         if (IsClipboardFormatAvailable(FileDropFormat))
                         {
                             nint files = GetClipboardData(FileDropFormat);
-                            if (files == 0) throw new IOException("无法读取剪贴板文件列表。", new Win32Exception(Marshal.GetLastWin32Error()));
+                            if (files == 0) throw new IOException(AppText.Get("CouldNotReadTheClipboardFileList"), new Win32Exception(Marshal.GetLastWin32Error()));
                             var paths = ReadFileDrop(files);
                             effect = ReadPreferredEffect(GetClipboardData(PreferredEffectFormat));
                             // 在延迟渲染完成后记录代次；列表与剪切标记在同一次锁定中读取。
@@ -54,7 +54,7 @@ public static class FileClipboard
                             try
                             {
                                 var operation = Clipboard.GetContent().RequestedOperation;
-                                if (snapshot.Sequence != GetClipboardSequenceNumber()) throw new IOException("剪贴板内容已改变，请重新粘贴。");
+                                if (snapshot.Sequence != GetClipboardSequenceNumber()) throw new IOException(AppText.Get("ClipboardContentsChangedPleasePasteAgain"));
                                 snapshot = snapshot with { Move = RequestsMove((uint)operation) };
                             }
                             catch (System.Runtime.InteropServices.COMException) { }
@@ -63,7 +63,7 @@ public static class FileClipboard
                     }
                     break;
                 }
-                if (attempt == 9) throw new IOException("剪贴板正被其他程序使用，请稍后重试粘贴。");
+                if (attempt == 9) throw new IOException(AppText.Get("AnotherAppIsUsingTheClipboardPleaseTryPasting"));
                 await Task.Delay(30, ct);
             }
         }
@@ -75,23 +75,23 @@ public static class FileClipboard
         var items = await content.GetStorageItemsAsync().AsTask(ct);
         var pathsFallback = items.Select(item => item.Path).ToArray();
         if (pathsFallback.Any(string.IsNullOrWhiteSpace))
-            throw new IOException("部分剪贴板项目没有本地文件路径，请先在资源管理器中保存到磁盘。");
-        if (sequence != GetClipboardSequenceNumber()) throw new IOException("剪贴板内容已改变，请重新粘贴。");
+            throw new IOException(AppText.Get("SomeClipboardItemsHaveNoLocalFilePathSave"));
+        if (sequence != GetClipboardSequenceNumber()) throw new IOException(AppText.Get("ClipboardContentsChangedPleasePasteAgain"));
         return new(pathsFallback, RequestsMove((uint)content.RequestedOperation), sequence);
     }
 
     internal static string[] ReadFileDrop(nint files)
     {
         uint count = DragQueryFile(files, uint.MaxValue, null, 0);
-        if (count > 100_000) throw new IOException("剪贴板项目过多，请分批粘贴。");
+        if (count > 100_000) throw new IOException(AppText.Get("TooManyClipboardItemsPleasePasteInSmallerBatches"));
         var paths = new string[checked((int)count)];
         for (uint i = 0; i < count; i++)
         {
             uint length = DragQueryFile(files, i, null, 0);
-            if (length is 0 or > 32767) throw new IOException("剪贴板包含无效文件路径。");
+            if (length is 0 or > 32767) throw new IOException(AppText.Get("TheClipboardContainsAnInvalidFilePath"));
             var path = new StringBuilder(checked((int)length + 1));
             if (DragQueryFile(files, i, path, (uint)path.Capacity) != length)
-                throw new IOException("剪贴板文件列表读取不完整，请重新复制。");
+                throw new IOException(AppText.Get("TheClipboardFileListIsIncompletePleaseCopyThe"));
             paths[i] = path.ToString();
         }
         return paths;

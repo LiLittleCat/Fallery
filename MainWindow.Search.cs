@@ -41,10 +41,10 @@ public sealed partial class MainWindow
         CloseAddressMenu();
         EndAddressEdit(cancelRequest: true);
         SearchEntry? chosen = null;
-        _searchInput = new TextBox { PlaceholderText = "输入名称、关键词或 *.jpg", Text = _lastSearchText, MaxLength = 512 };
-        AutomationProperties.SetName(_searchInput, "全电脑文件名搜索");
-        _searchType = new ComboBox { ItemsSource = new[] { "全部", "图片", "视频", "文件夹", "音频" }, SelectedIndex = 0, MinWidth = 96 };
-        AutomationProperties.SetName(_searchType, "搜索结果类型");
+        _searchInput = LiveText.Set(new TextBox { PlaceholderText = AppText.Get("EnterANameKeywordsOrJpg"), Text = _lastSearchText, MaxLength = 512 }, "PlaceholderText", localized => localized.PlaceholderText = AppText.Get("EnterANameKeywordsOrJpg"));
+        LiveText.Set(_searchInput, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, AppText.Get("SearchFileNamesOnThisComputer")));
+        _searchType = LiveText.Set(new ComboBox { ItemsSource = new[] { AppText.Get("All"), AppText.Get("Photos"), AppText.Get("Videos"), AppText.Get("Folder"), AppText.Get("Audio") }, SelectedIndex = 0, MinWidth = 96 }, "ItemsSource", localized => localized.ItemsSource = new[] { AppText.Get("All"), AppText.Get("Photos"), AppText.Get("Videos"), AppText.Get("Folder"), AppText.Get("Audio") });
+        LiveText.Set(_searchType, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, AppText.Get("SearchResultType")));
         var inputRow = new Grid { ColumnSpacing = 8 };
         inputRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         inputRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -55,23 +55,23 @@ public sealed partial class MainWindow
             Height = Math.Clamp(Root.ActualHeight - 340, 120, 420),
             ItemTemplate = (DataTemplate)Root.Resources["SearchResultTemplate"]
         };
-        AutomationProperties.SetName(_searchResults, "搜索结果");
-        _searchProgress = new TextBlock { Text = _searchIndex?.Status.Message ?? "首次搜索将建立本地磁盘索引", TextWrapping = TextWrapping.Wrap, FontSize = 12 };
-        _searchResultCount = new TextBlock { Text = "搜索本地磁盘中的图片、视频、音频和文件夹", FontSize = 12, TextWrapping = TextWrapping.Wrap };
-        _searchRefresh = new Button { Content = _searchIndex?.Status.Building == true ? "停止索引" : "刷新索引", Padding = new Thickness(10, 4, 10, 4) };
+        LiveText.Set(_searchResults, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, AppText.Get("SearchResults")));
+        _searchProgress = LiveText.Set(new TextBlock { Text = _searchIndex?.Status.Message ?? AppText.Get("TheFirstSearchWillBuildALocalDriveIndex"), TextWrapping = TextWrapping.Wrap, FontSize = 12 }, "Text", localized => localized.Text = _searchIndex?.Status.Message ?? AppText.Get("TheFirstSearchWillBuildALocalDriveIndex"));
+        _searchResultCount = LiveText.Set(new TextBlock { Text = AppText.Get("SearchLocalDrivesForPhotosVideosAudioAndFolders"), FontSize = 12, TextWrapping = TextWrapping.Wrap }, "Text", localized => localized.Text = AppText.Get("SearchLocalDrivesForPhotosVideosAudioAndFolders"));
+        _searchRefresh = LiveText.Set(new Button { Content = _searchIndex?.Status.Building == true ? AppText.Get("StopIndexing") : AppText.Get("RefreshIndex"), Padding = new Thickness(10, 4, 10, 4) }, "Content", localized => localized.Content = _searchIndex?.Status.Building == true ? AppText.Get("StopIndexing") : AppText.Get("RefreshIndex"));
         var footer = new Grid { ColumnSpacing = 12 };
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         footer.Children.Add(_searchProgress); Grid.SetColumn(_searchRefresh, 1); footer.Children.Add(_searchRefresh);
         var content = new StackPanel { Spacing = 12, Width = Math.Clamp(Root.ActualWidth - 96, 220, 680) };
         content.Children.Add(inputRow);
-        content.Children.Add(new TextBlock { Text = "空格组合关键词 · ext:jpg;png · type:video · path:旅行 · ↑↓ 选择，Enter 打开", FontSize = 12, TextWrapping = TextWrapping.Wrap });
+        content.Children.Add(LiveText.Set(new TextBlock { Text = AppText.Get("CombineKeywordsWithSpacesExtJpgPngTypeVideo"), FontSize = 12, TextWrapping = TextWrapping.Wrap }, "Text", localized => localized.Text = AppText.Get("CombineKeywordsWithSpacesExtJpgPngTypeVideo")));
         content.Children.Add(_searchResultCount); content.Children.Add(_searchResults); content.Children.Add(footer);
-        var dialog = new ContentDialog
+        var dialog = LiveText.Set(LiveText.Set(new ContentDialog
         {
-            XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = "全电脑搜索",
-            Content = content, CloseButtonText = "关闭", DefaultButton = ContentDialogButton.None
-        };
+            XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = AppText.Get("SearchThisComputer"),
+            Content = content, CloseButtonText = AppText.Get("Close"), DefaultButton = ContentDialogButton.None
+        }, "Title", localized => localized.Title = AppText.Get("SearchThisComputer")), "CloseButtonText", localized => localized.CloseButtonText = AppText.Get("Close"));
         dialog.Resources["ContentDialogMaxWidth"] = 760d;
         _searchDialog = dialog;
         void Choose(SearchEntry entry) { chosen = entry; dialog.Hide(); }
@@ -107,10 +107,10 @@ public sealed partial class MainWindow
         try
         {
             if (!await Task.Run(() => File.Exists(chosen.Path) || Directory.Exists(chosen.Path)))
-            { GalleryState.Status = "此结果已移动或删除，请刷新搜索索引"; return; }
+            { GalleryState.Status = AppText.Get("ThisItemWasMovedOrDeletedPleaseRefreshThe"); return; }
             await OpenPathAsync(chosen.Path);
         }
-        catch (Exception ex) { if (!_closed) GalleryState.Status = $"无法打开搜索结果：{ex.Message}"; }
+        catch (Exception ex) { if (!_closed) GalleryState.Status = AppText.Format("CouldNotOpenSearchResult", ex.Message); }
     }
 
     private void RefreshSearchIndex()
@@ -126,8 +126,8 @@ public sealed partial class MainWindow
         _searchProgressHandler = status => DispatcherQueue.TryEnqueue(() =>
         {
             if (_closed || _searchDialog is null) return;
-            _searchProgress!.Text = status.Message;
-            _searchRefresh!.Content = status.Building ? "停止索引" : "刷新索引";
+            LiveText.Set(_searchProgress!, "Text", localized => localized.Text = _searchIndex!.Status.DisplayMessage);
+            LiveText.Set(_searchRefresh!, "Content", localized => localized.Content = status.Building ? AppText.Get("StopIndexing") : AppText.Get("RefreshIndex"));
             QueueSearch();
         });
         _searchIndex.Progress += _searchProgressHandler;
@@ -147,16 +147,16 @@ public sealed partial class MainWindow
         }
         catch (OperationCanceledException)
         {
-            if (!_closed && _searchDialog is not null) _searchProgress!.Text = "索引更新已停止，已有结果仍可搜索";
+            if (!_closed && _searchDialog is not null) LiveText.Set(_searchProgress!, "Text", localized => localized.Text = AppText.Get("IndexingStoppedExistingResultsRemainSearchable"));
         }
         catch (Exception ex)
         {
-            if (!_closed && _searchDialog is not null) _searchProgress!.Text = $"索引更新失败：{ex.Message}";
+            if (!_closed && _searchDialog is not null) LiveText.Set(_searchProgress!, "Text", localized => localized.Text = AppText.Format("IndexUpdateFailed", ex.Message));
         }
         finally
         {
             if (ReferenceEquals(_searchBuildCts, cts)) _searchBuildCts = null;
-            if (!_closed && _searchDialog is not null) _searchRefresh!.Content = "刷新索引";
+            if (!_closed && _searchDialog is not null) LiveText.Set(_searchRefresh!, "Content", localized => localized.Content = AppText.Get("RefreshIndex"));
         }
     }
 
@@ -178,15 +178,15 @@ public sealed partial class MainWindow
             await Task.Delay(180, cts.Token);
             var matches = await _searchIndex!.SearchAsync(query, GalleryState.ShowHidden, cts.Token);
             if (_closed || cts.IsCancellationRequested || _searchDialog is null) return;
-            _searchResults!.ItemsSource = matches.Items.Select(item => new SearchRow(item, FluentIcons.Glyph(item.Kind switch
-            { MediaKind.Folder => "IconFolder", MediaKind.Video => "IconVideo", MediaKind.Audio => "IconAudio", _ => "IconImage" }))).ToArray();
-            if (matches.Items.Count > 0) _searchResults.SelectedIndex = 0;
-            _searchResultCount!.Text = string.IsNullOrWhiteSpace(query) ? "输入关键词，或选择类型浏览索引" :
-                matches.Total == 0 ? (_searchIndex.Status.Building ? "暂未找到，索引仍在建立中…" : "没有匹配结果，可换关键词或刷新索引") :
-                $"找到 {matches.Total:N0} 项" + (matches.Total > matches.Items.Count ? $"，显示前 {matches.Items.Count} 项，请缩小范围" : "");
+            LiveText.SetOnce(_searchResults!, "ItemsSource", localized => localized.ItemsSource = matches.Items.Select(item => new SearchRow(item, FluentIcons.Glyph(item.Kind switch
+            { MediaKind.Folder => "IconFolder", MediaKind.Video => "IconVideo", MediaKind.Audio => "IconAudio", _ => "IconImage" }))).ToArray());
+            if (matches.Items.Count > 0) _searchResults!.SelectedIndex = 0;
+            LiveText.Set(_searchResultCount!, "Text", localized => localized.Text = string.IsNullOrWhiteSpace(query) ? AppText.Get("EnterKeywordsOrSelectATypeToBrowseThe") :
+                matches.Total == 0 ? (_searchIndex.Status.Building ? AppText.Get("NoResultsYetIndexingIsStillInProgress") : AppText.Get("NoMatchingResultsTryDifferentKeywordsOrRefreshThe")) :
+                AppText.Format("FoundItems", matches.Total) + (matches.Total > matches.Items.Count ? AppText.Format("ShowingTheFirstNarrowYourSearch", matches.Items.Count) : ""));
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { if (!_closed && !cts.IsCancellationRequested && _searchDialog is not null) _searchResultCount!.Text = $"搜索失败：{ex.Message}"; }
+        catch (Exception ex) { if (!_closed && !cts.IsCancellationRequested && _searchDialog is not null) LiveText.Set(_searchResultCount!, "Text", localized => localized.Text = AppText.Format("SearchFailed", ex.Message)); }
         finally { if (ReferenceEquals(_searchQueryCts, cts)) _searchQueryCts = null; }
     }
 }

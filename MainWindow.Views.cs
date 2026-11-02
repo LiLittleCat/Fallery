@@ -1,3 +1,4 @@
+using Fallery.Services;
 using Fallery.Controls;
 using Fallery.Models;
 using Microsoft.UI.Xaml;
@@ -90,7 +91,7 @@ public sealed partial class MainWindow
         EndMarqueeSelection(cancel: true);
         // 换布局时先回收原控件，避免横排固定尺寸残留到瀑布流复用的卡片上。
         ReleaseGalleryThumbnails();
-        Gallery.ItemsSource = null;
+        LiveText.SetOnce(Gallery, "ItemsSource", localized => localized.ItemsSource = null);
         Masonry.UniformTiles = GalleryState.DisplayMode == GalleryDisplayMode.LargeIcons;
         Masonry.DetailsRows = IsDetailsView;
         Masonry.JustifiedRows = GalleryState.DisplayMode == GalleryDisplayMode.Justified;
@@ -113,7 +114,7 @@ public sealed partial class MainWindow
         GalleryScroller.VerticalScrollBarVisibility = IsFilmstrip ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
         PlaceViewer();
         ApplyPlaylistLayout();
-        Gallery.ItemsSource = GalleryState.Items;
+        LiveText.SetOnce(Gallery, "ItemsSource", localized => localized.ItemsSource = GalleryState.Items);
         GalleryScroller.ChangeView(0, 0, null, true);
         JustifiedModeItem.IsChecked = GalleryState.DisplayMode == GalleryDisplayMode.Justified;
         MasonryModeItem.IsChecked = GalleryState.DisplayMode == GalleryDisplayMode.Masonry;

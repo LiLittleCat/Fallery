@@ -27,7 +27,7 @@ public static class IdenticalImages
     {
         root = Path.GetFullPath(root);
         ValidatePath(root, root);
-        if (samples.Count is 0 or > SampleLimit) throw new ArgumentException($"请选择 1–{SampleLimit} 张图片作为样本。");
+        if (samples.Count is 0 or > SampleLimit) throw new ArgumentException(AppText.Format("SelectImagesAsSamples", SampleLimit));
         if (matchLimit < 1) throw new ArgumentOutOfRangeException(nameof(matchLimit));
         if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
         var samplesByName = new Dictionary<string, List<(string Path, long Length, string? Hash)>>(StringComparer.OrdinalIgnoreCase);
@@ -35,8 +35,8 @@ public static class IdenticalImages
         {
             ct.ThrowIfCancellationRequested();
             ValidatePath(root, sample);
-            if (FolderScanner.GetMediaKind(sample) != MediaKind.Image) throw new ArgumentException("样本只能包含图片。");
-            var version = FileVersion.Read(sample) ?? throw new IOException("样本不可读取。");
+            if (FolderScanner.GetMediaKind(sample) != MediaKind.Image) throw new ArgumentException(AppText.Get("SamplesMustBeImages"));
+            var version = FileVersion.Read(sample) ?? throw new IOException(AppText.Get("CouldNotReadTheSample"));
             string? hash = null;
             if (mode == IdenticalImageMatchMode.NameSizeContent)
             {
@@ -89,7 +89,7 @@ public static class IdenticalImages
                     }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { skipped++; }
                     if (clock.ElapsedMilliseconds >= 150)
-                    { progress?.Report($"已检查 {examined:N0} 张图片，找到 {matches.Count:N0} 项"); clock.Restart(); }
+                    { progress?.Report(AppText.Format("CheckedImagesFoundItemsb53f0a", examined, matches.Count)); clock.Restart(); }
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { skipped++; }
@@ -112,11 +112,11 @@ public static class IdenticalImages
 
     private static async Task<(FileVersion Version, string Hash)> FingerprintAsync(string path, CancellationToken ct)
     {
-        var before = FileVersion.Read(path) ?? throw new IOException("文件不可读取。");
+        var before = FileVersion.Read(path) ?? throw new IOException(AppText.Get("CouldNotReadTheFile"));
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
         var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, ct));
-        if (FileVersion.Read(path) != before) throw new IOException("文件在读取期间发生变化。");
+        if (FileVersion.Read(path) != before) throw new IOException(AppText.Get("TheFileChangedWhileBeingRead"));
         return (before, hash);
     }
 
@@ -126,9 +126,9 @@ public static class IdenticalImages
         path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
         string prefix = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
         if (!path.Equals(root, StringComparison.OrdinalIgnoreCase) && !path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            throw new IOException("文件不在本次扫描范围内。");
+            throw new IOException(AppText.Get("TheFileIsOutsideTheSearchLocation"));
         for (string? current = path; current is not null; current = Path.GetDirectoryName(current))
             if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
-                throw new IOException("不扫描联接或符号链接，请打开实际目录。");
+                throw new IOException(AppText.Get("JunctionsAndSymbolicLinksAreNotSearchedOpenThe"));
     }
 }

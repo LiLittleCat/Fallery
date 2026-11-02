@@ -1,6 +1,7 @@
 <UserControl
     x:Class="Fallery.Controls.MediaTile"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:controls="using:Fallery.Controls"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" IsTabStop="True"
     PointerEntered="Tile_PointerEntered" PointerExited="Tile_PointerExited"
     PointerMoved="Tile_PointerMoved"
@@ -75,13 +76,13 @@
         <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition x:Name="CaptionRow" Height="22" /></Grid.RowDefinitions>
         <Border x:Name="HoverOverlay" Grid.RowSpan="2" Margin="-5" CornerRadius="7" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                 Visibility="Collapsed" IsHitTestVisible="False" />
-        <TextBlock x:Name="FailureText" Text="无法加载预览" Visibility="Collapsed"
+        <TextBlock x:Name="FailureText"  Visibility="Collapsed"
                    Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12"
                    TextWrapping="Wrap" TextAlignment="Center" MaxWidth="180"
-                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-        <TextBlock x:Name="LoadingText" Text="正在加载预览…" Visibility="Collapsed"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"  controls:Localization.Keys="Text=CouldNotLoadPreview"/>
+        <TextBlock x:Name="LoadingText"  Visibility="Collapsed"
                    Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12"
-                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                   HorizontalAlignment="Center" VerticalAlignment="Center"  controls:Localization.Keys="Text=LoadingPreview"/>
         <Border CornerRadius="4"><Image x:Name="PreviewImage" Stretch="UniformToFill" /></Border>
         <FontIcon x:Name="AudioPlaceholder" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconAudio}"
                   Visibility="Collapsed" FontSize="48" Foreground="{ThemeResource TextFillColorSecondaryBrush}" IsHitTestVisible="False" />

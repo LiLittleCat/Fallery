@@ -16,37 +16,37 @@ public sealed partial class MainWindow
         string Value(string label) => allRows.FirstOrDefault(row => row.Label == label).Value ?? "";
         bool video = ViewerState.CurrentItem?.IsVideo == true;
         bool audio = ViewerState.CurrentItem?.IsAudio == true;
-        string type = details.Format + (audio ? " 音频" : video ? " 视频" : " 图片");
+        string type = details.Format + (audio ? AppText.Get("Audioc69086") : video ? AppText.Get("Video") : AppText.Get("Image"));
 
         var basic = new List<(string Label, string Value)>
         {
-            ("文件名", Value("文件名")),
-            ("文件类型", type),
-            ("文件大小", $"{details.Size}（{details.Length:N0} 字节）"),
-            ("创建时间", Value("创建日期")),
-            ("修改时间", Value("修改日期")),
-            ("文件位置", Value("文件夹")),
+            (AppText.Get("FileName"), Value(AppText.Get("FileName"))),
+            (AppText.Get("FileType"), type),
+            (AppText.Get("FileSize"), AppText.Format("Bytescf041f", details.Size, details.Length)),
+            (AppText.Get("DateCreated"), Value(AppText.Get("DateCreated07aa0e"))),
+            (AppText.Get("DateModified"), Value(AppText.Get("DateModified2cbced"))),
+            (AppText.Get("FileLocation"), Value(AppText.Get("Folder"))),
         };
-        AddDetailsCard("基本信息", "IconInfo", basic, fileActions: true);
+        AddDetailsCard(AppText.Get("BasicInformation"), "IconInfo", basic, fileActions: true);
 
-        var media = details.Groups.Where(group => group.Group == (audio ? "音频" : video ? "视频" : "图像"))
+        var media = details.Groups.Where(group => group.Group == (audio ? AppText.Get("Audio") : video ? AppText.Get("Videos") : AppText.Get("Image37e4e4")))
             .SelectMany(group => group.Rows).ToList();
         if (details.Width > 0 && details.Height > 0)
         {
             uint a = details.Width, b = details.Height;
             while (b != 0) (a, b) = (b, a % b);
-            media.Add(("宽高比", $"{details.Width / a}:{details.Height / a}"));
+            media.Add((AppText.Get("AspectRatio"), $"{details.Width / a}:{details.Height / a}"));
         }
-        AddDetailsCard(audio ? "音频信息" : video ? "视频信息" : "图像信息", audio ? "IconAudio" : video ? "IconVideo" : "IconImage", media);
+        AddDetailsCard(audio ? AppText.Get("AudioInformation") : video ? AppText.Get("VideoInformation") : AppText.Get("ImageInformation"), audio ? "IconAudio" : video ? "IconVideo" : "IconImage", media);
         if (audio)
         {
-            AudioTitle.Text = Value("标题") is { Length: > 0 } title ? title : ViewerState.CurrentItem!.Name;
-            AudioSubtitle.Text = string.Join(" · ", new[] { Value("艺术家"), Value("专辑") }.Where(value => value.Length > 0));
+            LiveText.Set(AudioTitle, "Text", localized => localized.Text = Value(AppText.Get("Title")) is { Length: > 0 } title ? title : ViewerState.CurrentItem!.Name);
+            LiveText.Set(AudioSubtitle, "Text", localized => localized.Text = string.Join(" · ", new[] { Value(AppText.Get("Artist")), Value(AppText.Get("Album")) }.Where(value => value.Length > 0)));
         }
-        foreach (var (group, rows) in details.Groups.Where(group => group.Group == "拍摄"))
-            AddDetailsCard("拍摄信息", "IconSortTaken", rows);
-        foreach (var (group, rows) in details.Groups.Where(group => group.Group == "地理位置"))
-            AddDetailsCard("地理位置", "IconInfo", rows);
+        foreach (var (group, rows) in details.Groups.Where(group => group.Group == AppText.Get("Camera")))
+            AddDetailsCard(AppText.Get("CameraInformation"), "IconSortTaken", rows);
+        foreach (var (group, rows) in details.Groups.Where(group => group.Group == AppText.Get("Location")))
+            AddDetailsCard(AppText.Get("Location"), "IconInfo", rows);
     }
 
     private TextBlock DetailsValue(string text) => new()
@@ -65,8 +65,8 @@ public sealed partial class MainWindow
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, -4, -4, -4),
         };
-        AutomationProperties.SetName(button, label);
-        ToolTipService.SetToolTip(button, label);
+        LiveText.SetOnce(button, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, label));
+        LiveText.SetOnce(button, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, label));
         button.Click += handler;
         return button;
     }
@@ -97,8 +97,8 @@ public sealed partial class MainWindow
             row.Children.Add(text);
             Button? action = fileActions ? label switch
             {
-                "文件名" => DetailsAction("DetailsRevealButton", "IconOpenFolder", "打开所在位置", DetailsReveal_Click),
-                "文件位置" => DetailsAction("DetailsCopyPathButton", "IconCopy", "复制完整文件路径", DetailsCopyPath_Click),
+                var name when name == AppText.Get("FileName") => DetailsAction("DetailsRevealButton", "IconOpenFolder", AppText.Get("OpenFileLocation"), DetailsReveal_Click),
+                var location when location == AppText.Get("FileLocation") => DetailsAction("DetailsCopyPathButton", "IconCopy", AppText.Get("CopyFullFilePath"), DetailsCopyPath_Click),
                 _ => null,
             } : null;
             if (action is not null)

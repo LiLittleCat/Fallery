@@ -1,3 +1,5 @@
+using Fallery.Controls;
+using Fallery.Services;
 using Microsoft.UI.Input;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -52,20 +54,21 @@ public sealed partial class MainWindow
         try
         {
             int irreversible = targets.Count(target => permanent || !SupportsRecycleBin(target.Path));
-            string question = irreversible == 0 ? $"将选中的 {targets.Count} 项放入回收站？"
-                : $"删除选中的 {targets.Count} 项？其中 {irreversible} 项将永久删除，无法从回收站恢复。";
+            string question = irreversible == 0 ? AppText.Format("MoveTheSelectedItemsToTheRecycleBin", targets.Count)
+                : AppText.Format("DeleteTheSelectedItemsItemsWillBePermanentlyDeleted", targets.Count, irreversible);
             var content = new StackPanel { Spacing = 10, MaxWidth = 420 };
             content.Children.Add(new TextBlock { Text = question, TextWrapping = TextWrapping.Wrap });
-            content.Children.Add(new TextBlock
+            content.Children.Add(LiveText.Set(new TextBlock
             {
                 Text = string.Join("\n", targets.Take(6).Select(target => System.IO.Path.GetFileName(target.Path)))
-                    + (targets.Count > 6 ? $"\n…共 {targets.Count} 项" : ""), TextWrapping = TextWrapping.Wrap
-            });
-            var dialog = new ContentDialog
+                    + (targets.Count > 6 ? AppText.Format("ItemsInTotal", targets.Count) : ""), TextWrapping = TextWrapping.Wrap
+            }, "Text", localized => localized.Text = string.Join("\n", targets.Take(6).Select(target => System.IO.Path.GetFileName(target.Path)))
+                    + (targets.Count > 6 ? AppText.Format("ItemsInTotal", targets.Count) : "")));
+            var dialog = LiveText.Set(LiveText.Set(LiveText.Set(new ContentDialog
             {
-                XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = "删除选中项目", Content = content,
-                PrimaryButtonText = "是", CloseButtonText = "否", DefaultButton = ContentDialogButton.Close
-            };
+                XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = AppText.Get("DeleteSelectedItems"), Content = content,
+                PrimaryButtonText = AppText.Get("Yes"), CloseButtonText = AppText.Get("No"), DefaultButton = ContentDialogButton.Close
+            }, "Title", localized => localized.Title = AppText.Get("DeleteSelectedItems")), "PrimaryButtonText", localized => localized.PrimaryButtonText = AppText.Get("Yes")), "CloseButtonText", localized => localized.CloseButtonText = AppText.Get("No"));
             if (await dialog.ShowAsync() != ContentDialogResult.Primary || _closed) return;
             string? folder = GalleryState.CurrentFolder;
             double vertical = GalleryScroller.VerticalOffset, horizontal = GalleryScroller.HorizontalOffset;
@@ -104,9 +107,9 @@ public sealed partial class MainWindow
                 else if (deletingViewed) CloseViewer();
             }
             string syncWarning = await SynchronizeDeletedDataAsync(deleted, deletedVersions);
-            GalleryState.Status = $"已删除 {deleted.Count} 项" + (failures.Count > 0 ? $"，{failures.Count} 项失败：{failures[0]}" : "") + syncWarning;
+            GalleryState.Status = AppText.Format("DeletedItems", deleted.Count) + (failures.Count > 0 ? AppText.Format("ItemsFailed", failures.Count, failures[0]) : "") + syncWarning;
         }
-        catch (Exception ex) { if (!_closed) GalleryState.Status = $"删除失败：{ex.Message}"; }
+        catch (Exception ex) { if (!_closed) GalleryState.Status = AppText.Format("DeleteFailed", ex.Message); }
         finally { _deleting = _deleteSelectionReady = false; _deleteStartedInTree = false; }
     }
 
@@ -134,10 +137,10 @@ public sealed partial class MainWindow
         try
         {
             bool recycle = !permanent && SupportsRecycleBin(path);
-            string kind = folder ? "文件夹" : "文件";
-            string question = recycle ? $"确实要把此{kind}放入回收站吗？"
-                : permanent ? $"确实要永久删除此{kind}吗？"
-                : $"此位置不支持回收站，{kind}将被永久删除。确实要删除吗？";
+            string kind = folder ? AppText.Get("Folder") : AppText.Get("File");
+            string question = recycle ? AppText.Format("MoveThisToTheRecycleBin", kind)
+                : permanent ? AppText.Format("PermanentlyDeleteThis", kind)
+                : AppText.Format("ThisLocationDoesNotSupportTheRecycleBinThe", kind);
             var content = new StackPanel { Spacing = 8, MaxWidth = 420 };
             content.Children.Add(new TextBlock { Text = question, TextWrapping = TextWrapping.Wrap });
             content.Children.Add(new TextBlock
@@ -150,11 +153,11 @@ public sealed partial class MainWindow
                 Text = System.IO.Path.GetDirectoryName(path), FontSize = 12, TextWrapping = TextWrapping.Wrap,
                 Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
             });
-            var dialog = new ContentDialog
+            var dialog = LiveText.Set(LiveText.Set(LiveText.Set(new ContentDialog
             {
-                XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = recycle ? $"删除{kind}" : $"永久删除{kind}",
-                Content = content, PrimaryButtonText = "是", CloseButtonText = "否", DefaultButton = ContentDialogButton.Primary,
-            };
+                XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = recycle ? AppText.Format("Delete17d18e", kind) : AppText.Format("PermanentlyDelete", kind),
+                Content = content, PrimaryButtonText = AppText.Get("Yes"), CloseButtonText = AppText.Get("No"), DefaultButton = ContentDialogButton.Primary,
+            }, "Title", localized => localized.Title = recycle ? AppText.Format("Delete17d18e", kind) : AppText.Format("PermanentlyDelete", kind)), "PrimaryButtonText", localized => localized.PrimaryButtonText = AppText.Get("Yes")), "CloseButtonText", localized => localized.CloseButtonText = AppText.Get("No"));
             if (await dialog.ShowAsync() != ContentDialogResult.Primary || _closed) return;
 
             // 查看器正在显示或播放的文件需要先释放占用，否则删除会因文件被锁定而失败。
@@ -170,12 +173,12 @@ public sealed partial class MainWindow
             await DeletePathAsync(path, folder, recycle);
             await AfterDeleteAsync(path, folder, viewerIndex);
             string syncWarning = await SynchronizeDeletedDataAsync([path], deletedVersion is { } version ? [version] : []);
-            GalleryState.Status = (recycle ? $"已移到回收站：{System.IO.Path.GetFileName(path)}" : $"已永久删除：{System.IO.Path.GetFileName(path)}") + syncWarning;
+            GalleryState.Status = (recycle ? AppText.Format("MovedToRecycleBin", System.IO.Path.GetFileName(path)) : AppText.Format("PermanentlyDeleted", System.IO.Path.GetFileName(path))) + syncWarning;
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            if (!_closed) GalleryState.Status = $"删除失败：{ex.Message}";
+            if (!_closed) GalleryState.Status = AppText.Format("DeleteFailed", ex.Message);
         }
         finally { _deleting = _deleteSelectionReady = false; _deleteStartedInTree = false; }
     }

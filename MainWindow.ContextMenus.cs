@@ -1,3 +1,4 @@
+using Fallery.Services;
 using Fallery.Controls;
 using Fallery.Models;
 using Microsoft.UI.Xaml;
@@ -129,14 +130,16 @@ public sealed partial class MainWindow
                 _ => "IconRefresh",
             };
             var entry = new MenuFlyoutItem { Text = text, Tag = key, Icon = icon is null ? null : FluentIcons.Create(icon) };
+            string textLanguage = AppText.Language;
+            LiveText.Set(entry, "Text", localized => localized.Text = AppText.TranslateStatus(text, textLanguage));
             entry.Click += async (_, _) =>
             {
                 try { await action(); }
-                catch (Exception ex) { if (!_closed) GalleryState.Status = $"操作失败：{ex.Message}"; }
+                catch (Exception ex) { if (!_closed) GalleryState.Status = AppText.Format("OperationFailed", ex.Message); }
             };
             menu.Items.Add(entry);
         }
-        if (node is null && !multiple) Add(folder ? "打开文件夹" : "打开", "open", async () =>
+        if (node is null && !multiple) Add(folder ? AppText.Get("OpenFolder") : AppText.Get("Open"), "open", async () =>
         {
             if (folder) await NavigateAsync(path);
             else
@@ -148,55 +151,55 @@ public sealed partial class MainWindow
         bool openFolderInWindow = folder && !multiple && (node is not null || allowDelete);
         string? windowPath = openFolderInWindow ? path : GalleryState.CurrentFolder
             ?? (folder ? path : System.IO.Path.GetDirectoryName(path));
-        Add(openFolderInWindow ? "在新窗口中打开" : "新建窗口", "new-window",
+        Add(openFolderInWindow ? AppText.Get("OpenInNewWindow") : AppText.Get("NewWindow"), "new-window",
             () => { RequestNewWindow(windowPath); return Task.CompletedTask; });
         if (!openFolderInWindow) ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+N";
         if (node is not null)
         {
-            Add("排除此文件夹", "exclude", () => { ExcludeTreeFolder(path); return Task.CompletedTask; });
-            Add(node.IsExpanded ? "折叠" : "展开", "expand", async () =>
+            Add(AppText.Get("ExcludeThisFolder"), "exclude", () => { ExcludeTreeFolder(path); return Task.CompletedTask; });
+            Add(node.IsExpanded ? AppText.Get("Collapse") : AppText.Get("Expand"), "expand", async () =>
             {
                 if (node.IsExpanded) node.IsExpanded = false;
                 else { await EnsureChildrenLoadedAsync(node); node.IsExpanded = true; }
             });
         }
-        if (!multiple) Add("在资源管理器中定位", "reveal", () => RevealPathAsync(path, folder));
+        if (!multiple) Add(AppText.Get("ShowInFileExplorer"), "reveal", () => RevealPathAsync(path, folder));
         if (node is null && allowDelete && CanFindIdenticalImages(targets))
-            Add("查找并清理相同图片", "identical-images", () => FindIdenticalImagesAsync(targets));
+            Add(AppText.Get("FindAndRemoveIdenticalImages"), "identical-images", () => FindIdenticalImagesAsync(targets));
         menu.Items.Add(new MenuFlyoutSeparator());
-        Add("复制完整路径", "copy-path", () =>
+        Add(AppText.Get("CopyFullPath"), "copy-path", () =>
         {
             var data = new DataPackage();
             data.SetText(string.Join(Environment.NewLine, targets.Select(target => target.Path)));
             Clipboard.SetContent(data);
             Clipboard.Flush();
-            GalleryState.Status = "已复制完整路径";
+            GalleryState.Status = AppText.Get("FullPathCopied");
             return Task.CompletedTask;
         });
-        Add(multiple ? $"复制 {targets.Length} 项" : folder ? "复制文件夹" : "复制文件", "copy-file", () => CopyFilesAsync(targets));
+        Add(multiple ? AppText.Format("CopyItems", targets.Length) : folder ? AppText.Get("CopyFolder") : AppText.Get("CopyFile"), "copy-file", () => CopyFilesAsync(targets));
         ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+C";
         if (allowDelete && System.IO.Path.GetDirectoryName(System.IO.Path.TrimEndingDirectorySeparator(path)) is not null)
         {
-            Add(multiple ? $"剪切 {targets.Length} 项" : "剪切", "cut", () => CopyFilesAsync(targets, true));
+            Add(multiple ? AppText.Format("CutItems", targets.Length) : AppText.Get("Cut"), "cut", () => CopyFilesAsync(targets, true));
             ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+X";
             if (!multiple && (!ViewerState.IsOpen || IsFilmstrip))
             {
-                Add("重命名", "rename", () => RenameItemAsync(path, folder));
+                Add(AppText.Get("Rename"), "rename", () => RenameItemAsync(path, folder));
                 ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "F2";
             }
         }
         if (folder && !multiple)
         {
-            Add("新建文件夹", "new-folder", () => ShowNewFolderDialogAsync(path));
+            Add(AppText.Get("NewFolder"), "new-folder", () => ShowNewFolderDialogAsync(path));
             if (string.Equals(path, GalleryState.CurrentFolder, StringComparison.OrdinalIgnoreCase))
                 ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+Shift+N";
         }
         string? destination = multiple ? GalleryState.CurrentFolder : folder ? path : System.IO.Path.GetDirectoryName(path);
-        Add("粘贴", "paste", () => destination is null ? Task.CompletedTask : PasteFilesAsync(destination));
+        Add(AppText.Get("Paste"), "paste", () => destination is null ? Task.CompletedTask : PasteFilesAsync(destination));
         ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Ctrl+V";
         ((MenuFlyoutItem)menu.Items[^1]).IsEnabled = destination is not null && !_pasting && ClipboardHasFiles();
         if (folder && !multiple)
-            Add("刷新此目录", "refresh", async () =>
+            Add(AppText.Get("RefreshFolder"), "refresh", async () =>
             {
                 if (node is not null)
                 {
@@ -212,7 +215,7 @@ public sealed partial class MainWindow
             && !string.Equals(System.IO.Path.TrimEndingDirectorySeparator(path), System.IO.Path.TrimEndingDirectorySeparator(root), StringComparison.OrdinalIgnoreCase))
         {
             menu.Items.Add(new MenuFlyoutSeparator());
-            Add(multiple ? $"删除 {targets.Length} 项" : "删除", "delete", () => DeleteSelectionWithConfirmationAsync(targets, IsShiftDown()));
+            Add(multiple ? AppText.Format("DeleteItems", targets.Length) : AppText.Get("Delete"), "delete", () => DeleteSelectionWithConfirmationAsync(targets, IsShiftDown()));
             ((MenuFlyoutItem)menu.Items[^1]).KeyboardAcceleratorTextOverride = "Delete";
         }
         return menu;
@@ -223,13 +226,13 @@ public sealed partial class MainWindow
         string? parent = System.IO.Path.GetDirectoryName(System.IO.Path.TrimEndingDirectorySeparator(path));
         if (parent is null)
         {
-            if (!await Launcher.LaunchFolderPathAsync(path)) throw new IOException("无法打开资源管理器。");
+            if (!await Launcher.LaunchFolderPathAsync(path)) throw new IOException(AppText.Get("CouldNotOpenFileExplorer"));
             return;
         }
         var directory = await StorageFolder.GetFolderFromPathAsync(parent);
         IStorageItem item = folder ? await StorageFolder.GetFolderFromPathAsync(path) : await StorageFile.GetFileFromPathAsync(path);
         var options = new FolderLauncherOptions();
         options.ItemsToSelect.Add(item);
-        if (!await Launcher.LaunchFolderAsync(directory, options)) throw new IOException("无法打开资源管理器。");
+        if (!await Launcher.LaunchFolderAsync(directory, options)) throw new IOException(AppText.Get("CouldNotOpenFileExplorer"));
     }
 }

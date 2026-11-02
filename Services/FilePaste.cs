@@ -33,13 +33,13 @@ public static class FilePaste
             ct.ThrowIfCancellationRequested();
             path = Path.GetFullPath(path);
             if (Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(path)) is null)
-                throw new IOException("不能复制或移动磁盘根目录。");
+                throw new IOException(AppText.Get("CannotCopyOrMoveADriveRoot"));
             bool folder = await Task.Run(() =>
             {
                 RejectLinkedParents(path);
                 bool isFolder = (File.GetAttributes(path) & FileAttributes.Directory) != 0;
                 if (isFolder && IsSameOrChild(into.Path, path))
-                    throw new IOException("不能把文件夹粘贴到自身或它的子文件夹中。");
+                    throw new IOException(AppText.Get("CannotPasteAFolderIntoItselfOrOneOf"));
                 return isFolder;
             }, ct);
             string name = Path.GetFileName(path);
@@ -54,7 +54,7 @@ public static class FilePaste
                 if (choice == FileConflictChoice.Cancel) throw new OperationCanceledException();
                 if (choice == FileConflictChoice.Skip) { skipped++; return (null, false); }
                 if (choice == FileConflictChoice.Replace && folder != (existing is StorageFolder))
-                    throw new IOException("文件与文件夹类型不同，不能替换，请跳过或保留两者。");
+                    throw new IOException(AppText.Get("AFileCannotReplaceAFolderOrViceVersa"));
                 await Task.Run(() => RejectLinkedParents(existing.Path), ct);
             }
             ct.ThrowIfCancellationRequested();
@@ -120,6 +120,6 @@ public static class FilePaste
     {
         for (string? current = path; current is not null; current = Path.GetDirectoryName(current))
             if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
-                throw new IOException("暂不支持通过联接或符号链接复制粘贴，请打开实际文件夹后重试。");
+                throw new IOException(AppText.Get("CopyingThroughJunctionsOrSymbolicLinksIsNotSupported"));
     }
 }

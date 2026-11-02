@@ -125,6 +125,7 @@ public sealed partial class MainWindow
         VideoWindowDefaultsApplied = _videoWindowDefaultsApplied,
         LastFolder = GalleryState.CurrentFolder ?? _lastFolderToRestore,
         Theme = _themeIndex,
+        Language = AppText.Language,
         BackgroundOpacity = _backgroundOpacity,
         ThumbnailSize = ThumbSize.Value,
         SidebarWidth = _sidebarVisible ? SidebarColumn.ActualWidth : _sidebarWidth,
@@ -162,7 +163,7 @@ public sealed partial class MainWindow
         _settingsTimer.Stop();
         if (_closed || _closing) return;
         if (!await _settingsStore.SaveAsync(CaptureSettings()) && !_closed && !_closing)
-            GalleryState.Status = "无法保存设置，请检查用户目录的写入权限。";
+            GalleryState.Status = AppText.Get("CouldNotSaveSettingsCheckWriteAccessToYour");
     }
 
     private void FolderTree_SizeChanged(object sender, SizeChangedEventArgs e) => QueueSettingsSave();
@@ -258,13 +259,13 @@ public sealed partial class MainWindow
         if (_gesturePointer?.PointerId != e.Pointer.PointerId) return;
         string? label = GetGesture(e) switch
         {
-            NavigationAction.Parent => "上级目录",
-            NavigationAction.Back => "后退",
-            NavigationAction.Previous => "上一个媒体目录",
-            NavigationAction.Next => "下一个媒体目录",
+            NavigationAction.Parent => AppText.Get("ParentFolder"),
+            NavigationAction.Back => AppText.Get("Back"),
+            NavigationAction.Previous => AppText.Get("PreviousMediaFolder"),
+            NavigationAction.Next => AppText.Get("NextMediaFolder"),
             _ => null,
         };
-        GalleryState.Status = label is null ? _statusBeforeGesture : $"手势：{label}（松开执行，Esc 取消）";
+        GalleryState.Status = label is null ? _statusBeforeGesture : AppText.Format("GestureReleaseToApplyEscToCancel", label);
         e.Handled = true;
     }
 

@@ -1,3 +1,4 @@
+using Fallery.Controls;
 using Fallery.Models;
 using Fallery.Services;
 using Fallery.Services.Playback;
@@ -47,7 +48,7 @@ public sealed partial class MainWindow
         if (_motionClip is not { } clip || _closed || _closing || _motionPlaybackCts is not null) return;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(_motionPhotoToken, _lifetimeCts.Token);
         _motionPlaybackCts = cts;
-        MotionPhotoText.Text = "正在加载…";
+        LiveText.Set(MotionPhotoText, "Text", localized => localized.Text = AppText.Get("Loading"));
         ViewerState.Message = "";
         string? temporary = null;
         try
@@ -74,8 +75,8 @@ public sealed partial class MainWindow
                     if (!ReferenceEquals(_motionPlayer, player)) return;
                     ImageScroller.Opacity = 0;
                     MotionVideo.Opacity = 1;
-                    MotionPhotoText.Text = "停止实况";
-                    AutomationProperties.SetName(MotionPhotoButton, "停止实况，返回照片");
+                    LiveText.Set(MotionPhotoText, "Text", localized => localized.Text = AppText.Get("StopMotion"));
+                    LiveText.Set(MotionPhotoButton, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, AppText.Get("StopMotionAndReturnToPhoto")));
                     player.Play();
                 }
                 catch (OperationCanceledException) { }
@@ -93,7 +94,7 @@ public sealed partial class MainWindow
         catch (Exception ex)
         {
             if (!_closed && !cts.IsCancellationRequested && ReferenceEquals(_motionPlaybackCts, cts))
-                ViewerState.Message = $"无法播放实况，Windows 可能缺少对应的视频解码器。\n{ex.Message}";
+                ViewerState.Message = AppText.Format("CouldNotPlayTheMotionPhotoWindowsMayBe", ex.Message);
         }
         finally
         {
@@ -113,8 +114,8 @@ public sealed partial class MainWindow
         MotionSurface.Visibility = Visibility.Collapsed;
         MotionVideo.Opacity = 0;
         ImageScroller.Opacity = 1;
-        MotionPhotoText.Text = "实况";
-        AutomationProperties.SetName(MotionPhotoButton, "播放实况照片");
+        LiveText.Set(MotionPhotoText, "Text", localized => localized.Text = AppText.Get("Motion"));
+        LiveText.Set(MotionPhotoButton, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, AppText.Get("PlayMotionPhoto")));
         if (_motionTemporaryFile is { } path) _ = MotionPhoto.DeleteTemporaryAsync(path);
         _motionTemporaryFile = null;
     }
@@ -143,8 +144,8 @@ public sealed partial class MainWindow
     {
         bool silent = (_motionMuted ?? _muted) || (_motionVolume ?? _volume) == 0;
         MotionSoundIcon.Glyph = Controls.FluentIcons.Glyph(silent ? "IconMute" : "IconVolume");
-        string label = silent ? "开启实况声音" : "关闭实况声音";
-        ToolTipService.SetToolTip(MotionSoundButton, label);
-        AutomationProperties.SetName(MotionSoundButton, label);
+        string label = silent ? AppText.Get("UnmuteMotionPhoto") : AppText.Get("MuteMotionPhoto");
+        LiveText.SetOnce(MotionSoundButton, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, label));
+        LiveText.SetOnce(MotionSoundButton, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, label));
     }
 }

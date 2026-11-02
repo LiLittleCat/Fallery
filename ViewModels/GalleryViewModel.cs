@@ -17,6 +17,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _sortCts;
     private int _sortVersion;
     private bool _disposed;
+    private string? _summaryStatus;
     public event Action? ItemsChanging;
     public event Action? ItemsChanged;
     public event Action? LayoutInvalidated;
@@ -32,7 +33,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(CanGoUp))]
     public partial string? CurrentFolder { get; set; }
     [ObservableProperty]
-    public partial string Status { get; set; } = "在左侧选择一个文件夹";
+    public partial string Status { get; set; } = AppText.Get("SelectAFolderOnTheLeft");
     [ObservableProperty]
     public partial MediaSortField SortField { get; set; }
     [ObservableProperty]
@@ -87,7 +88,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
         _loadCts = cts;
         PendingFolder = folder;
         IsScanning = true;
-        Status = $"正在扫描：{folder}";
+        Status = AppText.Format("Scanning", folder);
         try
         {
             var filter = Filter;
@@ -100,7 +101,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
                 bool descending = Descending;
                 if (field == MediaSortField.Taken)
                 {
-                    Status = "正在读取拍摄日期…";
+                    Status = AppText.Get("ReadingDatesTaken");
                     files = await MediaDates.ReadAsync(files, cts.Token);
                 }
                 files = await Task.Run(() => MediaSorter.Sort(files, f => f, field, descending), cts.Token);
@@ -154,7 +155,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
         catch (OperationCanceledException) { return false; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            if (!cts.IsCancellationRequested && !_disposed) Status = $"无法打开这个文件夹：{ex.Message}";
+            if (!cts.IsCancellationRequested && !_disposed) Status = AppText.Format("CouldNotOpenThisFolder", ex.Message);
             return false;
         }
         finally
@@ -234,7 +235,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
             var metadata = original.Select(item => item.File).ToList();
             if (field == MediaSortField.Taken)
             {
-                Status = "正在读取拍摄日期…";
+                Status = AppText.Get("ReadingDatesTaken");
                 metadata = await MediaDates.ReadAsync(metadata, cts.Token);
             }
             var byPath = metadata.ToDictionary(file => file.Path, StringComparer.OrdinalIgnoreCase);
@@ -256,12 +257,20 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
         int photos = MediaItems.Count - videos - audio;
         int folders = Items.Count - MediaItems.Count;
         List<string> counts = [];
-        if (folders > 0) counts.Add($"{folders} 个文件夹");
-        if (photos > 0) counts.Add($"{photos} 张图片");
-        if (videos > 0) counts.Add($"{videos} 个视频");
-        if (audio > 0) counts.Add($"{audio} 个音频");
-        string filter = Filter switch { MediaFilter.Photos => "仅图片 · ", MediaFilter.Videos => "仅视频 · ", MediaFilter.Audio => "仅音频 · ", _ => "" };
-        Status = filter + (counts.Count > 0 ? string.Join(" · ", counts) : "没有可显示的项目");
+        if (folders > 0) counts.Add(AppText.Format("Folders", folders));
+        if (photos > 0) counts.Add(AppText.Format("Photosbe064e", photos));
+        if (videos > 0) counts.Add(AppText.Format("Videos74d879", videos));
+        if (audio > 0) counts.Add(AppText.Format("AudioFiles", audio));
+        string filter = Filter switch { MediaFilter.Photos => AppText.Get("PhotosOnly"), MediaFilter.Videos => AppText.Get("VideosOnly"), MediaFilter.Audio => AppText.Get("AudioOnly"), _ => "" };
+        Status = filter + (counts.Count > 0 ? string.Join(" · ", counts) : AppText.Get("NoItemsToDisplay"));
+        _summaryStatus = Status;
+    }
+
+    public void RefreshLanguage(string previousLanguage)
+    {
+        if (_disposed) return;
+        if (!IsScanning && CurrentFolder is not null && Status == _summaryStatus) UpdateStatus();
+        else Status = AppText.TranslateStatus(Status, previousLanguage);
     }
 
     public async Task<string?> FindAdjacentAsync(bool forward)
@@ -271,7 +280,7 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         _searchCts = cts;
         string current = CurrentFolder;
-        Status = "正在查找含图片或视频的目录…（Esc 取消）";
+        Status = AppText.Get("FindingAFolderWithPhotosOrVideosEscTo");
         try
         {
             var filter = Filter;
@@ -279,12 +288,12 @@ public sealed partial class GalleryViewModel : ObservableObject, IDisposable
             var target = await Task.Run(() => FolderNavigator.FindAdjacent(current, forward, cts.Token, filter: filter, showHidden: showHidden), cts.Token);
             cts.Token.ThrowIfCancellationRequested();
             if (_disposed) return null;
-            if (target is null) Status = forward ? "已经是最后一个媒体目录" : "已经是第一个媒体目录";
+            if (target is null) Status = forward ? AppText.Get("AlreadyAtTheLastMediaFolder") : AppText.Get("AlreadyAtTheFirstMediaFolder");
             return target;
         }
         catch (OperationCanceledException)
         {
-            if (!_disposed && ReferenceEquals(_searchCts, cts)) Status = "目录查找已取消或超时";
+            if (!_disposed && ReferenceEquals(_searchCts, cts)) Status = AppText.Get("FolderSearchCanceledOrTimedOut");
             return null;
         }
         catch (IOException ex)

@@ -41,10 +41,10 @@ public static class MediaDetailsReader
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-        var file = new List<(string, string)> { ("文件名", info.Name), ("格式", FormatOf(path)), ("大小", FormatSize(length)) };
-        if (modified is { } m) file.Add(("修改日期", m.ToString("yyyy年M月d日 HH:mm", CultureInfo.CurrentCulture)));
-        if (created is { } c) file.Add(("创建日期", c.ToString("yyyy年M月d日 HH:mm", CultureInfo.CurrentCulture)));
-        return new(FormatOf(path), 0, 0, length, [("文件", file), ("位置", [("文件夹", info.DirectoryName ?? "")])]);
+        var file = new List<(string, string)> { (AppText.Get("FileName"), info.Name), (AppText.Get("Format"), FormatOf(path)), (AppText.Get("Size"), FormatSize(length)) };
+        if (modified is { } m) file.Add((AppText.Get("DateModified2cbced"), m.ToString(AppText.Get("MMMDYyyyHHMm"), AppText.Culture)));
+        if (created is { } c) file.Add((AppText.Get("DateCreated07aa0e"), c.ToString(AppText.Get("MMMDYyyyHHMm"), AppText.Culture)));
+        return new(FormatOf(path), 0, 0, length, [(AppText.Get("File"), file), (AppText.Get("Location1fb4d5"), [(AppText.Get("Folder"), info.DirectoryName ?? "")])]);
     }
 
     /// <summary>读取分辨率、拍摄参数或视频时长等，失败时保留基础信息。</summary>
@@ -59,16 +59,16 @@ public static class MediaDetailsReader
                 var music = await file.Properties.GetMusicPropertiesAsync().AsTask(ct);
                 var extra = await file.Properties.RetrievePropertiesAsync(new[] { "System.Audio.SampleRate", "System.Audio.ChannelCount" }).AsTask(ct);
                 var rows = new List<(string, string)>();
-                if (!string.IsNullOrWhiteSpace(music.Title)) rows.Add(("标题", music.Title));
-                if (!string.IsNullOrWhiteSpace(music.Artist)) rows.Add(("艺术家", music.Artist));
-                if (!string.IsNullOrWhiteSpace(music.Album)) rows.Add(("专辑", music.Album));
-                if (music.Duration > TimeSpan.Zero) rows.Add(("时长", music.Duration.TotalHours >= 1 ? music.Duration.ToString(@"h\:mm\:ss") : music.Duration.ToString(@"m\:ss")));
-                if (music.Bitrate > 0) rows.Add(("码率", $"{music.Bitrate / 1000.0:N0} kbps"));
-                if (music.TrackNumber > 0) rows.Add(("曲目", music.TrackNumber.ToString()));
-                if (music.Year > 0) rows.Add(("年份", music.Year.ToString()));
-                if (extra.TryGetValue("System.Audio.SampleRate", out var sample) && sample is uint hz && hz > 0) rows.Add(("采样率", $"{hz / 1000.0:0.#} kHz"));
-                if (extra.TryGetValue("System.Audio.ChannelCount", out var channels) && channels is uint count && count > 0) rows.Add(("声道", count.ToString()));
-                return basic with { Groups = [basic.Groups[0], ("音频", rows), basic.Groups[1]] };
+                if (!string.IsNullOrWhiteSpace(music.Title)) rows.Add((AppText.Get("Title"), music.Title));
+                if (!string.IsNullOrWhiteSpace(music.Artist)) rows.Add((AppText.Get("Artist"), music.Artist));
+                if (!string.IsNullOrWhiteSpace(music.Album)) rows.Add((AppText.Get("Album"), music.Album));
+                if (music.Duration > TimeSpan.Zero) rows.Add((AppText.Get("Duration"), music.Duration.TotalHours >= 1 ? music.Duration.ToString(@"h\:mm\:ss") : music.Duration.ToString(@"m\:ss")));
+                if (music.Bitrate > 0) rows.Add((AppText.Get("BitRate"), $"{music.Bitrate / 1000.0:N0} kbps"));
+                if (music.TrackNumber > 0) rows.Add((AppText.Get("Track"), music.TrackNumber.ToString()));
+                if (music.Year > 0) rows.Add((AppText.Get("Year"), music.Year.ToString()));
+                if (extra.TryGetValue("System.Audio.SampleRate", out var sample) && sample is uint hz && hz > 0) rows.Add((AppText.Get("SampleRate"), $"{hz / 1000.0:0.#} kHz"));
+                if (extra.TryGetValue("System.Audio.ChannelCount", out var channels) && channels is uint count && count > 0) rows.Add((AppText.Get("Channels"), count.ToString()));
+                return basic with { Groups = [basic.Groups[0], (AppText.Get("Audio"), rows), basic.Groups[1]] };
             }
             if (kind == MediaKind.Video)
             {
@@ -77,15 +77,15 @@ public static class MediaDetailsReader
                 bool rotated = video.Orientation is VideoOrientation.Rotate90 or VideoOrientation.Rotate270;
                 uint width = rotated ? video.Height : video.Width, height = rotated ? video.Width : video.Height;
                 var rows = new List<(string, string)>();
-                if (width > 0) rows.Add(("分辨率", $"{width} × {height}"));
-                if (video.Duration > TimeSpan.Zero) rows.Add(("时长", video.Duration.TotalHours >= 1 ? video.Duration.ToString(@"h\:mm\:ss") : video.Duration.ToString(@"m\:ss")));
-                if (extra.TryGetValue("System.Video.FrameRate", out var fps) && fps is uint frameRate && frameRate > 0) rows.Add(("帧率", $"{frameRate / 1000.0:0.##} 帧/秒"));
+                if (width > 0) rows.Add((AppText.Get("Resolution"), $"{width} × {height}"));
+                if (video.Duration > TimeSpan.Zero) rows.Add((AppText.Get("Duration"), video.Duration.TotalHours >= 1 ? video.Duration.ToString(@"h\:mm\:ss") : video.Duration.ToString(@"m\:ss")));
+                if (extra.TryGetValue("System.Video.FrameRate", out var fps) && fps is uint frameRate && frameRate > 0) rows.Add((AppText.Get("FrameRate"), AppText.Format("Fps", frameRate / 1000.0)));
                 uint bitrate = extra.TryGetValue("System.Video.TotalBitrate", out var total) && total is uint t && t > 0 ? t : video.Bitrate;
-                if (bitrate > 0) rows.Add(("码率", $"{bitrate / 1000.0:N0} kbps"));
-                if (extra.TryGetValue("System.Audio.SampleRate", out var sample) && sample is uint sampleRate && sampleRate > 0) rows.Add(("音频采样率", $"{sampleRate / 1000.0:0.#} kHz"));
+                if (bitrate > 0) rows.Add((AppText.Get("BitRate"), $"{bitrate / 1000.0:N0} kbps"));
+                if (extra.TryGetValue("System.Audio.SampleRate", out var sample) && sample is uint sampleRate && sampleRate > 0) rows.Add((AppText.Get("AudioSampleRate"), $"{sampleRate / 1000.0:0.#} kHz"));
                 if (extra.TryGetValue("System.Media.DateEncoded", out var encoded) && encoded is DateTimeOffset date && date.Year > 1601)
-                    rows.Add(("拍摄日期", date.LocalDateTime.ToString("yyyy年M月d日 HH:mm", CultureInfo.CurrentCulture)));
-                return basic with { Width = width, Height = height, Groups = [basic.Groups[0], ("视频", rows), basic.Groups[1]] };
+                    rows.Add((AppText.Get("DateTaken"), date.LocalDateTime.ToString(AppText.Get("MMMDYyyyHHMm"), AppText.Culture)));
+                return basic with { Width = width, Height = height, Groups = [basic.Groups[0], (AppText.Get("Videos"), rows), basic.Groups[1]] };
             }
             else
             {
@@ -94,17 +94,17 @@ public static class MediaDetailsReader
                 bool rotated = image.Orientation is PhotoOrientation.Rotate90 or PhotoOrientation.Rotate270 or PhotoOrientation.Transpose or PhotoOrientation.Transverse;
                 uint width = rotated ? image.Height : image.Width, height = rotated ? image.Width : image.Height;
                 var rows = new List<(string, string)>();
-                if (width > 0) rows.Add(("分辨率", $"{width} × {height}"));
-                if (width > 0) rows.Add(("像素", $"{width * (double)height / 1_000_000:0.#} 百万"));
+                if (width > 0) rows.Add((AppText.Get("Resolution"), $"{width} × {height}"));
+                if (width > 0) rows.Add((AppText.Get("Pixels"), AppText.Format("MP", width * (double)height / 1_000_000)));
                 var dpi = extra.TryGetValue("System.Image.HorizontalResolution", out var d) && d is double dpiValue && dpiValue > 0 ? $"{dpiValue:0} dpi" : null;
-                var depth = extra.TryGetValue("System.Image.BitDepth", out var b) && b is uint bits && bits > 0 ? $"{bits} 位" : null;
-                if (dpi is not null || depth is not null) rows.Add(("dpi / 位深", string.Join("  ", new[] { dpi, depth }.OfType<string>())));
+                var depth = extra.TryGetValue("System.Image.BitDepth", out var b) && b is uint bits && bits > 0 ? AppText.Format("Bit", bits) : null;
+                if (dpi is not null || depth is not null) rows.Add((AppText.Get("DpiBitDepth"), string.Join("  ", new[] { dpi, depth }.OfType<string>())));
                 await PhotoMetadata.FillLensAsync(file, extra, ct);
                 var camera = PhotoMetadata.CameraRows(extra);
                 var location = PhotoMetadata.LocationRows(extra, image.Latitude, image.Longitude);
-                var groups = new List<(string, IReadOnlyList<(string, string)>)> { basic.Groups[0], ("图像", rows) };
-                if (camera.Count > 0) groups.Add(("拍摄", camera));
-                if (location.Count > 0) groups.Add(("地理位置", location));
+                var groups = new List<(string, IReadOnlyList<(string, string)>)> { basic.Groups[0], (AppText.Get("Image37e4e4"), rows) };
+                if (camera.Count > 0) groups.Add((AppText.Get("Camera"), camera));
+                if (location.Count > 0) groups.Add((AppText.Get("Location"), location));
                 groups.Add(basic.Groups[1]);
                 return basic with { Width = width, Height = height, Groups = groups };
             }
@@ -120,6 +120,6 @@ public static class MediaDetailsReader
         >= 1L << 30 => $"{bytes / (double)(1L << 30):0.##} GB",
         >= 1L << 20 => $"{bytes / (double)(1L << 20):0.#} MB",
         >= 1L << 10 => $"{bytes / 1024.0:0.#} KB",
-        _ => $"{bytes} 字节",
+        _ => AppText.Format("Bytes44638c", bytes),
     };
 }

@@ -63,6 +63,8 @@ $commit = git rev-parse HEAD
 
 ## 应用内更新行为
 
+界面语言在设置中选择“简体中文 / English”，无需重启，所有窗口立即生效；完成保留，取消/Esc 恢复。语言代码保存在对应通道的 `settings.json` 中，升级时随设置保留。旧配置未包含语言字段时默认中文。
+
 入口：**设置 → 版本与更新**。
 
 - 显示当前版本、数据目录及发行页面；安装版可检查、下载、取消下载、重试。开发版和解压运行版提供说明，不访问更新源。
@@ -94,7 +96,7 @@ Windows App SDK 1.8 的路径作用域依据：[AppInstance](https://github.com/
 
 ## 数据目录清单
 
-以下相对路径位于上表对应的数据根。本机正式数据根为 `C:\Users\Ethan Liu\AppData\Local\Fallery`，开发根为同级 `Fallery.Dev`。Win+R 可输入 `%LOCALAPPDATA%\Fallery` 或 `%LOCALAPPDATA%\Fallery.Dev` 打开。
+以下相对路径位于上表对应的数据根。正式数据根为 `%LOCALAPPDATA%\Fallery`，开发根为同级 `Fallery.Dev`。Win+R 可输入 `%LOCALAPPDATA%\Fallery` 或 `%LOCALAPPDATA%\Fallery.Dev` 打开。
 
 | 路径 | 内容和限制 | 清理影响 |
 | --- | --- | --- |
@@ -122,7 +124,7 @@ Windows App SDK 1.8 的路径作用域依据：[AppInstance](https://github.com/
 | 原视频所在目录的 `<名称>_<时刻>.png` | 用户主动保存的截图，重名另生成名称；不是缓存 |
 | 项目的 `bin` / `obj` / `work/release-builds` / `work/releases` / `work/distributions` / `work/validation` | 开发构建、打包和检查产物，不属于安装版用户数据 |
 
-本机 `%TEMP%` 是 `C:\Users\Ethan Liu\AppData\Local\Temp`，代码使用 `Path.GetTempPath()`，其他环境可能不同。Windows 系统缩略图缓存由系统管理，应用“清除缩略图缓存”不清它。普通浏览不复制媒体整库；实况临时片段是例外。显式复制/移动/重命名/删除/截图操作的目标是用户选择的媒体目录；回收站由系统管理。
+`%TEMP%` 由当前 Windows 用户环境决定，代码使用 `Path.GetTempPath()` 获取，不假定固定用户名或磁盘路径。Windows 系统缩略图缓存由系统管理，应用“清除缩略图缓存”不清它。普通浏览不复制媒体整库；实况临时片段是例外。显式复制/移动/重命名/删除/截图操作的目标是用户选择的媒体目录；回收站由系统管理。
 
 Shell 注册位置（正式版示例，预览版将 Fallery 身份替换为 Fallery.Preview）：
 

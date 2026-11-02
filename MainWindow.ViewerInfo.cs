@@ -1,3 +1,4 @@
+using Fallery.Controls;
 using Fallery.Models;
 using Fallery.Services;
 using Microsoft.UI.Xaml;
@@ -19,13 +20,13 @@ public sealed partial class MainWindow
 
     private void InitializeViewerInfo()
     {
-        var fit = new MenuFlyoutItem { Text = "适应窗口" };
+        var fit = LiveText.Set(new MenuFlyoutItem { Text = AppText.Get("FitToWindow") }, "Text", localized => localized.Text = AppText.Get("FitToWindow"));
         fit.Click += (_, _) => FitImageToViewport();
         ZoomMenu.Items.Add(fit);
         ZoomMenu.Items.Add(new MenuFlyoutSeparator());
         foreach (int percent in ZoomPresets)
         {
-            var entry = new MenuFlyoutItem { Text = percent == 100 ? "100%（实际大小）" : $"{percent}%" };
+            var entry = LiveText.Set(new MenuFlyoutItem { Text = percent == 100 ? AppText.Get("ActualSize") : $"{percent}%" }, "Text", localized => localized.Text = percent == 100 ? AppText.Get("ActualSize") : $"{percent}%");
             entry.Click += (_, _) => ZoomToPercent(percent);
             ZoomMenu.Items.Add(entry);
         }
@@ -57,10 +58,10 @@ public sealed partial class MainWindow
     private void ShowViewerDetails(MediaDetails details)
     {
         _viewerDetails = details;
-        ViewerFormatText.Text = details.Format;
-        ViewerResolutionText.Text = details.Resolution;
+        LiveText.SetOnce(ViewerFormatText, "Text", localized => localized.Text = details.Format);
+        LiveText.SetOnce(ViewerResolutionText, "Text", localized => localized.Text = details.Resolution);
         ViewerResolutionIcon.Visibility = ViewerResolutionText.Visibility = details.Resolution.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ViewerSizeText.Text = details.Size;
+        LiveText.SetOnce(ViewerSizeText, "Text", localized => localized.Text = details.Size);
         UpdateZoomIndicators();
 
         RenderViewerDetails(details);
@@ -84,14 +85,14 @@ public sealed partial class MainWindow
         data.SetText(item.Path);
         Clipboard.SetContent(data);
         Clipboard.Flush();
-        GalleryState.Status = "已复制完整路径";
+        GalleryState.Status = AppText.Get("FullPathCopied");
     }
 
     private async void DetailsReveal_Click(object sender, RoutedEventArgs e)
     {
         if (ViewerState.CurrentItem is not { } item) return;
         try { await RevealPathAsync(item.Path, false); }
-        catch (Exception ex) { if (!_closed) GalleryState.Status = $"操作失败：{ex.Message}"; }
+        catch (Exception ex) { if (!_closed) GalleryState.Status = AppText.Format("OperationFailed", ex.Message); }
     }
 
     // ───────────── 缩放 ─────────────
@@ -142,7 +143,7 @@ public sealed partial class MainWindow
         double fit = ViewerImage.Source is not null && dimensionsReady ? FitScale() : 0;
         double factor = _imageFitPending ? 1 : ImageScroller.ZoomFactor;
         string percent = fit > 0 ? $"{Math.Round(factor * fit * 100)}%" : "—";
-        ZoomPercentText.Text = _imageFitMode ? $"适应窗口 · {percent}" : percent;
+        LiveText.Set(ZoomPercentText, "Text", localized => localized.Text = _imageFitMode ? AppText.Format("FitToWindow80e01b", percent) : percent);
         _updatingZoomSlider = true;
         ZoomSlider.Value = Math.Log2(factor);
         _updatingZoomSlider = false;

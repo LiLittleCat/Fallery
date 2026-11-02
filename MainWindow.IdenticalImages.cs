@@ -13,7 +13,7 @@ public sealed partial class MainWindow
 {
     public sealed record IdenticalImageRow(IdenticalImageMatch Match)
     {
-        public string Name => $"{Match.Name}  ·  {(Match.Mode == IdenticalImageMatchMode.NameOnly ? "仅文件名相同" : "名称、大小和内容相同")}";
+        public string Name => $"{Match.Name}  ·  {(Match.Mode == IdenticalImageMatchMode.NameOnly ? AppText.Get("SameNameOnly") : AppText.Get("SameNameSizeAndContent"))}";
         public string Parent => Match.Parent;
         public string Path => Match.Path;
         public MediaFile PreviewFile { get; } = new(Match.Path, MediaKind.Image) { Version = Match.Version };
@@ -29,11 +29,11 @@ public sealed partial class MainWindow
         if (!CanFindIdenticalImages(targets) || _settingsDialog is not null || _searchDialog is not null
             || _deleting || _pasting || _closed || _closing || GalleryState.CurrentFolder is not { } folder) return;
         if (!SupportsRecycleBin(folder))
-        { GalleryState.Status = "相同图片清理只支持可使用回收站的本地固定磁盘"; return; }
+        { GalleryState.Status = AppText.Get("IdenticalImageCleanupRequiresALocalFixedDriveThat"); return; }
         StopHoverPreview(); CloseItemMenu(); CloseAddressMenu();
         using var scanCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCts.Token);
         bool active = true;
-        var summary = new TextBlock { Text = "选择扫描范围后开始查找。", TextWrapping = TextWrapping.Wrap };
+        var summary = LiveText.Set(new TextBlock { Text = AppText.Get("ChooseASearchLocationThenStartSearching"), TextWrapping = TextWrapping.Wrap }, "Text", localized => localized.Text = AppText.Get("ChooseASearchLocationThenStartSearching"));
         var selectedCount = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12 };
         var progress = new ProgressBar { IsIndeterminate = true, Visibility = Visibility.Collapsed };
         var ancestors = new List<string>();
@@ -41,9 +41,9 @@ public sealed partial class MainWindow
         var scope = CreateIdenticalImageScope(ancestors);
         var nameOnly = CreateIdenticalImageMatchOption();
         var matchMode = IdenticalImageMatchMode.NameSizeContent;
-        var start = new Button { Content = "开始查找" };
+        var start = LiveText.Set(new Button { Content = AppText.Get("StartSearch") }, "Content", localized => localized.Content = AppText.Get("StartSearch"));
         var preview = new Image { Width = 96, Height = 80, Stretch = Stretch.Uniform };
-        var previewName = new TextBlock { Text = "选择结果可预览图片", TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 3, MaxWidth = 430 };
+        var previewName = LiveText.Set(new TextBlock { Text = AppText.Get("SelectAResultToPreviewTheImage"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 3, MaxWidth = 430 }, "Text", localized => localized.Text = AppText.Get("SelectAResultToPreviewTheImage"));
         var previewPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         previewPanel.Children.Add(preview); previewPanel.Children.Add(previewName);
         var results = new ListView
@@ -51,8 +51,8 @@ public sealed partial class MainWindow
             SelectionMode = ListViewSelectionMode.Multiple,
             ItemTemplate = (DataTemplate)Root.Resources["IdenticalImageResultTemplate"]
         };
-        var all = new Button { Content = "全选", IsEnabled = false };
-        var none = new Button { Content = "取消全选", IsEnabled = false };
+        var all = LiveText.Set(new Button { Content = AppText.Get("SelectAll"), IsEnabled = false }, "Content", localized => localized.Content = AppText.Get("SelectAll"));
+        var none = LiveText.Set(new Button { Content = AppText.Get("DeselectAll"), IsEnabled = false }, "Content", localized => localized.Content = AppText.Get("DeselectAll"));
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         actions.Children.Add(all); actions.Children.Add(none);
         all.Click += (_, _) => results.SelectAll(); none.Click += (_, _) => results.SelectedItems.Clear();
@@ -61,7 +61,7 @@ public sealed partial class MainWindow
         scopeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         scopeRow.Children.Add(scope); scopeRow.Children.Add(start); Grid.SetColumn(start, 1);
         start.VerticalAlignment = VerticalAlignment.Bottom;
-        var description = new TextBlock { Text = "默认匹配文件名、大小和内容。包含子文件夹和样本本身，可取消勾选要保留的项。", TextWrapping = TextWrapping.Wrap, FontSize = 12 };
+        var description = LiveText.Set(new TextBlock { Text = AppText.Get("MatchesNameSizeAndContentByDefaultIncludesSubfolders"), TextWrapping = TextWrapping.Wrap, FontSize = 12 }, "Text", localized => localized.Text = AppText.Get("MatchesNameSizeAndContentByDefaultIncludesSubfolders"));
         var header = new StackPanel { Spacing = 8 };
         header.Children.Add(scopeRow); header.Children.Add(nameOnly); header.Children.Add(description);
         header.Children.Add(progress); header.Children.Add(summary); header.Children.Add(previewPanel); header.Children.Add(actions);
@@ -79,14 +79,14 @@ public sealed partial class MainWindow
         content.SizeChanged += UpdateCompactHeader;
         UpdateLayoutSize();
         void OnRootSizeChanged(object sender, SizeChangedEventArgs args) => UpdateLayoutSize();
-        var dialog = new ContentDialog
+        var dialog = LiveText.Set(LiveText.Set(LiveText.Set(LiveText.Set(new ContentDialog
         {
-            XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = "查找并清理相同图片",
+            XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = AppText.Get("FindAndRemoveIdenticalImages"),
             Content = content,
-            PrimaryButtonText = "移到回收站", IsPrimaryButtonEnabled = false,
-            SecondaryButtonText = "彻底删除", IsSecondaryButtonEnabled = false,
-            CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close
-        };
+            PrimaryButtonText = AppText.Get("MoveToRecycleBin"), IsPrimaryButtonEnabled = false,
+            SecondaryButtonText = AppText.Get("DeletePermanently"), IsSecondaryButtonEnabled = false,
+            CloseButtonText = AppText.Get("Cancel"), DefaultButton = ContentDialogButton.Close
+        }, "Title", localized => localized.Title = AppText.Get("FindAndRemoveIdenticalImages")), "PrimaryButtonText", localized => localized.PrimaryButtonText = AppText.Get("MoveToRecycleBin")), "SecondaryButtonText", localized => localized.SecondaryButtonText = AppText.Get("DeletePermanently")), "CloseButtonText", localized => localized.CloseButtonText = AppText.Get("Cancel"));
         dialog.Resources["ContentDialogMaxWidth"] = 760d;
         int previewVersion = 0;
         int scanVersion = 0;
@@ -95,7 +95,7 @@ public sealed partial class MainWindow
         async Task PreviewAsync(IdenticalImageMatch match)
         {
             int version = ++previewVersion;
-            preview.Source = null; previewName.Text = match.Path;
+            preview.Source = null; LiveText.SetOnce(previewName, "Text", localized => localized.Text = match.Path);
             await previewSlot.WaitAsync();
             try
             {
@@ -106,14 +106,14 @@ public sealed partial class MainWindow
                 await bitmap.SetSourceAsync(stream);
                 if (active && version == previewVersion) preview.Source = bitmap;
             }
-            catch (Exception) { if (active && version == previewVersion) previewName.Text = $"预览不可用：{match.Path}"; }
+            catch (Exception) { if (active && version == previewVersion) LiveText.Set(previewName, "Text", localized => localized.Text = AppText.Format("PreviewUnavailable", match.Path)); }
             finally { previewSlot.Release(); }
         }
         results.SelectionChanged += (_, args) =>
         {
             dialog.IsPrimaryButtonEnabled = results.SelectedItems.Count > 0;
             dialog.IsSecondaryButtonEnabled = results.SelectedItems.Count > 0;
-            selectedCount.Text = $"已选择 {results.SelectedItems.Count:N0} 项（包括勾选的样本）";
+            LiveText.Set(selectedCount, "Text", localized => localized.Text = AppText.Format("ItemsSelectedIncludingCheckedSampleFiles", results.SelectedItems.Count));
             if (args.AddedItems.OfType<IdenticalImageRow>().LastOrDefault() is { } row) _ = PreviewAsync(row.Match);
         };
         void ResetResults(string message)
@@ -121,28 +121,28 @@ public sealed partial class MainWindow
             scanVersion++;
             previewVersion++;
             results.SelectedItems.Clear();
-            results.ItemsSource = null;
+            LiveText.SetOnce(results, "ItemsSource", localized => localized.ItemsSource = null);
             dialog.IsPrimaryButtonEnabled = dialog.IsSecondaryButtonEnabled = false;
             all.IsEnabled = none.IsEnabled = false;
-            selectedCount.Text = "尚无本轮结果";
+            LiveText.Set(selectedCount, "Text", localized => localized.Text = AppText.Get("NoResultsYet"));
             preview.Source = null;
-            previewName.Text = "选择结果可预览图片";
-            summary.Text = message;
+            LiveText.Set(previewName, "Text", localized => localized.Text = AppText.Get("SelectAResultToPreviewTheImage"));
+            LiveText.SetOnce(summary, "Text", localized => localized.Text = message);
         }
         void ConditionsChanged()
         {
             if (!active) return;
-            ResetResults("条件已更改，点击查找以更新结果。");
-            start.Content = hasSearched ? "重新查找" : "开始查找";
+            ResetResults(AppText.Get("OptionsChangedSearchAgainToRefreshTheResults"));
+            LiveText.Set(start, "Content", localized => localized.Content = hasSearched ? AppText.Get("SearchAgain") : AppText.Get("StartSearch"));
         }
         scope.SelectionChanged += (_, _) => ConditionsChanged();
         void MatchModeChanged(object sender, RoutedEventArgs args)
         {
             matchMode = nameOnly.IsChecked == true ? IdenticalImageMatchMode.NameOnly : IdenticalImageMatchMode.NameSizeContent;
-            dialog.Title = nameOnly.IsChecked == true ? "查找并清理同名图片" : "查找并清理相同图片";
-            description.Text = nameOnly.IsChecked == true
-                ? "仅文件名（含扩展名，不区分大小写）相同即可列入；大小和内容可能不同。包含子文件夹和样本本身。"
-                : "默认匹配文件名、大小和内容。包含子文件夹和样本本身，可取消勾选要保留的项。";
+            LiveText.Set(dialog, "Title", localized => localized.Title = nameOnly.IsChecked == true ? AppText.Get("FindAndRemoveImagesWithTheSameName") : AppText.Get("FindAndRemoveIdenticalImages"));
+            LiveText.Set(description, "Text", localized => localized.Text = nameOnly.IsChecked == true
+                ? AppText.Get("MatchesFileNamesIncludingExtensionsIgnoringCaseSizeAnd")
+                : AppText.Get("MatchesNameSizeAndContentByDefaultIncludesSubfolders"));
             ConditionsChanged();
         }
         nameOnly.Checked += MatchModeChanged;
@@ -151,23 +151,23 @@ public sealed partial class MainWindow
         {
             var reporter = new Progress<string>(text =>
             {
-                if (active && searching && request == scanVersion) summary.Text = text;
+                if (active && searching && request == scanVersion) LiveText.SetOnce(summary, "Text", localized => localized.Text = text);
             });
             try
             {
                 var found = await IdenticalImages.ScanAsync(searchFolder, targets.Select(target => target.Path).ToArray(), GalleryState.ShowHidden, reporter, scanCts.Token, mode: searchMode);
                 if (!active || request != scanVersion) return;
                 progress.Visibility = Visibility.Collapsed;
-                summary.Text = $"检查 {found.Examined:N0} 张图片，找到 {found.Matches.Count:N0} 项"
-                    + (found.Skipped > 0 ? $"；{found.Skipped:N0} 项不可读取" : "")
-                    + (found.Limited ? $"。已到 {IdenticalImages.MatchLimit:N0} 项上限，本次仅列出部分结果。" : "");
-                results.ItemsSource = found.Matches.Select(match => new IdenticalImageRow(match)).ToArray();
+                LiveText.Set(summary, "Text", localized => localized.Text = AppText.Format("CheckedImagesFoundItems", found.Examined, found.Matches.Count)
+                    + (found.Skipped > 0 ? AppText.Format("ItemsCouldNotBeRead", found.Skipped) : "")
+                    + (found.Limited ? AppText.Format("ReachedTheItemLimitOnlyPartialResultsAreShown", IdenticalImages.MatchLimit) : ""));
+                LiveText.SetOnce(results, "ItemsSource", localized => localized.ItemsSource = found.Matches.Select(match => new IdenticalImageRow(match)).ToArray());
                 all.IsEnabled = none.IsEnabled = found.Matches.Count > 0;
                 results.SelectAll();
-                dialog.CloseButtonText = "关闭";
+                LiveText.Set(dialog, "CloseButtonText", localized => localized.CloseButtonText = AppText.Get("Close"));
             }
             catch (OperationCanceledException) { }
-            catch (Exception ex) { if (active && request == scanVersion) summary.Text = $"扫描失败：{ex.Message}。可调整条件后重新查找。"; }
+            catch (Exception ex) { if (active && request == scanVersion) LiveText.Set(summary, "Text", localized => localized.Text = AppText.Format("SearchFailedAdjustTheOptionsAndTryAgain", ex.Message)); }
             finally
             {
                 searching = false;
@@ -175,7 +175,7 @@ public sealed partial class MainWindow
                 {
                     progress.Visibility = Visibility.Collapsed;
                     scope.IsEnabled = start.IsEnabled = nameOnly.IsEnabled = true;
-                    start.Content = "重新查找";
+                    LiveText.Set(start, "Content", localized => localized.Content = AppText.Get("SearchAgain"));
                 }
             }
         }
@@ -184,7 +184,7 @@ public sealed partial class MainWindow
         {
             if (searching || scope.SelectedItem is not string selectedFolder) return;
             searching = hasSearched = true;
-            ResetResults("正在读取样本并扫描…");
+            ResetResults(AppText.Get("ReadingSamplesAndSearching"));
             folder = selectedFolder;
             scope.IsEnabled = start.IsEnabled = nameOnly.IsEnabled = false;
             progress.Visibility = Visibility.Visible;
@@ -221,21 +221,21 @@ public sealed partial class MainWindow
 
     private ComboBox CreateIdenticalImageScope(IReadOnlyList<string> folders)
     {
-        var scope = new PathComboBox
+        var scope = LiveText.Set(new PathComboBox
         {
-            Header = "扫描范围（可选择上级目录）", ItemsSource = folders, SelectedIndex = 0,
+            Header = AppText.Get("SearchLocationYouCanSelectAParentFolder"), ItemsSource = folders, SelectedIndex = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             ItemTemplate = (DataTemplate)Root.Resources["FolderScopeTemplate"]
-        };
-        scope.SelectionChanged += (_, _) => ToolTipService.SetToolTip(scope, scope.SelectedItem as string);
-        ToolTipService.SetToolTip(scope, scope.SelectedItem as string);
+        }, "Header", localized => localized.Header = AppText.Get("SearchLocationYouCanSelectAParentFolder"));
+        scope.SelectionChanged += (_, _) => LiveText.SetOnce(scope, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, scope.SelectedItem as string));
+        LiveText.SetOnce(scope, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, scope.SelectedItem as string));
         return scope;
     }
 
     private static CheckBox CreateIdenticalImageMatchOption() => new()
     {
         Name = "IdenticalNameOnly", IsChecked = false,
-        Content = new TextBlock { Text = "仅匹配文件名（大小和内容可不同）", TextWrapping = TextWrapping.Wrap }
+        Content = LiveText.Set(new TextBlock { Text = AppText.Get("MatchFileNameOnlySizeAndContentMayDiffer"), TextWrapping = TextWrapping.Wrap }, "Text", localized => localized.Text = AppText.Get("MatchFileNameOnlySizeAndContentMayDiffer"))
     };
 
     private static void SizeIdenticalImagesContent(Grid content, double windowWidth, double windowHeight)
@@ -251,16 +251,18 @@ public sealed partial class MainWindow
     {
         XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme,
         Title = mode == IdenticalImageMatchMode.NameOnly
-            ? permanent ? "确认彻底删除同名图片" : "确认清理同名图片"
-            : permanent ? "确认彻底删除相同图片" : "确认清理相同图片",
-        Content = new TextBlock
+            ? permanent ? AppText.Get("PermanentlyDeleteImagesWithTheSameName") : AppText.Get("RemoveImagesWithTheSameName")
+            : permanent ? AppText.Get("PermanentlyDeleteIdenticalImages") : AppText.Get("RemoveIdenticalImages"),
+        Content = LiveText.Set(new TextBlock
         {
-            Text = (permanent ? $"彻底删除勾选的 {count:N0} 项？不会放入回收站，无法从回收站恢复。" : $"将勾选的 {count:N0} 项移到回收站？")
-                + (mode == IdenticalImageMatchMode.NameOnly ? "\n匹配方式：仅文件名相同，大小和内容可能不同。" : "\n匹配方式：文件名、大小和内容均相同。")
-                + $"\n\n范围：{folder}\n包括勾选的样本文件。保存的网页可能缺少对应图标。扫描后发生变化的文件会跳过。",
+            Text = (permanent ? AppText.Format("PermanentlyDeleteTheCheckedItemsTheyWillNotGo", count) : AppText.Format("MoveTheCheckedItemsToTheRecycleBin", count))
+                + (mode == IdenticalImageMatchMode.NameOnly ? AppText.Get("MatchSameFileNameOnlySizeAndContentMay") : AppText.Get("MatchSameFileNameSizeAndContent"))
+                + AppText.Format("LocationIncludesCheckedSampleFilesSavedWebPagesMay", folder),
             TextWrapping = TextWrapping.Wrap, MaxWidth = 460
-        },
-        PrimaryButtonText = permanent ? "彻底删除" : "移到回收站", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close
+        }, "Text", localized => localized.Text = (permanent ? AppText.Format("PermanentlyDeleteTheCheckedItemsTheyWillNotGo", count) : AppText.Format("MoveTheCheckedItemsToTheRecycleBin", count))
+                + (mode == IdenticalImageMatchMode.NameOnly ? AppText.Get("MatchSameFileNameOnlySizeAndContentMay") : AppText.Get("MatchSameFileNameSizeAndContent"))
+                + AppText.Format("LocationIncludesCheckedSampleFilesSavedWebPagesMay", folder)),
+        PrimaryButtonText = permanent ? AppText.Get("DeletePermanently") : AppText.Get("MoveToRecycleBin"), CloseButtonText = AppText.Get("Cancel"), DefaultButton = ContentDialogButton.Close
     };
 
     private async Task CleanIdenticalImagesAsync(string folder, IReadOnlyList<IdenticalImageMatch> matches, bool permanent)
@@ -296,7 +298,7 @@ public sealed partial class MainWindow
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex) { failed++; firstError ??= ex.Message; }
-                if (deleted.Count % 25 == 0) GalleryState.Status = $"正在清理相同图片：已删除 {deleted.Count:N0} 项…";
+                if (deleted.Count % 25 == 0) GalleryState.Status = AppText.Format("RemovingIdenticalImagesItemsDeleted", deleted.Count);
             }
             if (!_closed)
             {
@@ -306,7 +308,7 @@ public sealed partial class MainWindow
                 RestoreGalleryAfterDelete(horizontal, vertical);
             }
             string syncWarning = await SynchronizeDeletedDataAsync(deleted, versions);
-            if (!_closed) GalleryState.Status = $"{(permanent ? "已彻底删除" : "已移到回收站")} {deleted.Count:N0} 项，跳过 {skipped:N0} 项，失败 {failed:N0} 项"
+            if (!_closed) GalleryState.Status = AppText.Format("ItemsSkippedFailed", (permanent ? AppText.Get("PermanentlyDeleted449197") : AppText.Get("MovedToRecycleBin04a803")), deleted.Count, skipped, failed)
                 + (firstError is null ? "" : $"：{firstError}") + syncWarning;
         }
         finally

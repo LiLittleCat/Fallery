@@ -7,6 +7,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Velopack" Version="1.2.161" />
+    <EmbeddedResource Include="../../Strings/*.json" LogicalName="Fallery.Strings.%(Filename)%(Extension)" />
+    <Compile Include="../../Services/AppText.cs" Link="Services/AppText.cs" />
     <Compile Include="../../Services/AppIdentity.cs" Link="AppIdentity.cs" />
     <Compile Include="../../Services/AppUpdateService.cs" Link="AppUpdateService.cs" />
     <Compile Include="../../Services/VelopackUpdateBackend.cs" Link="VelopackUpdateBackend.cs" />

@@ -1,3 +1,4 @@
+using Fallery.Controls;
 using Fallery.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -10,31 +11,31 @@ public sealed partial class MainWindow
     {
         var service = VelopackUpdates.Shared;
         var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(new TextBlock { Text = "版本与更新", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
+        panel.Children.Add(LiveText.Set(new TextBlock { Text = AppText.Get("VersionAndUpdates"), Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] }, "Text", localized => localized.Text = AppText.Get("VersionAndUpdates")));
         panel.Children.Add(new TextBlock { Text = $"{AppIdentity.DisplayName} {AppIdentity.Version}", IsTextSelectionEnabled = true });
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 400, FontSize = 12 };
         var notes = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 400, MaxLines = 8, IsTextSelectionEnabled = true };
         var progress = new ProgressBar { Minimum = 0, Maximum = 100 };
         var action = new Button();
-        var cancel = new Button { Content = "取消下载" };
+        var cancel = LiveText.Set(new Button { Content = AppText.Get("CancelDownload") }, "Content", localized => localized.Content = AppText.Get("CancelDownload"));
         var confirmation = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
-        confirmation.Children.Add(new TextBlock { Text = "将保存设置和续播位置，关闭所有 Fallery 窗口并重启安装更新。", TextWrapping = TextWrapping.Wrap, MaxWidth = 400 });
-        var restart = new Button { Content = "确认重启更新" };
+        confirmation.Children.Add(LiveText.Set(new TextBlock { Text = AppText.Get("SettingsAndPlaybackPositionsWillBeSavedAllFallery"), TextWrapping = TextWrapping.Wrap, MaxWidth = 400 }, "Text", localized => localized.Text = AppText.Get("SettingsAndPlaybackPositionsWillBeSavedAllFallery")));
+        var restart = LiveText.Set(new Button { Content = AppText.Get("ConfirmRestartAndUpdate") }, "Content", localized => localized.Content = AppText.Get("ConfirmRestartAndUpdate"));
         confirmation.Children.Add(restart);
         void Refresh()
         {
             if (_closed) return;
             var value = service.Status;
-            status.Text = value.Message;
-            notes.Text = value.Release?.Notes ?? "";
+            LiveText.Set(status, "Text", localized => localized.Text = service.Status.DisplayMessage);
+            LiveText.SetOnce(notes, "Text", localized => localized.Text = value.Release?.Notes ?? "");
             notes.Visibility = string.IsNullOrWhiteSpace(notes.Text) ? Visibility.Collapsed : Visibility.Visible;
             progress.Visibility = value.State is AppUpdateState.Checking or AppUpdateState.Downloading ? Visibility.Visible : Visibility.Collapsed;
             progress.IsIndeterminate = value.State == AppUpdateState.Checking;
             progress.Value = value.Progress;
-            action.Content = value.State switch { AppUpdateState.Available => "下载更新", AppUpdateState.Ready => "重启并更新", _ => "检查更新" };
+            LiveText.Set(action, "Content", localized => localized.Content = value.State switch { AppUpdateState.Available => AppText.Get("DownloadUpdate"), AppUpdateState.Ready => AppText.Get("RestartAndUpdate"), _ => AppText.Get("CheckForUpdates") });
             action.IsEnabled = value.State is AppUpdateState.Idle or AppUpdateState.Available or AppUpdateState.Ready or AppUpdateState.Latest or AppUpdateState.Failed;
             cancel.Visibility = value.State is AppUpdateState.Checking or AppUpdateState.Downloading ? Visibility.Visible : Visibility.Collapsed;
-            cancel.Content = value.State == AppUpdateState.Checking ? "取消检查" : "取消下载";
+            LiveText.Set(cancel, "Content", localized => localized.Content = value.State == AppUpdateState.Checking ? AppText.Get("CancelCheck") : AppText.Get("CancelDownload"));
             restart.IsEnabled = value.State == AppUpdateState.Ready;
             if (value.State != AppUpdateState.Ready) confirmation.Visibility = Visibility.Collapsed;
         }
@@ -56,8 +57,8 @@ public sealed partial class MainWindow
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         buttons.Children.Add(action); buttons.Children.Add(cancel);
         panel.Children.Add(status); panel.Children.Add(notes); panel.Children.Add(progress); panel.Children.Add(buttons); panel.Children.Add(confirmation);
-        panel.Children.Add(new HyperlinkButton { Content = "发行页面", NavigateUri = new Uri("https://github.com/LiLittleCat/Fallery/releases") });
-        panel.Children.Add(new TextBlock { Text = $"数据目录：{AppIdentity.DataDirectory}", TextWrapping = TextWrapping.Wrap, MaxWidth = 400, FontSize = 12, IsTextSelectionEnabled = true });
+        panel.Children.Add(LiveText.Set(new HyperlinkButton { Content = AppText.Get("ReleasePage"), NavigateUri = new Uri("https://github.com/LiLittleCat/Fallery/releases") }, "Content", localized => localized.Content = AppText.Get("ReleasePage")));
+        panel.Children.Add(LiveText.Set(new TextBlock { Text = AppText.Format("DataFolder", AppIdentity.DataDirectory), TextWrapping = TextWrapping.Wrap, MaxWidth = 400, FontSize = 12, IsTextSelectionEnabled = true }, "Text", localized => localized.Text = AppText.Format("DataFolder", AppIdentity.DataDirectory)));
         Refresh();
         return panel;
     }
@@ -79,9 +80,9 @@ public sealed partial class MainWindow
 
     internal async Task SaveBeforeUpdateAsync()
     {
-        if (!await _resumeSaveTask) throw new IOException("无法保存续播记录，请检查数据目录权限后重试。");
+        if (!await _resumeSaveTask) throw new IOException(AppText.Get("CouldNotSavePlaybackPositionsCheckDataFolderPermissions"));
         if (_settingsReady && !await _settingsStore.SaveAsync(CaptureSettings()))
-            throw new IOException("无法保存设置，请检查数据目录权限后重试。");
+            throw new IOException(AppText.Get("CouldNotSaveSettingsCheckDataFolderPermissionsAnd"));
     }
 
     internal void CancelUpdateShutdown()

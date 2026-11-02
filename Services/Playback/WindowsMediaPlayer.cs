@@ -1,3 +1,4 @@
+using Fallery.Services;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Media.Core;
 using Windows.Media.MediaProperties;
@@ -205,7 +206,7 @@ public sealed class WindowsMediaPlayer : IPlayer
 
     public IReadOnlyList<string> AudioTracks => _item is null ? [] : _item.AudioTracks
         .Select((track, i) => string.IsNullOrWhiteSpace(track.Label)
-            ? string.IsNullOrWhiteSpace(track.Language) ? $"音轨 {i + 1}" : $"音轨 {i + 1}（{track.Language}）"
+            ? string.IsNullOrWhiteSpace(track.Language) ? AppText.Format("AudioTrack", i + 1) : AppText.Format("AudioTrack057b50", i + 1, track.Language)
             : track.Label).ToList();
 
     public int AudioTrack

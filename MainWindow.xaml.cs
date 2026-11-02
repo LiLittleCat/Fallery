@@ -68,6 +68,8 @@ public sealed partial class MainWindow : Window
         InitializeViewerSidePanel();
         RefreshAddressBar();
         if (monitorFolderChanges) InitializeFolderMonitoring();
+        Root.Language = AppText.Language;
+        AppText.Changed += OnLanguageChanged;
     }
 
     // 0 跟随系统、1 亮色、2 暗色，与 ElementTheme 取值一致。系统标题栏不属于 XAML 树，需要和页面主题分别同步。
@@ -118,7 +120,7 @@ public sealed partial class MainWindow : Window
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            if (!_closed) GalleryState.Status = $"无法读取磁盘：{ex.Message}";
+            if (!_closed) GalleryState.Status = AppText.Format("CouldNotReadDrives", ex.Message);
         }
     }
     private void Root_ActualThemeChanged(FrameworkElement sender, object args) => UpdateTitleBarTheme();
@@ -157,6 +159,7 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
+        AppText.Changed -= OnLanguageChanged;
         EndMarqueeSelection(cancel: true);
         _closed = true;
         DetachStickyTree();
@@ -215,8 +218,8 @@ public sealed partial class MainWindow : Window
         var result = await Task.Run(() => (Children: FolderScanner.GetChildFolders(entry.Path, _lifetimeCts.Token, showHidden),
             ModifiedTicks: FolderScanner.ReadFolderModifiedTicks(entry.Path), CreatedTicks: FolderScanner.ReadFolderCreatedTicks(entry.Path)));
         _lifetimeCts.Token.ThrowIfCancellationRequested();
-        node.Content = entry with { ModifiedTicks = result.ModifiedTicks, CreatedTicks = result.CreatedTicks,
-            ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField };
+        LiveText.SetOnce(node, "Content", localized => localized.Content = entry with { ModifiedTicks = result.ModifiedTicks, CreatedTicks = result.CreatedTicks,
+            ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField });
         foreach (var childInfo in result.Children)
         {
             if (IsTreeFolderExcluded(childInfo.Path)) continue;
@@ -300,7 +303,7 @@ public sealed partial class MainWindow : Window
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
         {
             if (!_closed && !ct.IsCancellationRequested)
-                GalleryState.Status += $" · 无法定位文件树：{ex.Message}";
+                GalleryState.Status += AppText.Format("CouldNotLocateFolderInTree", ex.Message);
         }
     }
 
@@ -338,7 +341,7 @@ public sealed partial class MainWindow : Window
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
         {
-            if (!_closed && version == _navigationVersion) GalleryState.Status += $" · 无法展开文件夹：{ex.Message}";
+            if (!_closed && version == _navigationVersion) GalleryState.Status += AppText.Format("CouldNotExpandFolder", ex.Message);
         }
     }
 
@@ -359,7 +362,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            if (!_closed) GalleryState.Status = $"无法打开文件夹选择器：{ex.Message}";
+            if (!_closed) GalleryState.Status = AppText.Format("CouldNotOpenFolderPicker", ex.Message);
         }
         finally { _pickingFolder = false; }
         if (!_closed && path is not null) await NavigateAsync(path);
@@ -424,10 +427,10 @@ public sealed partial class MainWindow : Window
         // 扫描期间不展示旧目录卡片，避免把仍在等待的数据误认为新目录内容。
         Gallery.Visibility = GalleryState.IsScanning ? Visibility.Collapsed : Visibility.Visible;
         EmptyText.Visibility = GalleryState.IsScanning || (IsFilmstrip ? GalleryState.MediaItems.Count : GalleryState.Items.Count) == 0 ? Visibility.Visible : Visibility.Collapsed;
-        EmptyText.Text = GalleryState.IsScanning ? "正在读取目录…" : GalleryState.CurrentFolder is null
-            ? "在左侧选择目录，或点击“打开文件夹”" : GalleryState.Filter != MediaFilter.All || !GalleryState.ShowSubfolders
-            ? "没有符合当前筛选的媒体，可调整顶部筛选或从左侧进入子文件夹"
-            : IsFilmstrip ? "此目录没有图片或视频，可从下方或左侧进入子文件夹" : "此目录没有可显示的文件夹、图片或视频";
+        LiveText.Set(EmptyText, "Text", localized => localized.Text = GalleryState.IsScanning ? AppText.Get("ReadingFolder") : GalleryState.CurrentFolder is null
+            ? AppText.Get("SelectAFolderOnTheLeftOrClickOpen") : GalleryState.Filter != MediaFilter.All || !GalleryState.ShowSubfolders
+            ? AppText.Get("NoMediaMatchesTheCurrentFilterChangeTheFilter")
+            : IsFilmstrip ? AppText.Get("NoPhotosOrVideosHereOpenASubfolderBelow") : AppText.Get("NoFoldersPhotosOrVideosToDisplay"));
     }
 
     private uint ThumbnailDecodeSize
@@ -534,8 +537,8 @@ public sealed partial class MainWindow : Window
                 {
                     AudioPresentation.Visibility = Visibility.Visible;
                     AudioPlaceholder.Visibility = Visibility.Visible;
-                    AudioTitle.Text = item.Name;
-                    AudioSubtitle.Text = "";
+                    LiveText.SetOnce(AudioTitle, "Text", localized => localized.Text = item.Name);
+                    LiveText.SetOnce(AudioSubtitle, "Text", localized => localized.Text = "");
                     _ = LoadAudioArtworkAsync(item, ct);
                 }
                 await player.OpenAsync(item.Path, ct);
@@ -581,7 +584,7 @@ public sealed partial class MainWindow : Window
             {
                 StopVideo();
                 SetImageTransformButtonsEnabled(false);
-                ViewerState.Message = $"无法打开此文件，文件可能损坏或系统缺少解码器。\n{ex.Message}";
+                ViewerState.Message = AppText.Format("CouldNotOpenThisFileItMayBeDamaged", ex.Message);
             }
         }
     }
@@ -592,7 +595,8 @@ public sealed partial class MainWindow : Window
         _videoMousePressIsLeft = false;
         AudioPresentation.Visibility = Visibility.Collapsed;
         AudioArtwork.Source = null;
-        AudioTitle.Text = AudioSubtitle.Text = "";
+        LiveText.SetOnce(AudioTitle, "Text", localized => localized.Text = "");
+        LiveText.SetOnce(AudioSubtitle, "Text", localized => localized.Text = "");
         FitVideoWindowButton.IsEnabled = false;
         if (!keepRotationButtonEnabled) RotateMediaButton.IsEnabled = false;
         var player = _videoPlayer;
@@ -670,9 +674,9 @@ public sealed partial class MainWindow : Window
         ResetFullScreenControls();
         PlaceViewer();
         UpdateViewerOverlays();
-        string label = fullScreen ? "退出全屏" : "全屏";
+        string label = fullScreen ? AppText.Get("ExitFullScreen") : AppText.Get("FullScreen");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ViewerFullScreenButton, label);
-        ToolTipService.SetToolTip(ViewerFullScreenButton, $"{label} (F11)");
+        LiveText.SetOnce(ViewerFullScreenButton, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, $"{label} (F11)"));
     }
 
     /// <summary>尺寸由 Viewbox 跟随视口约束，切图和窗口变化时只重置缩放。</summary>

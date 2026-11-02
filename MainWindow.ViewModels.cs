@@ -1,3 +1,4 @@
+using Fallery.Controls;
 using Fallery.Services;
 using Fallery.ViewModels;
 using Microsoft.UI.Xaml;
@@ -27,7 +28,7 @@ public sealed partial class MainWindow
             RememberBrowsePosition();
             ReleaseGalleryThumbnails();
             // 保留显式断开数据源，确保布局先回收旧卡片再创建新的绑定。
-            Gallery.ItemsSource = null;
+            LiveText.SetOnce(Gallery, "ItemsSource", localized => localized.ItemsSource = null);
         };
         GalleryState.ItemsChanged += () =>
         {
@@ -37,7 +38,7 @@ public sealed partial class MainWindow
             if (live && _liveRefreshSelection is { } selectedPath)
                 _selectedItem = GalleryState.Items.FirstOrDefault(item => string.Equals(item.Path, selectedPath, StringComparison.OrdinalIgnoreCase));
             if (live) RestoreItemSelection(_selectedPaths.ToArray(), _selectedItem?.Path, _selectionAnchor);
-            Gallery.ItemsSource = GalleryState.Items;
+            LiveText.SetOnce(Gallery, "ItemsSource", localized => localized.ItemsSource = GalleryState.Items);
             bool adopted = AdoptLaunchPlaylist();
             if (!adopted) ViewerState.SetPlaylist(GalleryState.MediaItems);
             if (live)
@@ -91,18 +92,18 @@ public sealed partial class MainWindow
         if (_closed || _closing) return;
         GalleryState.Cancel();
         ReleaseGalleryThumbnails();
-        Gallery.ItemsSource = null;
+        LiveText.SetOnce(Gallery, "ItemsSource", localized => localized.ItemsSource = null);
         GalleryState.ClearCachedDirectories();
         MediaCache.Clear();
         try
         {
             await MediaCache.Disk.ClearAsync();
-            GalleryState.Status = "内存和磁盘缓存已清除，预览会按需重新加载";
+            GalleryState.Status = AppText.Get("MemoryAndDiskCachesClearedPreviewsWillReloadAs");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            GalleryState.Status = "内存缓存已清除，部分磁盘缓存暂时无法删除";
+            GalleryState.Status = AppText.Get("MemoryCacheClearedSomeDiskCacheFilesCouldNot");
         }
-        finally { if (!_closed && !_closing) Gallery.ItemsSource = GalleryState.Items; }
+        finally { if (!_closed && !_closing) LiveText.SetOnce(Gallery, "ItemsSource", localized => localized.ItemsSource = GalleryState.Items); }
     }
 }

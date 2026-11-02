@@ -44,6 +44,7 @@ try {
     if (!$SkipChecks) {
         Invoke-DotNet @('run', '--project', 'Tests/CoreChecks/CoreChecks.csproj', '--', $repoRoot)
         Invoke-DotNet @('run', '--project', 'Tests/UpdateChecks/UpdateChecks.csproj')
+        Invoke-DotNet @('run', '--project', 'Tests/LanguageChecks/LanguageChecks.csproj', '--', $repoRoot)
     }
     $platform = if ($Architecture -eq 'arm64') { 'ARM64' } else { 'x64' }
     Invoke-DotNet @('publish', 'Fallery.csproj', '-c', 'Release', "-p:Platform=$platform", '-r', "win-$Architecture",

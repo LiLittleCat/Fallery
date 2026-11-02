@@ -1,3 +1,5 @@
+using Fallery.Controls;
+using Fallery.Services;
 using Fallery.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -43,7 +45,7 @@ public sealed partial class MainWindow
         RebuildFavorites();
         UpdateTreeToolbar();
         QueueSettingsSave();
-        GalleryState.Status = "已从文件树排除，可在文件树设置中恢复";
+        GalleryState.Status = AppText.Get("ExcludedFromTheFolderTreeRestoreItInFolder");
     }
 
     private async Task RestoreExcludedTreeFolderAsync(string path)
@@ -67,24 +69,24 @@ public sealed partial class MainWindow
         StopHoverPreview();
         var list = new ListView { MinWidth = 320, MaxWidth = 480, MaxHeight = 300, SelectionMode = ListViewSelectionMode.Single };
         var selectedPath = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 480 };
-        var empty = new TextBlock { Text = "没有排除的文件夹" };
+        var empty = LiveText.Set(new TextBlock { Text = AppText.Get("NoExcludedFolders") }, "Text", localized => localized.Text = AppText.Get("NoExcludedFolders"));
         var content = new StackPanel { Spacing = 12, MaxWidth = 480 };
-        content.Children.Add(new TextBlock { Text = "仅隐藏左侧文件树及收藏中的目录，不删除文件。排除父目录时，其子目录也会隐藏。", TextWrapping = TextWrapping.Wrap });
+        content.Children.Add(LiveText.Set(new TextBlock { Text = AppText.Get("OnlyHidesFoldersFromTheFolderTreeAndFavorites"), TextWrapping = TextWrapping.Wrap }, "Text", localized => localized.Text = AppText.Get("OnlyHidesFoldersFromTheFolderTreeAndFavorites")));
         content.Children.Add(empty);
         content.Children.Add(list);
         content.Children.Add(selectedPath);
-        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme,
-            Title = "排除的文件夹", Content = content, PrimaryButtonText = "取消排除", CloseButtonText = "完成", IsPrimaryButtonEnabled = false };
+        var dialog = LiveText.Set(LiveText.Set(LiveText.Set(new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme,
+            Title = AppText.Get("ExcludedFolders"), Content = content, PrimaryButtonText = AppText.Get("RestoreExcludedFolder"), CloseButtonText = AppText.Get("Done"), IsPrimaryButtonEnabled = false }, "Title", localized => localized.Title = AppText.Get("ExcludedFolders")), "PrimaryButtonText", localized => localized.PrimaryButtonText = AppText.Get("RestoreExcludedFolder")), "CloseButtonText", localized => localized.CloseButtonText = AppText.Get("Done"));
         void RefreshList()
         {
-            list.ItemsSource = _treeExcludedFolders.ToArray();
+            LiveText.SetOnce(list, "ItemsSource", localized => localized.ItemsSource = _treeExcludedFolders.ToArray());
             empty.Visibility = _treeExcludedFolders.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             if (_treeExcludedFolders.Count > 0) list.SelectedIndex = 0;
         }
         list.SelectionChanged += (_, _) =>
         {
             dialog.IsPrimaryButtonEnabled = list.SelectedItem is string;
-            selectedPath.Text = list.SelectedItem as string ?? "";
+            LiveText.SetOnce(selectedPath, "Text", localized => localized.Text = list.SelectedItem as string ?? "");
         };
         RefreshList();
         dialog.PrimaryButtonClick += async (_, args) =>
@@ -96,7 +98,7 @@ public sealed partial class MainWindow
             try { await RestoreExcludedTreeFolderAsync(path); }
             catch (OperationCanceledException) { }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            { if (!_closed) GalleryState.Status = $"已取消排除，刷新目录失败：{ex.Message}"; }
+            { if (!_closed) GalleryState.Status = AppText.Format("ExclusionRemovedButFolderRefreshFailed", ex.Message); }
             finally { RefreshList(); deferral.Complete(); }
         };
         _settingsDialog = dialog;

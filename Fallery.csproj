@@ -35,6 +35,7 @@
 
   <ItemGroup>
     <AssemblyMetadata Include="FalleryUpdateSource" Value="$(FalleryUpdateSource)" />
+    <EmbeddedResource Include="Strings/*.json" LogicalName="Fallery.Strings.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

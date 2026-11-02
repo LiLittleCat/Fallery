@@ -257,9 +257,9 @@ public static class FolderScanner
         ct.ThrowIfCancellationRequested();
         var roots = new List<FolderEntry>();
         var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-        if (Directory.Exists(pictures)) roots.Add(new(pictures, "图片") { ModifiedTicks = ReadFolderModifiedTicks(pictures), CreatedTicks = ReadFolderCreatedTicks(pictures) });
+        if (Directory.Exists(pictures)) roots.Add(new(pictures, AppText.Get("Photos")) { ModifiedTicks = ReadFolderModifiedTicks(pictures), CreatedTicks = ReadFolderCreatedTicks(pictures) });
         var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        if (Directory.Exists(desktop)) roots.Add(new(desktop, "桌面") { ModifiedTicks = ReadFolderModifiedTicks(desktop), CreatedTicks = ReadFolderCreatedTicks(desktop) });
+        if (Directory.Exists(desktop)) roots.Add(new(desktop, AppText.Get("Desktop")) { ModifiedTicks = ReadFolderModifiedTicks(desktop), CreatedTicks = ReadFolderCreatedTicks(desktop) });
         foreach (var drive in DriveInfo.GetDrives())
         {
             ct.ThrowIfCancellationRequested();

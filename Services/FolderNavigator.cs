@@ -9,7 +9,7 @@ public static class FolderNavigator
     {
         current = Normalize(current);
         boundary = Normalize(boundary ?? Path.GetPathRoot(current)!);
-        if (!IsWithin(current, boundary)) throw new ArgumentException("当前目录不在遍历范围中。", nameof(current));
+        if (!IsWithin(current, boundary)) throw new ArgumentException(AppText.Get("TheCurrentFolderIsOutsideTheNavigationScope"), nameof(current));
         var childrenCache = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         int visited = 0;
 
@@ -17,7 +17,7 @@ public static class FolderNavigator
         {
             ct.ThrowIfCancellationRequested();
             if (childrenCache.TryGetValue(path, out var cached)) return cached;
-            if (++visited > 10_000) throw new IOException("已检查较多目录，请打开更接近目标的目录后重试。");
+            if (++visited > 10_000) throw new IOException(AppText.Get("ManyFoldersHaveBeenCheckedOpenAFolderCloser"));
             var children = new List<string>();
             try
             {

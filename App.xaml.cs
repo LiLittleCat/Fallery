@@ -44,7 +44,7 @@ public partial class App : Application
         await VelopackUpdates.Shared.ApplyAsync(async () =>
         {
             if (windows.Any(window => !window.CanPrepareUpdate(ReferenceEquals(window, requestingWindow))))
-                throw new InvalidOperationException("其他窗口正在操作文件或关闭，请完成后重试。");
+                throw new InvalidOperationException(AppText.Get("AnotherWindowIsWorkingWithFilesOrClosingPlease"));
             IsUpdating = true;
             foreach (var window in windows) window.BeginUpdateShutdown();
             foreach (var window in windows) await window.SaveBeforeUpdateAsync();

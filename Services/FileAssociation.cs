@@ -17,7 +17,7 @@ public static class FileAssociation
     /// <summary>注册当前 exe；softwareRoot 默认是 HKCU\Software，测试时可传入隔离的子键。</summary>
     public static void Register(string exePath, IEnumerable<string> extensions, RegistryKey? softwareRoot = null)
     {
-        if (softwareRoot is null && AppIdentity.IsDevelopment) throw new InvalidOperationException("开发版不注册系统打开方式，请使用安装版。");
+        if (softwareRoot is null && AppIdentity.IsDevelopment) throw new InvalidOperationException(AppText.Get("DevelopmentBuildsDoNotRegisterFileAssociationsPleaseUse"));
         using var software = softwareRoot is null ? Registry.CurrentUser.CreateSubKey("Software") : null;
         var root = softwareRoot ?? software!;
         exePath = Path.GetFullPath(exePath);
@@ -34,7 +34,7 @@ public static class FileAssociation
         }
         using (var prog = root.CreateSubKey($@"Classes\{ProgId}"))
         {
-            prog.SetValue("", "Fallery 媒体文件");
+            prog.SetValue("", AppText.Get("FalleryMediaFile"));
             using (var defaultIcon = prog.CreateSubKey("DefaultIcon")) defaultIcon.SetValue("", icon);
             using var open = prog.CreateSubKey(@"shell\open\command");
             open.SetValue("", command);
@@ -47,7 +47,7 @@ public static class FileAssociation
         using (var capabilities = root.CreateSubKey(CapabilitiesPath.Replace(@"Software\", "")))
         {
             capabilities.SetValue("ApplicationName", AppIdentity.DisplayName);
-            capabilities.SetValue("ApplicationDescription", "瀑布流图片浏览器和视频播放器");
+            capabilities.SetValue("ApplicationDescription", AppText.Get("MasonryPhotoBrowserAndVideoPlayer"));
             using var associations = capabilities.CreateSubKey("FileAssociations");
             foreach (var extension in list) associations.SetValue(extension, ProgId);
         }
@@ -64,7 +64,7 @@ public static class FileAssociation
     private static void RegisterVerb(RegistryKey root, string target, string exePath, string argument)
     {
         using var verb = root.CreateSubKey($@"Classes\{target}\shell\{ContextVerb}");
-        verb.SetValue("", $"用 {AppIdentity.DisplayName} 打开");
+        verb.SetValue("", AppText.Format("OpenWith", AppIdentity.DisplayName));
         verb.SetValue("Icon", $"\"{exePath}\",0");
         verb.SetValue("MultiSelectModel", "Single");
         using var command = verb.CreateSubKey("command");
@@ -88,7 +88,7 @@ public static class FileAssociation
 
     public static void Unregister(IEnumerable<string> extensions, RegistryKey? softwareRoot = null, string? expectedExePath = null)
     {
-        if (softwareRoot is null && AppIdentity.IsDevelopment) throw new InvalidOperationException("开发版不修改系统打开方式，请使用安装版。");
+        if (softwareRoot is null && AppIdentity.IsDevelopment) throw new InvalidOperationException(AppText.Get("DevelopmentBuildsDoNotChangeFileAssociationsPleaseUse"));
         using var software = softwareRoot is null ? Registry.CurrentUser.OpenSubKey("Software", writable: true) : null;
         var root = softwareRoot ?? software;
         if (root is null) return;

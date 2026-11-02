@@ -1,3 +1,4 @@
+using Fallery.Services;
 using Fallery.Controls;
 using Fallery.Models;
 using Microsoft.UI.Xaml;
@@ -12,7 +13,7 @@ namespace Fallery;
 public sealed partial class MainWindow
 {
     private readonly List<string> _favoriteFolders = [];
-    private readonly TreeViewNode _favoritesRoot = new() { Content = new FolderEntry("", "收藏"), IsExpanded = true };
+    private readonly TreeViewNode _favoritesRoot = new() { Content = new FolderEntry("", AppText.Get("Favorites")), IsExpanded = true };
 
     private void InitializeFavorites() => FavoritesTree.RootNodes.Add(_favoritesRoot);
 
@@ -44,9 +45,9 @@ public sealed partial class MainWindow
         FavoriteButton.IsEnabled = path is not null;
         FavoriteIcon.Glyph = FluentIcons.Glyph(saved ? "IconBookmarkFilled" : "IconBookmark");
         FavoriteIcon.FontFamily = (FontFamily)Application.Current.Resources[saved ? "FluentIconFilledFont" : "FluentIconFont"];
-        string label = saved ? "取消收藏当前文件夹" : "收藏当前文件夹";
-        ToolTipService.SetToolTip(FavoriteButton, label);
-        AutomationProperties.SetName(FavoriteButton, label);
+        string label = saved ? AppText.Get("RemoveCurrentFolderFromFavorites") : AppText.Get("AddCurrentFolderToFavorites");
+        LiveText.SetOnce(FavoriteButton, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, label));
+        LiveText.SetOnce(FavoriteButton, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, label));
         FavoritesTree.SelectedNode = _favoritesRoot.Children.FirstOrDefault(node =>
             node.Content is FolderEntry entry && string.Equals(entry.Path, path, StringComparison.OrdinalIgnoreCase));
     }
@@ -88,12 +89,12 @@ public sealed partial class MainWindow
     private MenuFlyout BuildFavoriteMenu(string path)
     {
         var menu = new MenuFlyout();
-        var open = new MenuFlyoutItem { Text = "在新窗口中打开", Icon = FluentIcons.Create("IconNewWindow"), Tag = "new-window" };
+        var open = LiveText.Set(new MenuFlyoutItem { Text = AppText.Get("OpenInNewWindow"), Icon = FluentIcons.Create("IconNewWindow"), Tag = "new-window" }, "Text", localized => localized.Text = AppText.Get("OpenInNewWindow"));
         open.Click += (_, _) => RequestNewWindow(path);
         menu.Items.Add(open);
-        var exclude = new MenuFlyoutItem { Text = "排除此文件夹", Icon = FluentIcons.Create("IconFilter"), Tag = "exclude" };
+        var exclude = LiveText.Set(new MenuFlyoutItem { Text = AppText.Get("ExcludeThisFolder"), Icon = FluentIcons.Create("IconFilter"), Tag = "exclude" }, "Text", localized => localized.Text = AppText.Get("ExcludeThisFolder"));
         exclude.Click += (_, _) => ExcludeTreeFolder(path);
-        var remove = new MenuFlyoutItem { Text = "移除收藏", Icon = FluentIcons.Create("IconDelete"), Tag = "remove-favorite", KeyboardAcceleratorTextOverride = "Delete" };
+        var remove = LiveText.Set(new MenuFlyoutItem { Text = AppText.Get("RemoveFromFavorites"), Icon = FluentIcons.Create("IconDelete"), Tag = "remove-favorite", KeyboardAcceleratorTextOverride = "Delete" }, "Text", localized => localized.Text = AppText.Get("RemoveFromFavorites"));
         remove.Click += (_, _) => RemoveFavorite(path);
         menu.Items.Add(exclude);
         menu.Items.Add(remove);

@@ -191,19 +191,19 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Button x:Name="SidebarToggle" Style="{StaticResource IconButtonStyle}" Click="SidebarToggle_Click"
-                                ToolTipService.ToolTip="显示 / 隐藏文件树" AutomationProperties.Name="显示或隐藏文件树">
+                                  controls:Localization.Keys="ToolTipService.ToolTip=ShowHideFolderTree;AutomationProperties.Name=ShowOrHideFolderTree">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSidebar}" />
                         </Button>
                         <Button x:Name="BackButton" Grid.Column="1" IsEnabled="{x:Bind GalleryState.CanGoBack, Mode=OneWay}"
-                                Style="{StaticResource IconButtonStyle}" Click="Back_Click" ToolTipService.ToolTip="后退 (Alt+← / S)" AutomationProperties.Name="后退">
+                                Style="{StaticResource IconButtonStyle}" Click="Back_Click"   controls:Localization.Keys="ToolTipService.ToolTip=BackAltS;AutomationProperties.Name=Back">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconBack}" />
                         </Button>
                         <Button x:Name="ForwardButton" Grid.Column="2" IsEnabled="{x:Bind GalleryState.CanGoForward, Mode=OneWay}"
-                                Style="{StaticResource IconButtonStyle}" Click="Forward_Click" ToolTipService.ToolTip="前进 (Alt+→)" AutomationProperties.Name="前进">
+                                Style="{StaticResource IconButtonStyle}" Click="Forward_Click"   controls:Localization.Keys="ToolTipService.ToolTip=ForwardAlt;AutomationProperties.Name=Forward">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconForward}" />
                         </Button>
                         <Button x:Name="UpButton" Grid.Column="3" IsEnabled="{x:Bind GalleryState.CanGoUp, Mode=OneWay}"
-                                Style="{StaticResource IconButtonStyle}" Click="Up_Click" ToolTipService.ToolTip="上级目录 (Alt+↑ / W)" AutomationProperties.Name="上级目录">
+                                Style="{StaticResource IconButtonStyle}" Click="Up_Click"   controls:Localization.Keys="ToolTipService.ToolTip=ParentFolderAltW;AutomationProperties.Name=ParentFolder">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconUp}" />
                         </Button>
                         <Border x:Name="AddressFrame" Grid.Column="4" Margin="8,0,0,0" Height="32" VerticalAlignment="Center" CornerRadius="6"
@@ -212,141 +212,141 @@
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="34" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="32" /></Grid.ColumnDefinitions>
                                 <Button Style="{StaticResource IconButtonStyle}" MinWidth="0" MinHeight="28" Padding="4" Margin="2,0,0,0" Click="AddressChildren_Click"
-                                        ToolTipService.ToolTip="选择磁盘或图片目录" AutomationProperties.Name="选择磁盘">
+                                          controls:Localization.Keys="ToolTipService.ToolTip=SelectADriveOrPhotoFolder;AutomationProperties.Name=SelectDrive">
                                     <FontIcon Style="{StaticResource FluentIconFilled}" Glyph="{StaticResource IconFolderFilled}" Foreground="{ThemeResource FolderIconBrush}" />
                                 </Button>
                                 <ScrollViewer x:Name="AddressScroller" Grid.Column="1" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
                                               HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" SizeChanged="AddressScroller_SizeChanged">
                                     <StackPanel Orientation="Horizontal" Background="Transparent">
                                         <StackPanel x:Name="AddressSegments" Orientation="Horizontal" SizeChanged="AddressScroller_SizeChanged" />
-                                        <Border Width="32" Background="Transparent" ToolTipService.ToolTip="编辑完整路径 (Ctrl+L / Alt+D)" />
+                                        <Border Width="32" Background="Transparent"   controls:Localization.Keys="ToolTipService.ToolTip=EditFullPathCtrlLAltD"/>
                                     </StackPanel>
                                 </ScrollViewer>
                                 <TextBox x:Name="AddressEditor" Grid.Column="1" Visibility="Collapsed" MinHeight="0" Padding="4,3" BorderThickness="0"
-                                         FontSize="13" Background="Transparent" PlaceholderText="输入文件夹路径"
-                                         AutomationProperties.Name="文件夹地址" KeyDown="AddressEditor_KeyDown" LostFocus="AddressEditor_LostFocus" />
+                                         FontSize="13" Background="Transparent"
+                                          KeyDown="AddressEditor_KeyDown" LostFocus="AddressEditor_LostFocus"  controls:Localization.Keys="PlaceholderText=EnterAFolderPath;AutomationProperties.Name=FolderAddress"/>
                                 <Button x:Name="AddressHistoryButton" Grid.Column="2" Style="{StaticResource IconButtonStyle}" MinWidth="0" MinHeight="28" Padding="6,5"
-                                        Click="AddressHistory_Click" ToolTipService.ToolTip="最近访问的位置" AutomationProperties.Name="最近访问的位置">
+                                        Click="AddressHistory_Click"   controls:Localization.Keys="ToolTipService.ToolTip=RecentLocations;AutomationProperties.Name=RecentLocations">
                                     <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconExpand}" FontSize="12" />
                                 </Button>
                                 <Button x:Name="AddressRefreshButton" Grid.Column="3" Style="{StaticResource IconButtonStyle}" MinWidth="0" MinHeight="28" Padding="5" Margin="0,0,2,0"
-                                        Click="Refresh_Click" ToolTipService.ToolTip="刷新 (F5)" AutomationProperties.Name="刷新目录">
+                                        Click="Refresh_Click"   controls:Localization.Keys="ToolTipService.ToolTip=RefreshF;AutomationProperties.Name=RefreshFolderae93d4">
                                     <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconRefresh}" FontSize="15" />
                                 </Button>
                                 <Button x:Name="AddressGoButton" Grid.Column="3" Visibility="Collapsed" Style="{StaticResource IconButtonStyle}" MinWidth="0" MinHeight="28" Padding="5" Margin="0,0,2,0"
-                                        Click="AddressGo_Click" ToolTipService.ToolTip="转到此地址 (Enter)" AutomationProperties.Name="转到此地址">
+                                        Click="AddressGo_Click"   controls:Localization.Keys="ToolTipService.ToolTip=GoToThisAddressEnter;AutomationProperties.Name=GoToThisAddress">
                                     <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconForward}" FontSize="15" />
                                 </Button>
                             </Grid>
                         </Border>
                         <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="2" Margin="6,0,0,0">
                             <Button x:Name="SearchButton" Style="{StaticResource IconButtonStyle}" Click="Search_Click"
-                                    ToolTipService.ToolTip="全电脑搜索 (Ctrl+F)" AutomationProperties.Name="全电脑搜索">
+                                      controls:Localization.Keys="ToolTipService.ToolTip=SearchThisComputerCtrlF;AutomationProperties.Name=SearchThisComputer">
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSearch}" />
                             </Button>
                             <Button x:Name="FavoriteButton" Style="{StaticResource IconButtonStyle}" Click="Favorite_Click" IsEnabled="False"
-                                    ToolTipService.ToolTip="收藏当前文件夹" AutomationProperties.Name="收藏当前文件夹">
+                                      controls:Localization.Keys="ToolTipService.ToolTip=AddCurrentFolderToFavorites;AutomationProperties.Name=AddCurrentFolderToFavorites">
                                 <FontIcon x:Name="FavoriteIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconBookmark}" />
                             </Button>
                             <Button x:Name="OpenFolderButton" Style="{StaticResource IconButtonStyle}" Click="OpenFolder_Click"
-                                    ToolTipService.ToolTip="打开文件夹 (Ctrl+O)" AutomationProperties.Name="打开文件夹">
+                                      controls:Localization.Keys="ToolTipService.ToolTip=OpenFolderCtrlO;AutomationProperties.Name=OpenFolder">
                                 <Button.KeyboardAccelerators><KeyboardAccelerator Key="O" Modifiers="Control" /></Button.KeyboardAccelerators>
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconOpenFolder}" />
                             </Button>
                             <Button x:Name="NewWindowButton" Style="{StaticResource IconButtonStyle}" Click="NewWindow_Click"
-                                    ToolTipService.ToolTip="新建窗口 (Ctrl+N)" AutomationProperties.Name="新建窗口">
+                                      controls:Localization.Keys="ToolTipService.ToolTip=NewWindowCtrlN;AutomationProperties.Name=NewWindow">
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconNewWindow}" />
                             </Button>
                             <Rectangle Width="1" Height="18" Margin="4,0" Fill="{ThemeResource DividerBrush}" VerticalAlignment="Center" />
-                            <DropDownButton Style="{StaticResource IconDropDownStyle}" AutomationProperties.Name="排序" ToolTipService.ToolTip="排序（文件夹优先）">
+                            <DropDownButton Style="{StaticResource IconDropDownStyle}"   controls:Localization.Keys="AutomationProperties.Name=Sort;ToolTipService.ToolTip=SortFoldersFirst">
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSort}" />
                                 <DropDownButton.Flyout>
                                     <MenuFlyout Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True"
                                                 MenuFlyoutPresenterStyle="{StaticResource NavigationMenuPresenterStyle}">
-                                        <RadioMenuFlyoutItem x:Name="SortTakenItem" Text="拍摄日期" Tag="Taken" GroupName="SortField" Click="SortField_Click"
-                                                            ToolTipService.ToolTip="照片使用 EXIF 拍摄日期，视频使用媒体日期；无日期排在末尾">
+                                        <RadioMenuFlyoutItem x:Name="SortTakenItem"  Tag="Taken" GroupName="SortField" Click="SortField_Click"
+                                                             controls:Localization.Keys="Text=DateTaken;ToolTipService.ToolTip=UsesEXIFDatesForPhotosAndMediaDatesFor">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortTaken}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
-                                        <RadioMenuFlyoutItem x:Name="SortCreatedItem" Text="创建日期" Tag="Created" GroupName="SortField" Click="SortField_Click">
+                                        <RadioMenuFlyoutItem x:Name="SortCreatedItem"  Tag="Created" GroupName="SortField" Click="SortField_Click" controls:Localization.Keys="Text=DateCreated07aa0e">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortCreated}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
-                                        <RadioMenuFlyoutItem x:Name="SortNameItem" Text="名称" Tag="Name" GroupName="SortField" IsChecked="True" Click="SortField_Click">
+                                        <RadioMenuFlyoutItem x:Name="SortNameItem"  Tag="Name" GroupName="SortField" IsChecked="True" Click="SortField_Click" controls:Localization.Keys="Text=Name">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortName}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
-                                        <RadioMenuFlyoutItem x:Name="SortModifiedItem" Text="修改日期" Tag="Modified" GroupName="SortField" Click="SortField_Click">
+                                        <RadioMenuFlyoutItem x:Name="SortModifiedItem"  Tag="Modified" GroupName="SortField" Click="SortField_Click" controls:Localization.Keys="Text=DateModified2cbced">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortModified}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
-                                        <RadioMenuFlyoutItem x:Name="SortSizeItem" Text="文件大小" Tag="Size" GroupName="SortField" Click="SortField_Click">
+                                        <RadioMenuFlyoutItem x:Name="SortSizeItem"  Tag="Size" GroupName="SortField" Click="SortField_Click" controls:Localization.Keys="Text=FileSize">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortSize}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <RadioMenuFlyoutItem x:Name="SortAscendingItem" Text="升序" Tag="Ascending" GroupName="SortDirection" IsChecked="True" Click="SortDirection_Click">
+                                        <RadioMenuFlyoutItem x:Name="SortAscendingItem"  Tag="Ascending" GroupName="SortDirection" IsChecked="True" Click="SortDirection_Click" controls:Localization.Keys="Text=Ascending">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconAscending}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
-                                        <RadioMenuFlyoutItem x:Name="SortDescendingItem" Text="降序" Tag="Descending" GroupName="SortDirection" Click="SortDirection_Click">
+                                        <RadioMenuFlyoutItem x:Name="SortDescendingItem"  Tag="Descending" GroupName="SortDirection" Click="SortDirection_Click" controls:Localization.Keys="Text=Descending">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconDescending}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
                             </DropDownButton>
-                            <DropDownButton x:Name="FilterMenuButton" Style="{StaticResource IconDropDownStyle}" AutomationProperties.Name="筛选" ToolTipService.ToolTip="筛选媒体与子文件夹">
+                            <DropDownButton x:Name="FilterMenuButton" Style="{StaticResource IconDropDownStyle}"   controls:Localization.Keys="AutomationProperties.Name=Filter;ToolTipService.ToolTip=FilterMediaAndSubfolders">
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFilter}" />
                                 <DropDownButton.Flyout>
                                     <MenuFlyout Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True"
                                                 MenuFlyoutPresenterStyle="{StaticResource NavigationMenuPresenterStyle}">
-                                        <RadioMenuFlyoutItem x:Name="FilterAllItem" Text="所有媒体" Tag="All" GroupName="MediaFilter" IsChecked="True" Click="MediaFilter_Click">
+                                        <RadioMenuFlyoutItem x:Name="FilterAllItem"  Tag="All" GroupName="MediaFilter" IsChecked="True" Click="MediaFilter_Click" controls:Localization.Keys="Text=AllMedia">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconAllMedia}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
-                                        <RadioMenuFlyoutItem x:Name="FilterPhotosItem" Text="图片" Tag="Photos" GroupName="MediaFilter" Click="MediaFilter_Click">
+                                        <RadioMenuFlyoutItem x:Name="FilterPhotosItem"  Tag="Photos" GroupName="MediaFilter" Click="MediaFilter_Click" controls:Localization.Keys="Text=Photos">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconImage}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
-                                        <RadioMenuFlyoutItem x:Name="FilterVideosItem" Text="视频" Tag="Videos" GroupName="MediaFilter" Click="MediaFilter_Click">
+                                        <RadioMenuFlyoutItem x:Name="FilterVideosItem"  Tag="Videos" GroupName="MediaFilter" Click="MediaFilter_Click" controls:Localization.Keys="Text=Videos">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconVideo}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
-                                        <RadioMenuFlyoutItem x:Name="FilterAudioItem" Text="音频" Tag="Audio" GroupName="MediaFilter" Click="MediaFilter_Click">
+                                        <RadioMenuFlyoutItem x:Name="FilterAudioItem"  Tag="Audio" GroupName="MediaFilter" Click="MediaFilter_Click" controls:Localization.Keys="Text=Audio">
                                             <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconAudio}" /></RadioMenuFlyoutItem.Icon>
                                         </RadioMenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <RadioMenuFlyoutItem x:Name="ShowSubfoldersItem" Text="显示子文件夹" Tag="Show" GroupName="Subfolders" IsChecked="True" Click="Subfolders_Click">
+                                        <RadioMenuFlyoutItem x:Name="ShowSubfoldersItem"  Tag="Show" GroupName="Subfolders" IsChecked="True" Click="Subfolders_Click" controls:Localization.Keys="Text=ShowSubfolders">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFolder}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
-                                        <RadioMenuFlyoutItem x:Name="HideSubfoldersItem" Text="隐藏子文件夹" Tag="Hide" GroupName="Subfolders" Click="Subfolders_Click">
+                                        <RadioMenuFlyoutItem x:Name="HideSubfoldersItem"  Tag="Hide" GroupName="Subfolders" Click="Subfolders_Click" controls:Localization.Keys="Text=HideSubfolders">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFolderHidden}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <ToggleMenuFlyoutItem x:Name="ShowHiddenItem" Text="显示隐藏的项目" Click="ShowHidden_Click">
+                                        <ToggleMenuFlyoutItem x:Name="ShowHiddenItem"  Click="ShowHidden_Click" controls:Localization.Keys="Text=ShowHiddenItems">
                                                 <ToggleMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconHiddenItems}" /></ToggleMenuFlyoutItem.Icon>
                                             </ToggleMenuFlyoutItem>
                                     </MenuFlyout>
                                 </DropDownButton.Flyout>
                             </DropDownButton>
-                            <DropDownButton x:Name="ViewMenuButton" Style="{StaticResource IconDropDownStyle}" ToolTipService.ToolTip="视图"
-                                            AutomationProperties.Name="视图模式与文件名">
+                            <DropDownButton x:Name="ViewMenuButton" Style="{StaticResource IconDropDownStyle}"
+                                             controls:Localization.Keys="ToolTipService.ToolTip=View;AutomationProperties.Name=ViewModeAndFileNames">
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{x:Bind DisplayModeGlyph(GalleryState.DisplayMode), Mode=OneWay}" />
                                 <DropDownButton.Flyout>
                                     <MenuFlyout Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True"
                                                 MenuFlyoutPresenterStyle="{StaticResource NavigationMenuPresenterStyle}">
-                                        <RadioMenuFlyoutItem x:Name="JustifiedModeItem" Text="自适应视图" Tag="Justified" GroupName="DisplayMode" Click="DisplayMode_Click">
+                                        <RadioMenuFlyoutItem x:Name="JustifiedModeItem"  Tag="Justified" GroupName="DisplayMode" Click="DisplayMode_Click" controls:Localization.Keys="Text=JustifiedView">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconJustified}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
-                                        <RadioMenuFlyoutItem x:Name="MasonryModeItem" Text="瀑布视图" Tag="Masonry" GroupName="DisplayMode" IsChecked="True" Click="DisplayMode_Click">
+                                        <RadioMenuFlyoutItem x:Name="MasonryModeItem"  Tag="Masonry" GroupName="DisplayMode" IsChecked="True" Click="DisplayMode_Click" controls:Localization.Keys="Text=MasonryView">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconMasonry}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
-                                        <RadioMenuFlyoutItem x:Name="LargeIconsModeItem" Text="网格视图" Tag="LargeIcons" GroupName="DisplayMode" Click="DisplayMode_Click">
+                                        <RadioMenuFlyoutItem x:Name="LargeIconsModeItem"  Tag="LargeIcons" GroupName="DisplayMode" Click="DisplayMode_Click" controls:Localization.Keys="Text=GridView">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconLargeIcons}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
-                                        <RadioMenuFlyoutItem x:Name="FilmstripModeItem" Text="大图 + 底部缩略图" Tag="Filmstrip" GroupName="DisplayMode" Click="DisplayMode_Click">
+                                        <RadioMenuFlyoutItem x:Name="FilmstripModeItem"  Tag="Filmstrip" GroupName="DisplayMode" Click="DisplayMode_Click" controls:Localization.Keys="Text=LargeImageFilmstrip">
                                                 <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFilmstrip}" /></RadioMenuFlyoutItem.Icon>
                                             </RadioMenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <RadioMenuFlyoutItem x:Name="DetailsModeItem" Text="列表视图" Tag="Details" GroupName="DisplayMode" Click="DisplayMode_Click">
+                                        <RadioMenuFlyoutItem x:Name="DetailsModeItem"  Tag="Details" GroupName="DisplayMode" Click="DisplayMode_Click" controls:Localization.Keys="Text=DetailsView">
                                             <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconPlaylist}" /></RadioMenuFlyoutItem.Icon>
                                         </RadioMenuFlyoutItem>
                                         <MenuFlyoutSeparator />
-                                        <ToggleMenuFlyoutItem x:Name="ShowFileNamesItem" Text="显示文件名" IsChecked="True" Click="ShowFileNames_Click">
+                                        <ToggleMenuFlyoutItem x:Name="ShowFileNamesItem"  IsChecked="True" Click="ShowFileNames_Click" controls:Localization.Keys="Text=ShowFileNames">
                                                 <ToggleMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFileNames}" /></ToggleMenuFlyoutItem.Icon>
                                             </ToggleMenuFlyoutItem>
-                                        <ToggleMenuFlyoutItem x:Name="ShowCardsItem" Text="显示卡片背景" IsChecked="True" Click="ShowCards_Click">
+                                        <ToggleMenuFlyoutItem x:Name="ShowCardsItem"  IsChecked="True" Click="ShowCards_Click" controls:Localization.Keys="Text=ShowCardBackgrounds">
                                                 <ToggleMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconCards}" /></ToggleMenuFlyoutItem.Icon>
                                             </ToggleMenuFlyoutItem>
                                     </MenuFlyout>
@@ -359,7 +359,7 @@
                             <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Button x:Name="CloseViewerButton" Style="{StaticResource IconButtonStyle}" Click="CloseViewer_Click"
-                                ToolTipService.ToolTip="返回浏览 (Esc)" AutomationProperties.Name="关闭查看器">
+                                  controls:Localization.Keys="ToolTipService.ToolTip=BackToBrowsingEsc;AutomationProperties.Name=CloseViewer">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconBack}" />
                         </Button>
                         <Grid Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" ColumnSpacing="6">
@@ -378,7 +378,7 @@
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                     <Button x:Name="SettingsButton" Grid.Column="1" Margin="2,0,0,0" Style="{StaticResource IconButtonStyle}"
                             Visibility="{x:Bind GalleryChromeVisibility(ViewerState.IsOpen, GalleryState.DisplayMode), Mode=OneWay}"
-                            Click="Settings_Click" ToolTipService.ToolTip="设置" AutomationProperties.Name="设置">
+                            Click="Settings_Click"   controls:Localization.Keys="ToolTipService.ToolTip=Settings;AutomationProperties.Name=Settings">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSettings}" />
                     </Button>
                 </Grid>
@@ -394,38 +394,38 @@
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" MaxHeight="240" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                 <Grid x:Name="TreeToolbar" Margin="8,0,4,4" ColumnSpacing="4">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <TextBlock Text="文件夹" FontSize="12" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock  FontSize="12" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"  controls:Localization.Keys="Text=Folder"/>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
-                        <Button Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="文件树设置" AutomationProperties.Name="文件树设置">
+                        <Button Style="{StaticResource IconButtonStyle}"   controls:Localization.Keys="ToolTipService.ToolTip=FolderTreeSettings;AutomationProperties.Name=FolderTreeSettings">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSettings}" />
                             <Button.Flyout>
                                 <MenuFlyout MenuFlyoutPresenterStyle="{StaticResource NavigationMenuPresenterStyle}" Placement="BottomEdgeAlignedLeft" ShouldConstrainToRootBounds="True">
-                                    <RadioMenuFlyoutItem x:Name="TreeSortNameItem" Text="名称" Tag="Name" GroupName="TreeSortField" IsChecked="True" Click="TreeSort_Click" />
-                                    <RadioMenuFlyoutItem x:Name="TreeSortModifiedItem" Text="修改时间" Tag="Modified" GroupName="TreeSortField" Click="TreeSort_Click" />
-                                    <RadioMenuFlyoutItem x:Name="TreeSortCreatedItem" Text="创建时间" Tag="Created" GroupName="TreeSortField" Click="TreeSort_Click" />
+                                    <RadioMenuFlyoutItem x:Name="TreeSortNameItem"  Tag="Name" GroupName="TreeSortField" IsChecked="True" Click="TreeSort_Click"  controls:Localization.Keys="Text=Name"/>
+                                    <RadioMenuFlyoutItem x:Name="TreeSortModifiedItem"  Tag="Modified" GroupName="TreeSortField" Click="TreeSort_Click"  controls:Localization.Keys="Text=DateModified"/>
+                                    <RadioMenuFlyoutItem x:Name="TreeSortCreatedItem"  Tag="Created" GroupName="TreeSortField" Click="TreeSort_Click"  controls:Localization.Keys="Text=DateCreated"/>
                                     <MenuFlyoutSeparator />
-                                    <RadioMenuFlyoutItem x:Name="TreeAscendingItem" Text="升序" Tag="Ascending" GroupName="TreeSortDirection" IsChecked="True" Click="TreeSort_Click" />
-                                    <RadioMenuFlyoutItem x:Name="TreeDescendingItem" Text="降序" Tag="Descending" GroupName="TreeSortDirection" Click="TreeSort_Click" />
+                                    <RadioMenuFlyoutItem x:Name="TreeAscendingItem"  Tag="Ascending" GroupName="TreeSortDirection" IsChecked="True" Click="TreeSort_Click"  controls:Localization.Keys="Text=Ascending"/>
+                                    <RadioMenuFlyoutItem x:Name="TreeDescendingItem"  Tag="Descending" GroupName="TreeSortDirection" Click="TreeSort_Click"  controls:Localization.Keys="Text=Descending"/>
                                     <MenuFlyoutSeparator />
-                                    <MenuFlyoutItem x:Name="TreeExclusionsItem" Text="管理排除的文件夹" Click="TreeExclusions_Click" />
+                                    <MenuFlyoutItem x:Name="TreeExclusionsItem"  Click="TreeExclusions_Click"  controls:Localization.Keys="Text=ManageExcludedFolders8781a8"/>
                                 </MenuFlyout>
                             </Button.Flyout>
                         </Button>
                         <Button x:Name="NewFolderButton" Style="{StaticResource IconButtonStyle}" IsEnabled="False" Click="NewFolder_Click"
-                                ToolTipService.ToolTip="在当前目录新建文件夹" AutomationProperties.Name="新建文件夹">
+                                  controls:Localization.Keys="ToolTipService.ToolTip=CreateFolderInCurrentLocation;AutomationProperties.Name=NewFolder">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconNewFolder}" />
                         </Button>
                         <Button x:Name="TreeTimeButton" Style="{StaticResource IconButtonStyle}"
-                                ToolTipService.ToolTip="文件夹时间" AutomationProperties.Name="文件夹时间">
+                                  controls:Localization.Keys="ToolTipService.ToolTip=FolderDatesf0aa31;AutomationProperties.Name=FolderDatesf0aa31">
                             <FontIcon x:Name="TreeTimeIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortModified}" />
                             <Button.Flyout>
                                 <MenuFlyout Placement="Bottom" ShouldConstrainToRootBounds="True"
                                             MenuFlyoutPresenterStyle="{StaticResource NavigationMenuPresenterStyle}">
-                                    <RadioMenuFlyoutItem x:Name="TreeTimeHiddenItem" Text="不显示" Tag="None" GroupName="TreeTime" Click="TreeTime_Click" />
-                                    <RadioMenuFlyoutItem x:Name="TreeTimeModifiedItem" Text="修改时间" Tag="Modified" GroupName="TreeTime" Click="TreeTime_Click">
+                                    <RadioMenuFlyoutItem x:Name="TreeTimeHiddenItem"  Tag="None" GroupName="TreeTime" Click="TreeTime_Click"  controls:Localization.Keys="Text=DoNotShow"/>
+                                    <RadioMenuFlyoutItem x:Name="TreeTimeModifiedItem"  Tag="Modified" GroupName="TreeTime" Click="TreeTime_Click" controls:Localization.Keys="Text=DateModified">
                                         <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortModified}" /></RadioMenuFlyoutItem.Icon>
                                     </RadioMenuFlyoutItem>
-                                    <RadioMenuFlyoutItem x:Name="TreeTimeCreatedItem" Text="创建时间" Tag="Created" GroupName="TreeTime" Click="TreeTime_Click">
+                                    <RadioMenuFlyoutItem x:Name="TreeTimeCreatedItem"  Tag="Created" GroupName="TreeTime" Click="TreeTime_Click" controls:Localization.Keys="Text=DateCreated">
                                         <RadioMenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconSortCreated}" /></RadioMenuFlyoutItem.Icon>
                                     </RadioMenuFlyoutItem>
                                 </MenuFlyout>
@@ -434,7 +434,7 @@
                     </StackPanel>
                 </Grid>
                 <TreeView x:Name="FavoritesTree" Grid.Row="1" SelectionMode="Single" ItemInvoked="FavoritesTree_ItemInvoked"
-                          ContextRequested="FavoritesTree_ContextRequested" AutomationProperties.Name="收藏文件夹">
+                          ContextRequested="FavoritesTree_ContextRequested"  controls:Localization.Keys="AutomationProperties.Name=FavoriteFolders">
                     <TreeView.Resources><x:Double x:Key="TreeViewItemMinHeight">30</x:Double></TreeView.Resources>
                     <TreeView.ItemTemplate>
                         <DataTemplate>
@@ -514,7 +514,7 @@
             </Grid>
             <toolkit:GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Width="6" Background="Transparent"
                                   HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
-                                  AutomationProperties.Name="调整文件树宽度" ToolTipService.ToolTip="拖动调整文件树宽度" />
+                                     controls:Localization.Keys="AutomationProperties.Name=ResizeFolderTree;ToolTipService.ToolTip=DragToResizeTheFolderTree"/>
             <Border x:Name="GallerySurface" Grid.Column="2"
                     ContextRequested="Gallery_ContextRequested"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,1,0,1" CornerRadius="8,0,0,8">
@@ -540,16 +540,16 @@
                                     <ColumnDefinition Width="100" /><ColumnDefinition Width="90" />
                                     <ColumnDefinition Width="156" /><ColumnDefinition Width="156" />
                                 </Grid.ColumnDefinitions>
-                                <Button x:Name="DetailsNameHeader" Grid.Column="1" Content="名称" Tag="Name" Style="{StaticResource DetailsHeaderButtonStyle}" Click="DetailsSort_Click" />
-                                <TextBlock Grid.Column="2" Text="文件类型" FontSize="12" VerticalAlignment="Center" />
-                                <Button x:Name="DetailsSizeHeader" Grid.Column="3" Content="大小" Tag="Size" Margin="0,0,16,0" HorizontalContentAlignment="Right" Style="{StaticResource DetailsHeaderButtonStyle}" Click="DetailsSort_Click" />
-                                <Button x:Name="DetailsCreatedHeader" Grid.Column="4" Content="创建时间" Tag="Created" Style="{StaticResource DetailsHeaderButtonStyle}" Click="DetailsSort_Click" />
-                                <Button x:Name="DetailsModifiedHeader" Grid.Column="5" Content="修改时间" Tag="Modified" Style="{StaticResource DetailsHeaderButtonStyle}" Click="DetailsSort_Click" />
+                                <Button x:Name="DetailsNameHeader" Grid.Column="1"  Tag="Name" Style="{StaticResource DetailsHeaderButtonStyle}" Click="DetailsSort_Click"  controls:Localization.Keys="Content=Name"/>
+                                <TextBlock Grid.Column="2"  FontSize="12" VerticalAlignment="Center"  controls:Localization.Keys="Text=FileType"/>
+                                <Button x:Name="DetailsSizeHeader" Grid.Column="3"  Tag="Size" Margin="0,0,16,0" HorizontalContentAlignment="Right" Style="{StaticResource DetailsHeaderButtonStyle}" Click="DetailsSort_Click"  controls:Localization.Keys="Content=Size"/>
+                                <Button x:Name="DetailsCreatedHeader" Grid.Column="4"  Tag="Created" Style="{StaticResource DetailsHeaderButtonStyle}" Click="DetailsSort_Click"  controls:Localization.Keys="Content=DateCreated"/>
+                                <Button x:Name="DetailsModifiedHeader" Grid.Column="5"  Tag="Modified" Style="{StaticResource DetailsHeaderButtonStyle}" Click="DetailsSort_Click"  controls:Localization.Keys="Content=DateModified"/>
                             </Grid>
                         </ScrollViewer>
                     </Border>
-                    <TextBlock x:Name="EmptyText" Text="在左侧选择目录，或点击顶部的打开文件夹按钮" HorizontalAlignment="Center" VerticalAlignment="Center"
-                               TextWrapping="Wrap" Margin="24" Foreground="{ThemeResource TextFillColorSecondaryBrush}" IsHitTestVisible="False" />
+                    <TextBlock x:Name="EmptyText"  HorizontalAlignment="Center" VerticalAlignment="Center"
+                               TextWrapping="Wrap" Margin="24" Foreground="{ThemeResource TextFillColorSecondaryBrush}" IsHitTestVisible="False"  controls:Localization.Keys="Text=SelectAFolderOnTheLeftOrClickThe"/>
                     <Canvas x:Name="MarqueeOverlay" IsHitTestVisible="False" Visibility="Collapsed">
                         <Border x:Name="SelectionMarquee" BorderThickness="1" BorderBrush="{ThemeResource SystemControlHighlightAccentBrush}">
                             <Border.Background><SolidColorBrush Color="{ThemeResource SystemAccentColor}" Opacity="0.18" /></Border.Background>
@@ -569,7 +569,7 @@
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconImage}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <Slider x:Name="ThumbSize" Width="116" Minimum="120" Maximum="480" StepFrequency="20" Value="240"
-                        ToolTipService.ToolTip="缩略图大小" AutomationProperties.Name="缩略图大小" ValueChanged="ThumbSize_ValueChanged" />
+                          ValueChanged="ThumbSize_ValueChanged"  controls:Localization.Keys="ToolTipService.ToolTip=ThumbnailSize;AutomationProperties.Name=ThumbnailSize"/>
                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconImage}" FontSize="17" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </StackPanel>
         </Grid>
@@ -629,10 +629,10 @@
                         Margin="20" Background="#B32F2118" CornerRadius="12" Padding="4">
                     <StackPanel Orientation="Horizontal" Spacing="2">
                         <Button x:Name="MotionPhotoButton" Click="MotionPhoto_Click" Background="Transparent" BorderThickness="0"
-                                Padding="12,8" CornerRadius="8" Foreground="White" AutomationProperties.Name="播放实况照片">
+                                Padding="12,8" CornerRadius="8" Foreground="White"  controls:Localization.Keys="AutomationProperties.Name=PlayMotionPhoto">
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconPlayMedia}" Foreground="White" />
-                                <TextBlock x:Name="MotionPhotoText" Text="实况" VerticalAlignment="Center" />
+                                <TextBlock x:Name="MotionPhotoText"  VerticalAlignment="Center"  controls:Localization.Keys="Text=Motion"/>
                             </StackPanel>
                         </Button>
                         <Button x:Name="MotionSoundButton" Click="MotionSound_Click" Style="{StaticResource IconButtonStyle}"
@@ -647,12 +647,12 @@
 
                 <Button x:Name="PrevButton" Margin="12" HorizontalAlignment="Left" VerticalAlignment="Center"
                         IsEnabled="{x:Bind ViewerState.CanPrevious, Mode=OneWay}"
-                        Style="{StaticResource IconButtonStyle}" Click="Prev_Click" ToolTipService.ToolTip="上一项 (←)">
+                        Style="{StaticResource IconButtonStyle}" Click="Prev_Click"  controls:Localization.Keys="ToolTipService.ToolTip=PreviousItem">
                     <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconPrevious}" FontSize="22" Foreground="White" />
                 </Button>
                 <Button x:Name="NextButton" Margin="12" HorizontalAlignment="Right" VerticalAlignment="Center"
                         IsEnabled="{x:Bind ViewerState.CanNext, Mode=OneWay}"
-                        Style="{StaticResource IconButtonStyle}" Click="Next_Click" ToolTipService.ToolTip="下一项 (→)">
+                        Style="{StaticResource IconButtonStyle}" Click="Next_Click"  controls:Localization.Keys="ToolTipService.ToolTip=NextItem">
                     <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconNext}" FontSize="22" Foreground="White" />
                 </Button>
             </Grid>
@@ -674,19 +674,19 @@
                 <!-- 视频画面由独立渲染窗口承载，不能叠加 XAML 箭头，上一项/下一项放在这里。 -->
                 <StackPanel Orientation="Horizontal">
                     <Button x:Name="VideoPreviousButton" Style="{StaticResource IconButtonStyle}" Click="Prev_Click" IsEnabled="{x:Bind ViewerState.CanPrevious, Mode=OneWay}"
-                            ToolTipService.ToolTip="上一项 (PageUp)" AutomationProperties.Name="上一项">
+                              controls:Localization.Keys="ToolTipService.ToolTip=PreviousItemPageUp;AutomationProperties.Name=PreviousItemb88f02">
                         <FontIcon Style="{StaticResource FluentIconFilled}" Glyph="{StaticResource IconPreviousMedia}" />
                     </Button>
                     <Button x:Name="VideoPlayButton" Style="{StaticResource IconButtonStyle}" Click="VideoPlay_Click"
-                            ToolTipService.ToolTip="播放 / 暂停 (空格)" AutomationProperties.Name="播放或暂停">
+                              controls:Localization.Keys="ToolTipService.ToolTip=PlayPauseSpace;AutomationProperties.Name=PlayOrPause">
                         <FontIcon x:Name="VideoPlayIcon" Style="{StaticResource FluentIconFilled}" Glyph="{StaticResource IconPauseMedia}" />
                     </Button>
                     <Button x:Name="VideoNextButton" Style="{StaticResource IconButtonStyle}" Click="Next_Click" IsEnabled="{x:Bind ViewerState.CanNext, Mode=OneWay}"
-                            ToolTipService.ToolTip="下一项 (PageDown)" AutomationProperties.Name="下一项">
+                              controls:Localization.Keys="ToolTipService.ToolTip=NextItemPageDown;AutomationProperties.Name=NextItemf8baad">
                         <FontIcon Style="{StaticResource FluentIconFilled}" Glyph="{StaticResource IconNextMedia}" />
                     </Button>
                     <Button x:Name="VideoMuteButton" Style="{StaticResource IconButtonStyle}"
-                            ToolTipService.ToolTip="调整音量" AutomationProperties.Name="调整音量">
+                              controls:Localization.Keys="ToolTipService.ToolTip=AdjustVolume15e5fd;AutomationProperties.Name=AdjustVolume15e5fd">
                         <FontIcon x:Name="VideoMuteIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconVolume}" />
                         <Button.Flyout>
                             <Flyout x:Name="VideoVolumeFlyout" Placement="Top" ShouldConstrainToRootBounds="True">
@@ -701,7 +701,7 @@
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="100" /><ColumnDefinition Width="36" /></Grid.ColumnDefinitions>
                                     <Slider x:Name="VideoVolume" Minimum="0" Maximum="100" Value="100" StepFrequency="1"
                                             VerticalAlignment="Center" IsThumbToolTipEnabled="False"
-                                            AutomationProperties.Name="音量" ValueChanged="VideoVolume_ValueChanged" />
+                                             ValueChanged="VideoVolume_ValueChanged"  controls:Localization.Keys="AutomationProperties.Name=Volume"/>
                                     <TextBlock x:Name="VideoVolumeText" Grid.Column="1" Text="100%" VerticalAlignment="Center"
                                                TextAlignment="Right" FontSize="12" />
                                 </Grid>
@@ -712,11 +712,11 @@
                 <TextBlock x:Name="VideoPositionText" Grid.Column="1" Text="0:00" FontSize="12" VerticalAlignment="Center" Margin="4,0,8,0"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <Slider x:Name="VideoSeek" Grid.Column="2" Minimum="0" Maximum="1" StepFrequency="0.1" IsThumbToolTipEnabled="False"
-                        VerticalAlignment="Center" AutomationProperties.Name="播放进度" ValueChanged="VideoSeek_ValueChanged" />
+                        VerticalAlignment="Center"  ValueChanged="VideoSeek_ValueChanged"  controls:Localization.Keys="AutomationProperties.Name=PlaybackPosition"/>
                 <TextBlock x:Name="VideoDurationText" Grid.Column="3" Text="0:00" FontSize="12" VerticalAlignment="Center" Margin="8,0,6,0"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <TextBlock x:Name="VideoLoopText" Grid.Column="4" Visibility="Collapsed" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0"
-                           Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" ToolTipService.ToolTip="A-B 循环（\ 取消）" />
+                           Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"   controls:Localization.Keys="ToolTipService.ToolTip=ABRepeatToCancel"/>
             </Grid>
 
                     <StackPanel x:Name="ViewerMetadata" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -734,56 +734,56 @@
                 </Grid>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                 <StackPanel x:Name="ImageZoomPanel" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                    <Button Style="{StaticResource IconButtonStyle}" Click="ZoomFit_Click" ToolTipService.ToolTip="适应窗口 (Ctrl+0)" AutomationProperties.Name="适应窗口">
+                    <Button Style="{StaticResource IconButtonStyle}" Click="ZoomFit_Click"   controls:Localization.Keys="ToolTipService.ToolTip=FitToWindowCtrl;AutomationProperties.Name=FitToWindow">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFit}" />
                     </Button>
-                    <DropDownButton Style="{StaticResource IconDropDownStyle}" ToolTipService.ToolTip="缩放比例" AutomationProperties.Name="缩放比例">
-                        <TextBlock x:Name="ZoomPercentText" Text="适应窗口 · —" FontSize="12" MinWidth="112" TextAlignment="Center" />
+                    <DropDownButton Style="{StaticResource IconDropDownStyle}"   controls:Localization.Keys="ToolTipService.ToolTip=ZoomLevel;AutomationProperties.Name=ZoomLevel">
+                        <TextBlock x:Name="ZoomPercentText"  FontSize="12" MinWidth="112" TextAlignment="Center"  controls:Localization.Keys="Text=FitToWindowd782a4"/>
                         <DropDownButton.Flyout><MenuFlyout x:Name="ZoomMenu" Placement="Top" /></DropDownButton.Flyout>
                     </DropDownButton>
-                    <Button Style="{StaticResource IconButtonStyle}" Click="ZoomOut_Click" ToolTipService.ToolTip="缩小 (Ctrl+-)" AutomationProperties.Name="缩小">
+                    <Button Style="{StaticResource IconButtonStyle}" Click="ZoomOut_Click"   controls:Localization.Keys="ToolTipService.ToolTip=ZoomOutCtrl;AutomationProperties.Name=ZoomOut">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconZoomOut}" />
                     </Button>
                     <Slider x:Name="ZoomSlider" Width="120" Minimum="-3.3" Maximum="4.3" StepFrequency="0.01" VerticalAlignment="Center"
-                            IsThumbToolTipEnabled="False" AutomationProperties.Name="缩放" ValueChanged="ZoomSlider_ValueChanged" />
-                    <Button Style="{StaticResource IconButtonStyle}" Click="ZoomIn_Click" ToolTipService.ToolTip="放大 (Ctrl+=)" AutomationProperties.Name="放大">
+                            IsThumbToolTipEnabled="False"  ValueChanged="ZoomSlider_ValueChanged"  controls:Localization.Keys="AutomationProperties.Name=Zoom"/>
+                    <Button Style="{StaticResource IconButtonStyle}" Click="ZoomIn_Click"   controls:Localization.Keys="ToolTipService.ToolTip=ZoomInCtrl;AutomationProperties.Name=ZoomIn">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconZoomIn}" />
                     </Button>
                 </StackPanel>
                 <StackPanel x:Name="VideoAudioPanel" Visibility="Collapsed" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                     <Button x:Name="FitVideoWindowButton" Style="{StaticResource IconButtonStyle}" Click="FitVideoWindow_Click" IsEnabled="False"
-                            ToolTipService.ToolTip="窗口适应视频（同步调整浏览窗口）" AutomationProperties.Name="窗口适应视频">
+                              controls:Localization.Keys="ToolTipService.ToolTip=FitWindowToVideoAlsoResizesTheBrowserWindow;AutomationProperties.Name=FitWindowToVideo">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFit}" />
                     </Button>
-                    <Button x:Name="VideoRateButton" Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="播放速度（C 加快 / X 减慢 / Z 恢复）"
-                            AutomationProperties.Name="播放速度" Width="48" MinWidth="0" Height="30" Padding="6,0">
+                    <Button x:Name="VideoRateButton" Style="{StaticResource IconButtonStyle}"
+                             Width="48" MinWidth="0" Height="30" Padding="6,0" controls:Localization.Keys="ToolTipService.ToolTip=PlaybackSpeedCFasterXSlowerZReset;AutomationProperties.Name=PlaybackSpeedc114a6">
                         <TextBlock x:Name="VideoRateText" Text="1×" FontSize="13" Width="36" TextAlignment="Center" />
                         <Button.Flyout>
                             <MenuFlyout x:Name="VideoRateMenu" Placement="TopEdgeAlignedRight" ShouldConstrainToRootBounds="True"
                                         MenuFlyoutPresenterStyle="{StaticResource PlaybackRateMenuPresenterStyle}" />
                         </Button.Flyout>
                     </Button>
-                    <Button Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="更多" AutomationProperties.Name="更多播放选项">
+                    <Button Style="{StaticResource IconButtonStyle}"   controls:Localization.Keys="ToolTipService.ToolTip=More;AutomationProperties.Name=MorePlaybackOptions">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconMore}" />
                         <Button.Flyout>
                             <MenuFlyout Placement="Top" Opening="VideoMoreMenu_Opening">
-                                <MenuFlyoutItem x:Name="VideoCompactFitItem" Text="窗口适应视频" Click="FitVideoWindow_Click" />
-                                <MenuFlyoutItem x:Name="VideoCompactRotateItem" Text="向右旋转 90°" Click="RotateMedia_Click" />
-                                <MenuFlyoutSubItem x:Name="VideoCompactRateMenu" Text="播放速度" />
-                                <MenuFlyoutSubItem x:Name="VideoTrackMenu" Text="音轨">
+                                <MenuFlyoutItem x:Name="VideoCompactFitItem"  Click="FitVideoWindow_Click"  controls:Localization.Keys="Text=FitWindowToVideo"/>
+                                <MenuFlyoutItem x:Name="VideoCompactRotateItem"  Click="RotateMedia_Click"  controls:Localization.Keys="Text=RotateRight"/>
+                                <MenuFlyoutSubItem x:Name="VideoCompactRateMenu"   controls:Localization.Keys="Text=PlaybackSpeedc114a6"/>
+                                <MenuFlyoutSubItem x:Name="VideoTrackMenu"  controls:Localization.Keys="Text=AudioTrackb6dd16">
                                     <MenuFlyoutSubItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconVolume}" /></MenuFlyoutSubItem.Icon>
                                 </MenuFlyoutSubItem>
                                 <MenuFlyoutSeparator />
-                                <MenuFlyoutItem x:Name="VideoStepBackItem" Text="上一帧" KeyboardAcceleratorTextOverride="," Click="VideoStepBack_Click" />
-                                <MenuFlyoutItem x:Name="VideoStepForwardItem" Text="下一帧" KeyboardAcceleratorTextOverride="." Click="VideoStepForward_Click" />
+                                <MenuFlyoutItem x:Name="VideoStepBackItem"  KeyboardAcceleratorTextOverride="," Click="VideoStepBack_Click"  controls:Localization.Keys="Text=PreviousFrame"/>
+                                <MenuFlyoutItem x:Name="VideoStepForwardItem"  KeyboardAcceleratorTextOverride="." Click="VideoStepForward_Click"  controls:Localization.Keys="Text=NextFrame"/>
                                 <MenuFlyoutSeparator x:Name="VideoFrameSeparator" />
-                                <MenuFlyoutItem Text="设置 A 点" KeyboardAcceleratorTextOverride="[" Click="VideoLoopStart_Click">
+                                <MenuFlyoutItem  KeyboardAcceleratorTextOverride="[" Click="VideoLoopStart_Click" controls:Localization.Keys="Text=SetPointA">
                                     <MenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconLoop}" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem Text="设置 B 点" KeyboardAcceleratorTextOverride="]" Click="VideoLoopEnd_Click" />
-                                <MenuFlyoutItem Text="取消 A-B 循环" KeyboardAcceleratorTextOverride="\" Click="VideoLoopClear_Click" />
+                                <MenuFlyoutItem  KeyboardAcceleratorTextOverride="]" Click="VideoLoopEnd_Click"  controls:Localization.Keys="Text=SetPointB"/>
+                                <MenuFlyoutItem  KeyboardAcceleratorTextOverride="\" Click="VideoLoopClear_Click"  controls:Localization.Keys="Text=CancelABRepeat"/>
                                 <MenuFlyoutSeparator />
-                                <MenuFlyoutItem x:Name="VideoScreenshotItem" Text="截图保存到视频目录" KeyboardAcceleratorTextOverride="Ctrl+E" Click="VideoScreenshot_Click">
+                                <MenuFlyoutItem x:Name="VideoScreenshotItem"  KeyboardAcceleratorTextOverride="Ctrl+E" Click="VideoScreenshot_Click" controls:Localization.Keys="Text=SaveScreenshotToVideoFolder">
                                     <MenuFlyoutItem.Icon><FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconScreenshot}" /></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                             </MenuFlyout>
@@ -791,28 +791,28 @@
                     </Button>
                 </StackPanel>
                     <Button x:Name="RotateImageLeftButton" Style="{StaticResource IconButtonStyle}" Click="RotateImageLeft_Click" IsEnabled="False"
-                            ToolTipService.ToolTip="向左旋转 90°" AutomationProperties.Name="向左旋转 90°">
+                              controls:Localization.Keys="ToolTipService.ToolTip=RotateLeft;AutomationProperties.Name=RotateLeft">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconRotateLeft}" />
                     </Button>
                     <Button x:Name="RotateMediaButton" Style="{StaticResource IconButtonStyle}" Click="RotateMedia_Click" IsEnabled="False"
-                            ToolTipService.ToolTip="向右旋转 90°" AutomationProperties.Name="向右旋转 90°">
+                              controls:Localization.Keys="ToolTipService.ToolTip=RotateRight;AutomationProperties.Name=RotateRight">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconRotateRight}" />
                     </Button>
                     <ToggleButton x:Name="FlipImageToggle" Style="{StaticResource IconToggleButtonStyle}" Click="FlipImage_Click" IsEnabled="False"
-                                  ToolTipService.ToolTip="水平翻转" AutomationProperties.Name="水平翻转">
+                                    controls:Localization.Keys="ToolTipService.ToolTip=FlipHorizontally;AutomationProperties.Name=FlipHorizontally">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFlipHorizontal}" />
                     </ToggleButton>
                 </StackPanel>
                 <ToggleButton x:Name="DetailsToggle" Grid.Column="2" Style="{StaticResource IconToggleButtonStyle}" Click="DetailsToggle_Click"
-                                  ToolTipService.ToolTip="详细信息 (I)" AutomationProperties.Name="详细信息">
+                                    controls:Localization.Keys="ToolTipService.ToolTip=DetailsI;AutomationProperties.Name=Details">
                         <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconInfo}" />
                     </ToggleButton>
                 <ToggleButton x:Name="PlaylistToggle" Grid.Column="3" Style="{StaticResource IconToggleButtonStyle}" Click="PlaylistToggle_Click"
-                              ToolTipService.ToolTip="播放列表 (L)" AutomationProperties.Name="播放列表">
+                                controls:Localization.Keys="ToolTipService.ToolTip=PlaylistL;AutomationProperties.Name=Playlist">
                     <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconPlaylist}" />
                 </ToggleButton>
                 <Button x:Name="ViewerFullScreenButton" Grid.Column="4" Style="{StaticResource IconButtonStyle}" Click="ViewerFullScreen_Click"
-                        ToolTipService.ToolTip="全屏 (F11)" AutomationProperties.Name="全屏">
+                          controls:Localization.Keys="ToolTipService.ToolTip=FullScreenF;AutomationProperties.Name=FullScreen">
                     <FontIcon x:Name="ViewerFullScreenIcon" Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconFullScreen}" />
                 </Button>
             </Grid>
@@ -826,9 +826,9 @@
                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <Grid Padding="16,14,10,10">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="详细信息" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock  FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"  controls:Localization.Keys="Text=Details"/>
                         <Button Grid.Column="1" Style="{StaticResource IconButtonStyle}" Click="DetailsToggle_Click"
-                                ToolTipService.ToolTip="收起详细信息 (I)" AutomationProperties.Name="收起详细信息">
+                                  controls:Localization.Keys="ToolTipService.ToolTip=CollapseDetailsI;AutomationProperties.Name=CollapseDetails">
                             <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconPanelRight}" />
                         </Button>
                     </Grid>
@@ -844,16 +844,16 @@
                     <Grid Padding="16,14,10,10">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="播放列表" FontSize="18" FontWeight="SemiBold" />
+                            <TextBlock  FontSize="18" FontWeight="SemiBold"  controls:Localization.Keys="Text=Playlist"/>
                             <TextBlock Text="{x:Bind ViewerState.Counter, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
                             <ToggleButton x:Name="PlaylistThumbnailsToggle" IsChecked="True" Click="PlaylistThumbnails_Click"
-                                          Style="{StaticResource IconToggleButtonStyle}" ToolTipService.ToolTip="隐藏缩略图" AutomationProperties.Name="隐藏缩略图">
+                                          Style="{StaticResource IconToggleButtonStyle}"   controls:Localization.Keys="ToolTipService.ToolTip=HideThumbnails;AutomationProperties.Name=HideThumbnails">
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconImage}" />
                             </ToggleButton>
                             <Button Style="{StaticResource IconButtonStyle}" Click="PlaylistToggle_Click"
-                                    ToolTipService.ToolTip="收起播放列表" AutomationProperties.Name="收起播放列表">
+                                      controls:Localization.Keys="ToolTipService.ToolTip=CollapsePlaylist;AutomationProperties.Name=CollapsePlaylist">
                                 <FontIcon Style="{StaticResource FluentIcon}" Glyph="{StaticResource IconPanelRight}" />
                             </Button>
                         </StackPanel>

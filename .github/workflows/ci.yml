@@ -22,3 +22,5 @@ jobs:
         run: dotnet run --project Tests/CoreChecks/CoreChecks.csproj -- .
       - name: Update checks
         run: dotnet run --project Tests/UpdateChecks/UpdateChecks.csproj
+      - name: Language checks
+        run: dotnet run --project Tests/LanguageChecks/LanguageChecks.csproj -- .

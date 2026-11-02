@@ -1,3 +1,4 @@
+using Fallery.Services;
 namespace Fallery.Models;
 
 public enum MediaKind { Image, Video, Folder, Audio }
@@ -15,7 +16,7 @@ public sealed record MediaFile(string Path, MediaKind Kind)
     public MediaFilter PreviewFilter { get; init; }
     public bool PreviewHidden { get; init; }
     public long? ModifiedTicks => Version?.ModifiedTicks ?? FolderModifiedTicks;
-    public string TypeText => Kind == MediaKind.Folder ? "文件夹" : $"{System.IO.Path.GetExtension(Path).TrimStart('.').ToUpperInvariant()} {Kind switch { MediaKind.Video => "视频", MediaKind.Audio => "音频", _ => "图片" }}";
+    public string TypeText => Kind == MediaKind.Folder ? AppText.Get("Folder") : $"{System.IO.Path.GetExtension(Path).TrimStart('.').ToUpperInvariant()} {Kind switch { MediaKind.Video => AppText.Get("Videos"), MediaKind.Audio => AppText.Get("Audio"), _ => AppText.Get("Photos") }}";
     public string SizeText => Kind == MediaKind.Folder || Version is null ? "—" : Version.Value.Length switch
     {
         >= 1L << 30 => $"{Version.Value.Length / (double)(1L << 30):0.##} GB",

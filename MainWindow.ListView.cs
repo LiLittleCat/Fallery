@@ -1,3 +1,5 @@
+using Fallery.Controls;
+using Fallery.Services;
 using Fallery.Layouts;
 using Fallery.Models;
 using Microsoft.UI.Xaml;
@@ -43,8 +45,8 @@ public sealed partial class MainWindow
         if (DetailsNameHeader is null) return;
         foreach (var (button, label, field) in new[]
         {
-            (DetailsNameHeader, "名称", MediaSortField.Name), (DetailsSizeHeader, "大小", MediaSortField.Size),
-            (DetailsCreatedHeader, "创建时间", MediaSortField.Created), (DetailsModifiedHeader, "修改时间", MediaSortField.Modified)
-        }) button.Content = label + (GalleryState.SortField == field ? GalleryState.Descending ? " ↓" : " ↑" : "");
+            (DetailsNameHeader, AppText.Get("Name"), MediaSortField.Name), (DetailsSizeHeader, AppText.Get("Size"), MediaSortField.Size),
+            (DetailsCreatedHeader, AppText.Get("DateCreated"), MediaSortField.Created), (DetailsModifiedHeader, AppText.Get("DateModified"), MediaSortField.Modified)
+        }) LiveText.SetOnce(button, "Content", localized => localized.Content = label + (GalleryState.SortField == field ? GalleryState.Descending ? " ↓" : " ↑" : ""));
     }
 }

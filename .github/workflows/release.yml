@@ -36,6 +36,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project Tests/UpdateChecks/UpdateChecks.csproj
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/LanguageChecks/LanguageChecks.csproj -- .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   build:
     needs: checks
     runs-on: windows-2022

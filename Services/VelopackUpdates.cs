@@ -31,18 +31,18 @@ public static class VelopackUpdates
 
     private static AppUpdateService CreateService()
     {
-        if (AppIdentity.IsDevelopment) return new(null, "开发版不接收安装版更新，请从发行页面下载正式版。");
-        if (string.IsNullOrWhiteSpace(AppIdentity.UpdateSource)) return new(null, "此版本没有配置更新地址，请从发行页面下载新版。");
+        if (AppIdentity.IsDevelopment) return new(null, AppText.Get("DevelopmentBuildsDoNotReceiveInstallerUpdatesDownloadThe"));
+        if (string.IsNullOrWhiteSpace(AppIdentity.UpdateSource)) return new(null, AppText.Get("ThisBuildHasNoUpdateSourceDownloadANewer"));
         try
         {
             var manager = new UpdateManager(VelopackUpdateBackend.CreateSource(AppIdentity.UpdateSource, AppIdentity.Channel == "preview"),
                 new UpdateOptions { ExplicitChannel = AppIdentity.UpdateChannel, AllowVersionDowngrade = false });
-            if (!manager.IsInstalled || manager.IsPortable) return new(null, "请使用安装版进行应用内更新；解压运行版请从发行页面下载新版。");
+            if (!manager.IsInstalled || manager.IsPortable) return new(null, AppText.Get("UseTheInstalledAppForInAppUpdatesFor"));
             if (manager.AppId != AppIdentity.PackageId || Velopack.Locators.VelopackLocator.Current.Channel != AppIdentity.UpdateChannel)
-                return new(null, "安装信息与当前版本不匹配，请重新下载安装包。");
+                return new(null, AppText.Get("InstallationInformationDoesNotMatchThisBuildDownloadAnd"));
             return new(new VelopackUpdateBackend(manager, AppIdentity.PackageId));
         }
-        catch (Exception ex) { return new(null, $"无法初始化更新：{ex.Message}"); }
+        catch (Exception ex) { return new(null, AppText.Format("CouldNotInitializeUpdates", ex.Message)); }
     }
 
 }

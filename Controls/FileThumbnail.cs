@@ -1,3 +1,4 @@
+using Fallery.Services;
 using System.ComponentModel;
 using Fallery.Models;
 using Microsoft.UI.Xaml;
@@ -22,7 +23,7 @@ public sealed partial class FileThumbnail : Grid
     private readonly Image _image = new() { Stretch = Stretch.Uniform };
     private readonly TextBlock _status = new()
     {
-        Text = "加载中", FontSize = 10, TextWrapping = TextWrapping.Wrap,
+        Text = AppText.Get("Loadingd04fcb"), FontSize = 10, TextWrapping = TextWrapping.Wrap,
         TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
         HorizontalAlignment = HorizontalAlignment.Center
     };
@@ -51,14 +52,14 @@ public sealed partial class FileThumbnail : Grid
     {
         if (!ReferenceEquals(sender, _item)) return;
         _image.Source = _item?.Thumbnail;
-        _status.Text = _item?.ThumbnailFailed == true ? "无法预览" : "加载中";
+        LiveText.Set(_status, "Text", localized => localized.Text = _item?.ThumbnailFailed == true ? AppText.Get("PreviewUnavailableb825cc") : AppText.Get("Loadingd04fcb"));
         _status.Visibility = _image.Source is null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Release()
     {
         _image.Source = null;
-        _status.Text = "加载中";
+        LiveText.Set(_status, "Text", localized => localized.Text = AppText.Get("Loadingd04fcb"));
         _status.Visibility = Visibility.Visible;
         if (_item is not null)
         {

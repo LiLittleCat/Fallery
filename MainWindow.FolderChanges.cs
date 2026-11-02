@@ -1,3 +1,4 @@
+using Fallery.Controls;
 using Fallery.Models;
 using Fallery.Services;
 using Microsoft.UI.Dispatching;
@@ -48,7 +49,7 @@ public sealed partial class MainWindow
             if (!_closed && GalleryState.CurrentFolder == folder)
             {
                 if (!await Task.Run(() => Directory.Exists(folder))) QueueFolderChange(folder);
-                else GalleryState.Status += $" · 无法监听目录变化：{ex.Message}";
+                else GalleryState.Status += AppText.Format("CouldNotMonitorFolderChanges", ex.Message);
             }
         }
     }
@@ -83,7 +84,7 @@ public sealed partial class MainWindow
             if (existing != folder)
             {
                 if (existing is not null) await NavigateAsync(existing);
-                else { CloseViewer(); GalleryState.Status = "当前目录已不可用，请选择其他目录"; }
+                else { CloseViewer(); GalleryState.Status = AppText.Get("ThisFolderIsNoLongerAvailablePleaseChooseAnother"); }
                 return;
             }
             _liveRefreshFolder = folder;
@@ -97,7 +98,7 @@ public sealed partial class MainWindow
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            if (!_closed && version == _navigationVersion) GalleryState.Status = $"自动刷新失败：{ex.Message}";
+            if (!_closed && version == _navigationVersion) GalleryState.Status = AppText.Format("AutomaticRefreshFailed", ex.Message);
         }
         finally { _liveRefreshFolder = null; _refreshingFolderChanges = false; }
     }
@@ -137,8 +138,8 @@ public sealed partial class MainWindow
             });
             if (_closed || version != _navigationVersion) return;
             if (!result.exists) { RemoveTreeNode(entry.Path); continue; }
-            node.Content = entry with { ModifiedTicks = result.modifiedTicks, CreatedTicks = result.createdTicks,
-                ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField };
+            LiveText.SetOnce(node, "Content", localized => localized.Content = entry with { ModifiedTicks = result.modifiedTicks, CreatedTicks = result.createdTicks,
+                ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField });
             if (result.children is null) continue;
             result.children.RemoveAll(child => IsTreeFolderExcluded(child.Path));
             var paths = result.children.Select(child => child.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -160,8 +161,8 @@ public sealed partial class MainWindow
                     node.Children.Insert(index, child);
                 }
                 if (child.Content is FolderEntry childEntry)
-                    child.Content = childEntry with { ModifiedTicks = result.children[index].ModifiedTicks,
-                        CreatedTicks = result.children[index].CreatedTicks, ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField };
+                    LiveText.SetOnce(child, "Content", localized => localized.Content = childEntry with { ModifiedTicks = result.children[index].ModifiedTicks,
+                        CreatedTicks = result.children[index].CreatedTicks, ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField });
             }
             node.HasUnrealizedChildren = false;
             SortTreeChildren(node);

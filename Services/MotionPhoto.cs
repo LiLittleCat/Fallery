@@ -129,11 +129,11 @@ public static class MotionPhoto
                 }
             }, ct).ConfigureAwait(false);
             if (await Task.Run(() => FileVersion.Read(clip.Version.Path), ct) != clip.Version)
-                throw new IOException("照片已发生变化，请重新打开后播放实况。");
+                throw new IOException(AppText.Get("ThePhotoHasChangedReopenItToPlayThe"));
             await using var input = new FileStream(clip.Version.Path, FileMode.Open, FileAccess.Read, FileShare.Read,
                 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
             if (clip.Offset < 0 || clip.Length < 24 || clip.Length > MaxVideoBytes || clip.Offset > input.Length - clip.Length)
-                throw new IOException("实况视频范围无效。");
+                throw new IOException(AppText.Get("InvalidMotionVideoRange"));
             input.Position = clip.Offset;
             await using (var target = new FileStream(output, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                 65536, FileOptions.Asynchronous))

@@ -1,3 +1,4 @@
+using Fallery.Controls;
 using Fallery.Models;
 using Fallery.Services;
 using Microsoft.UI.Xaml;
@@ -31,8 +32,8 @@ public sealed partial class MainWindow
                 Content = new TextBlock { Text = entry.Name, FontSize = 13 },
                 Tag = entry, Style = style, Padding = new Thickness(5, 2, 5, 2), MinWidth = 0, MinHeight = 28,
             };
-            ToolTipService.SetToolTip(name, entry.Path);
-            AutomationProperties.SetName(name, $"转到 {entry.Path}");
+            LiveText.SetOnce(name, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, entry.Path));
+            LiveText.Set(name, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, AppText.Format("GoTo", entry.Path)));
             name.Click += AddressSegment_Click;
             AddressSegments.Children.Add(name);
             var children = new Button
@@ -40,14 +41,14 @@ public sealed partial class MainWindow
                 Content = Controls.FluentIcons.Create("IconChevronRight", 10), Tag = entry,
                 Style = style, Padding = new Thickness(3, 2, 3, 2), MinWidth = 18, MinHeight = 28,
             };
-            ToolTipService.SetToolTip(children, $"{entry.Name} 的子文件夹");
-            AutomationProperties.SetName(children, $"展开 {entry.Name} 的子文件夹");
+            LiveText.Set(children, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, AppText.Format("SubfoldersOf", entry.Name)));
+            LiveText.Set(children, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, AppText.Format("ExpandSubfoldersOf", entry.Name)));
             children.Click += AddressChildren_Click;
             AddressSegments.Children.Add(children);
         }
         if (GalleryState.CurrentFolder is null)
-            AddressSegments.Children.Add(new TextBlock { Text = "输入路径或打开文件夹", FontSize = 13, Margin = new Thickness(4, 5, 4, 0) });
-        ToolTipService.SetToolTip(AddressFrame, GalleryState.CurrentFolder);
+            AddressSegments.Children.Add(LiveText.Set(new TextBlock { Text = AppText.Get("EnterAPathOrOpenAFolder"), FontSize = 13, Margin = new Thickness(4, 5, 4, 0) }, "Text", localized => localized.Text = AppText.Get("EnterAPathOrOpenAFolder")));
+        LiveText.SetOnce(AddressFrame, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, GalleryState.CurrentFolder));
         DispatcherQueue.TryEnqueue(ScrollAddressToEnd);
     }
 
@@ -77,8 +78,8 @@ public sealed partial class MainWindow
     {
         if (_closing || _closed || (ViewerState.IsOpen && !IsFilmstrip)) return;
         CloseAddressMenu();
-        if (AddressEditor.Visibility != Visibility.Visible) AddressEditor.Text = GalleryState.CurrentFolder ?? "";
-        ToolTipService.SetToolTip(AddressEditor, "输入文件夹路径，Enter 跳转，Esc 取消");
+        if (AddressEditor.Visibility != Visibility.Visible) LiveText.SetOnce(AddressEditor, "Text", localized => localized.Text = GalleryState.CurrentFolder ?? "");
+        LiveText.Set(AddressEditor, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, AppText.Get("EnterAFolderPathEnterToGoEscTo")));
         AddressScroller.Visibility = AddressRefreshButton.Visibility = Visibility.Collapsed;
         AddressEditor.Visibility = AddressGoButton.Visibility = Visibility.Visible;
         AddressEditor.Focus(FocusState.Programmatic);
@@ -90,10 +91,10 @@ public sealed partial class MainWindow
         if (cancelRequest && _addressRequest == _navigationVersion)
         {
             GalleryState.Cancel();
-            GalleryState.Status = "已取消地址跳转";
+            GalleryState.Status = AppText.Get("NavigationCanceled");
         }
         _addressRequest = null;
-        AddressEditor.Text = GalleryState.CurrentFolder ?? "";
+        LiveText.SetOnce(AddressEditor, "Text", localized => localized.Text = GalleryState.CurrentFolder ?? "");
         AddressEditor.Visibility = AddressGoButton.Visibility = Visibility.Collapsed;
         AddressScroller.Visibility = AddressRefreshButton.Visibility = Visibility.Visible;
     }
@@ -135,8 +136,8 @@ public sealed partial class MainWindow
         try { target = FolderAddress.Resolve(AddressEditor.Text, GalleryState.CurrentFolder); }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
         {
-            GalleryState.Status = $"无法打开地址：{ex.Message}";
-            ToolTipService.SetToolTip(AddressEditor, GalleryState.Status);
+            GalleryState.Status = AppText.Format("CouldNotOpenAddress", ex.Message);
+            LiveText.SetOnce(AddressEditor, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, GalleryState.Status));
             return;
         }
         if (!GalleryState.IsScanning && string.Equals(target, GalleryState.CurrentFolder, StringComparison.OrdinalIgnoreCase))
@@ -150,7 +151,7 @@ public sealed partial class MainWindow
         if (_closed || _closing || _addressRequest != request || _navigationVersion != request) return;
         // 导航成功会在提交目录时退出编辑；失败时保留输入，便于直接修正。
         _addressRequest = null;
-        ToolTipService.SetToolTip(AddressEditor, GalleryState.Status);
+        LiveText.SetOnce(AddressEditor, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, GalleryState.Status));
         AddressEditor.Focus(FocusState.Programmatic);
     }
 
@@ -165,14 +166,14 @@ public sealed partial class MainWindow
         CloseAddressMenu();
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCts.Token);
         _addressMenuCts = cts;
-        var status = new TextBlock { Text = "正在读取子文件夹…", Margin = new Thickness(8) };
+        var status = LiveText.Set(new TextBlock { Text = AppText.Get("ReadingSubfolders"), Margin = new Thickness(8) }, "Text", localized => localized.Text = AppText.Get("ReadingSubfolders"));
         var list = new ListView
         {
             SelectionMode = ListViewSelectionMode.None, IsItemClickEnabled = true, MaxHeight = 420, Visibility = Visibility.Collapsed,
             ItemTemplate = (DataTemplate)Root.Resources["AddressMenuItemTemplate"],
             ItemContainerStyle = (Style)Root.Resources["AddressMenuItemStyle"],
         };
-        AutomationProperties.SetName(list, "子文件夹");
+        LiveText.Set(list, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, AppText.Get("Subfolders")));
         var content = new Grid { Width = 260 };
         content.Children.Add(status);
         content.Children.Add(list);
@@ -202,15 +203,15 @@ public sealed partial class MainWindow
             bool showHidden = GalleryState.ShowHidden;
             var children = await Task.Run(() => FolderAddress.GetChildren(parent, cts.Token, showHidden), cts.Token);
             cts.Token.ThrowIfCancellationRequested();
-            list.ItemsSource = children;
+            LiveText.SetOnce(list, "ItemsSource", localized => localized.ItemsSource = children);
             list.Visibility = children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             status.Visibility = children.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
-            status.Text = "没有可访问的子文件夹";
+            LiveText.Set(status, "Text", localized => localized.Text = AppText.Get("NoAccessibleSubfolders"));
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            if (!cts.IsCancellationRequested) status.Text = "无法读取此目录，请检查权限或连接。";
+            if (!cts.IsCancellationRequested) LiveText.Set(status, "Text", localized => localized.Text = AppText.Get("CouldNotReadThisFolderCheckPermissionsOrThe"));
         }
         finally { if (ReferenceEquals(_addressMenuCts, cts)) _addressMenuCts = null; }
     }
@@ -235,15 +236,15 @@ public sealed partial class MainWindow
                 Icon = Controls.FluentIcons.Create("IconFolderFilled", filled: true), Tag = folder,
             };
             if (string.Equals(folder, GalleryState.CurrentFolder, StringComparison.OrdinalIgnoreCase)) item.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
-            ToolTipService.SetToolTip(item, folder);
+            LiveText.SetOnce(item, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, folder));
             item.Click += async (_, _) => await NavigateAsync(folder);
             menu.Items.Add(item);
         }
-        if (menu.Items.Count == 0) menu.Items.Add(new MenuFlyoutItem { Text = "暂无访问记录", IsEnabled = false });
+        if (menu.Items.Count == 0) menu.Items.Add(LiveText.Set(new MenuFlyoutItem { Text = AppText.Get("NoRecentLocations"), IsEnabled = false }, "Text", localized => localized.Text = AppText.Get("NoRecentLocations")));
         else
         {
             menu.Items.Add(new MenuFlyoutSeparator());
-            var clear = new MenuFlyoutItem { Text = "清除历史记录", Icon = Controls.FluentIcons.Create("IconDelete") };
+            var clear = LiveText.Set(new MenuFlyoutItem { Text = AppText.Get("ClearHistory"), Icon = Controls.FluentIcons.Create("IconDelete") }, "Text", localized => localized.Text = AppText.Get("ClearHistory"));
             clear.Click += (_, _) =>
             {
                 GalleryState.ClearRecentFolders();

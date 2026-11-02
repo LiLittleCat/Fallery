@@ -1,3 +1,4 @@
+using Fallery.Services;
 using Fallery.Controls;
 using Fallery.Models;
 using Microsoft.UI.Input;
@@ -187,7 +188,7 @@ public sealed partial class MainWindow
     {
         if (_closed) return;
         foreach (var tile in _realizedItems.Keys.OfType<MediaTile>()) ConfigureTile(tile);
-        SelectionCountText.Text = _selectedPaths.Count > 1 ? $"已选择 {_selectedPaths.Count:N0} 项" : "";
+        LiveText.Set(SelectionCountText, "Text", localized => localized.Text = _selectedPaths.Count > 1 ? AppText.Format("ItemsSelected", _selectedPaths.Count) : "");
     }
 
     private (string Path, bool Folder)[] SelectedFileTargets() => GalleryState.Items

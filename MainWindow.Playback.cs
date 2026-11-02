@@ -52,7 +52,7 @@ public sealed partial class MainWindow
         ViewerState.PropertyChanged += (_, args) =>
         {
             if (_closed) return;
-            if (args.PropertyName is nameof(ViewerState.Playlist)) PlaylistView.ItemsSource = ViewerState.Playlist;
+            if (args.PropertyName is nameof(ViewerState.Playlist)) LiveText.SetOnce(PlaylistView, "ItemsSource", localized => localized.ItemsSource = ViewerState.Playlist);
             if (args.PropertyName is nameof(ViewerState.CurrentIndex) or nameof(ViewerState.Playlist)) SyncPlaylistSelection();
         };
         foreach (var rate in PlaybackRates)
@@ -85,7 +85,7 @@ public sealed partial class MainWindow
         player.Failed += (_, message) => DispatcherQueue.TryEnqueue(() =>
         {
             if (_closed || !ReferenceEquals(_videoPlayer, player)) return;
-            ViewerState.Message = item.IsAudio ? $"无法播放此音频。文件可能损坏或系统缺少对应解码器。\n{message}" : UnsupportedVideoMessage(item.Path, message);
+            ViewerState.Message = item.IsAudio ? AppText.Format("CouldNotPlayThisAudioTheFileMayBe", message) : UnsupportedVideoMessage(item.Path, message);
             StopVideo();
         });
         player.StateChanged += (_, _) => DispatcherQueue.TryEnqueue(() =>
@@ -129,7 +129,7 @@ public sealed partial class MainWindow
                 && !ct.IsCancellationRequested && ReferenceEquals(_videoPlayer, player) && resume < player.Duration)
             {
                 player.Position = resume;
-                GalleryState.Status = $"从 {FormatTime(resume)} 继续播放";
+                GalleryState.Status = AppText.Format("ResumeFrom", FormatTime(resume));
             }
             ct.ThrowIfCancellationRequested();
             // 控制栏和画面区域先完成布局，再露出视频；保持进入前的窗口尺寸。
@@ -152,7 +152,7 @@ public sealed partial class MainWindow
         {
             if (!_closed && ReferenceEquals(_videoPlayer, player))
             {
-                ViewerState.Message = $"无法准备{(item.IsAudio ? "音频播放" : "视频画面")}：{ex.Message}";
+                ViewerState.Message = AppText.Format("CouldNotPrepare", (item.IsAudio ? AppText.Get("AudioPlayback") : AppText.Get("VideoDisplay")), ex.Message);
                 StopVideo();
             }
         }
@@ -190,8 +190,8 @@ public sealed partial class MainWindow
             player.Position = a;
             position = a;
         }
-        VideoDurationText.Text = FormatTime(duration);
-        VideoPositionText.Text = FormatTime(position);
+        LiveText.SetOnce(VideoDurationText, "Text", localized => localized.Text = FormatTime(duration));
+        LiveText.SetOnce(VideoPositionText, "Text", localized => localized.Text = FormatTime(position));
         // 某些文件定位到 EOF 后原生时钟继续走，但不触发 MediaEnded。
         // 按实际总时长兜底；主动暂停不连播，A-B 循环已在上面先处理。
         if (!_playbackEnded && player.IsPlaying && duration > TimeSpan.Zero && position >= duration)
@@ -223,7 +223,7 @@ public sealed partial class MainWindow
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            if (!_closed) ViewerState.Message = $"无法播放下一项：{ex.Message}";
+            if (!_closed) ViewerState.Message = AppText.Format("CouldNotPlayTheNextItem", ex.Message);
         }
     }
 
@@ -245,9 +245,9 @@ public sealed partial class MainWindow
     {
         string extension = System.IO.Path.GetExtension(path).ToLowerInvariant();
         string hint = extension == ".mkv"
-            ? "MKV 中的 HEVC、AV1 等编码需要系统扩展，当前版本暂不支持。"
-            : "如果是 HEVC（H.265）或 AV1 编码，需要从 Microsoft Store 安装“HEVC 视频扩展”或“AV1 视频扩展”，当前版本暂不内置这些解码器。";
-        return $"无法播放此视频。{hint}\n{detail}";
+            ? AppText.Get("CodecsSuchAsHEVCAndAVInMKVFiles")
+            : AppText.Get("HEVCHOrAVRequiresTheHEVCVideoExtensions");
+        return AppText.Format("CouldNotPlayThisVideo", hint, detail);
     }
 
     private static string FormatTime(TimeSpan time) =>
@@ -264,10 +264,10 @@ public sealed partial class MainWindow
     {
         bool silent = _muted || _volume == 0;
         VideoMuteIcon.Glyph = FluentIcons.Glyph(silent ? "IconMute" : "IconVolume");
-        string volumeLabel = $"调整音量 · {(_muted ? "已静音" : $"{_volume:0}%")}";
-        ToolTipService.SetToolTip(VideoMuteButton, volumeLabel);
+        string volumeLabel = AppText.Format("AdjustVolume", (_muted ? AppText.Get("Muted") : $"{_volume:0}%"));
+        LiveText.SetOnce(VideoMuteButton, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, volumeLabel));
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(VideoMuteButton, volumeLabel);
-        if (VideoVolumeText is not null) VideoVolumeText.Text = $"{_volume:0}%";
+        if (VideoVolumeText is not null) LiveText.SetOnce(VideoVolumeText, "Text", localized => localized.Text = $"{_volume:0}%");
     }
 
     private void ToggleVideoPlayback()
@@ -318,12 +318,12 @@ public sealed partial class MainWindow
         _rate = step == 0 ? 1 : PlaybackRates[Math.Clamp(index + step, 0, PlaybackRates.Length - 1)];
         if (_videoPlayer is not null) _videoPlayer.Rate = _rate;
         UpdateRateLabel();
-        GalleryState.Status = $"播放速度 {_rate:0.##}×";
+        GalleryState.Status = AppText.Format("PlaybackSpeed", _rate);
     }
 
     private void UpdateRateLabel()
     {
-        VideoRateText.Text = $"{_rate:0.##}×";
+        LiveText.SetOnce(VideoRateText, "Text", localized => localized.Text = $"{_rate:0.##}×");
         foreach (var entry in VideoRateMenu.Items.Concat(VideoCompactRateMenu.Items).OfType<RadioMenuFlyoutItem>())
             entry.IsChecked = entry.Tag is double rate && rate == _rate;
     }
@@ -335,21 +335,21 @@ public sealed partial class MainWindow
         else _loopEnd = player.Position;
         if (_loopStart is { } a && _loopEnd is { } b && b <= a) _loopEnd = null;
         UpdateLoopLabel();
-        GalleryState.Status = _loopStart is { } s && _loopEnd is { } e ? $"A-B 循环 {FormatTime(s)} – {FormatTime(e)}" : $"已设置 {(start ? "A" : "B")} 点";
+        GalleryState.Status = _loopStart is { } s && _loopEnd is { } e ? AppText.Format("ABRepeat", FormatTime(s), FormatTime(e)) : AppText.Format("PointSet", (start ? "A" : "B"));
     }
 
     private void ClearLoop()
     {
         _loopStart = _loopEnd = null;
         UpdateLoopLabel();
-        GalleryState.Status = "已取消 A-B 循环";
+        GalleryState.Status = AppText.Get("ABRepeatCanceled");
     }
 
     private void UpdateLoopLabel()
     {
         bool active = _loopStart is not null || _loopEnd is not null;
         VideoLoopText.Visibility = active && ViewerBar.ActualWidth >= 760 ? Visibility.Visible : Visibility.Collapsed;
-        VideoLoopText.Text = $"{(_loopStart is { } a ? FormatTime(a) : "A")} – {(_loopEnd is { } b ? FormatTime(b) : "B")}";
+        LiveText.SetOnce(VideoLoopText, "Text", localized => localized.Text = $"{(_loopStart is { } a ? FormatTime(a) : "A")} – {(_loopEnd is { } b ? FormatTime(b) : "B")}");
     }
 
     private void UpdateTrackMenu()
@@ -365,7 +365,7 @@ public sealed partial class MainWindow
             VideoTrackMenu.Items.Add(entry);
         }
         VideoTrackMenu.IsEnabled = tracks.Count > 1;
-        if (tracks.Count == 0) VideoTrackMenu.Items.Add(new MenuFlyoutItem { Text = "无可选音轨", IsEnabled = false });
+        if (tracks.Count == 0) VideoTrackMenu.Items.Add(LiveText.Set(new MenuFlyoutItem { Text = AppText.Get("NoSelectableAudioTracks"), IsEnabled = false }, "Text", localized => localized.Text = AppText.Get("NoSelectableAudioTracks")));
     }
 
     /// <summary>按原始分辨率截取当前画面，保存到视频所在目录。</summary>
@@ -377,7 +377,7 @@ public sealed partial class MainWindow
         {
             var file = await StorageFile.GetFileFromPathAsync(item.Path);
             using var frame = await VideoThumbnail.GetFrameAsync(file, time, CancellationToken.None);
-            var folder = await file.GetParentAsync() ?? throw new IOException("无法访问视频所在目录");
+            var folder = await file.GetParentAsync() ?? throw new IOException(AppText.Get("CannotAccessTheVideoSFolder"));
             var name = $"{System.IO.Path.GetFileNameWithoutExtension(item.Path)}_{time.ToString(@"hh\-mm\-ss\.fff")}.png";
             var target = await folder.CreateFileAsync(name, CreationCollisionOption.GenerateUniqueName);
             var decoder = await BitmapDecoder.CreateAsync(frame);
@@ -386,11 +386,11 @@ public sealed partial class MainWindow
             var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, output);
             encoder.SetSoftwareBitmap(bitmap);
             await encoder.FlushAsync();
-            GalleryState.Status = $"已保存截图：{target.Name}";
+            GalleryState.Status = AppText.Format("ScreenshotSaved", target.Name);
         }
         catch (Exception ex)
         {
-            if (!_closed) GalleryState.Status = $"截图失败：{ex.Message}";
+            if (!_closed) GalleryState.Status = AppText.Format("ScreenshotFailed", ex.Message);
         }
     }
 
@@ -465,7 +465,7 @@ public sealed partial class MainWindow
     {
         if (_updatingSeek || _videoPlayer is not { } player || player.Duration <= TimeSpan.Zero) return;
         player.Seek(TimeSpan.FromSeconds(e.NewValue));
-        VideoPositionText.Text = FormatTime(player.Position);
+        LiveText.SetOnce(VideoPositionText, "Text", localized => localized.Text = FormatTime(player.Position));
     }
 
     private void VideoVolume_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -495,7 +495,7 @@ public sealed partial class MainWindow
     private void SyncPlaylistSelection()
     {
         if (PlaylistPanel.Visibility != Visibility.Visible) return;
-        if (!ReferenceEquals(PlaylistView.ItemsSource, ViewerState.Playlist)) PlaylistView.ItemsSource = ViewerState.Playlist;
+        if (!ReferenceEquals(PlaylistView.ItemsSource, ViewerState.Playlist)) LiveText.SetOnce(PlaylistView, "ItemsSource", localized => localized.ItemsSource = ViewerState.Playlist);
         PlaylistView.SelectedIndex = ViewerState.CurrentIndex;
         if (ViewerState.CurrentItem is not { } item) return;
         // 面板展开或切换行高后再定位，列表末尾不足一屏时由 ScrollViewer 限制偏移。
@@ -517,8 +517,8 @@ public sealed partial class MainWindow
     {
         _playlistShowThumbnails = show;
         PlaylistThumbnailsToggle.IsChecked = show;
-        string label = show ? "隐藏缩略图" : "显示缩略图";
-        ToolTipService.SetToolTip(PlaylistThumbnailsToggle, label);
+        string label = show ? AppText.Get("HideThumbnails") : AppText.Get("ShowThumbnails");
+        LiveText.SetOnce(PlaylistThumbnailsToggle, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, label));
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(PlaylistThumbnailsToggle, label);
         var template = show ? _playlistThumbnailTemplate : (DataTemplate)Root.Resources["PlaylistTextTemplate"];
         if (template is not null && !ReferenceEquals(PlaylistView.ItemTemplate, template)) PlaylistView.ItemTemplate = template;

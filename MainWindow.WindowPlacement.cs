@@ -1,3 +1,4 @@
+using Fallery.Services;
 using System.Runtime.InteropServices;
 
 namespace Fallery;
@@ -26,7 +27,7 @@ public sealed partial class MainWindow
         if (_closed || _closing) return;
         // WINDOWPLACEMENT 同时保留普通窗口位置、大小及最大化状态，避免混用工作区和屏幕坐标导致偏移。
         if (!SetWindowPlacement(WinRT.Interop.WindowNative.GetWindowHandle(this), in placement))
-            GalleryState.Status = "无法恢复浏览窗口的位置和大小";
+            GalleryState.Status = AppText.Get("CouldNotRestoreTheBrowserWindowSPositionAnd");
         QueueSettingsSave();
     }
 

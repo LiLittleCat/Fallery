@@ -1,3 +1,4 @@
+using Fallery.Controls;
 using System.Collections.Concurrent;
 using Fallery.Models;
 using Fallery.Services;
@@ -25,11 +26,11 @@ public sealed partial class MainWindow
         TreeTimeModifiedItem.IsChecked = _treeShowModifiedTime && _treeTimeField == FolderTimeField.Modified;
         TreeTimeCreatedItem.IsChecked = _treeShowModifiedTime && _treeTimeField == FolderTimeField.Created;
         TreeTimeIcon.Glyph = Controls.FluentIcons.Glyph(_treeTimeField == FolderTimeField.Created ? "IconSortCreated" : "IconSortModified");
-        string timeLabel = !_treeShowModifiedTime ? "不显示" : _treeTimeField == FolderTimeField.Created ? "创建时间" : "修改时间";
-        ToolTipService.SetToolTip(TreeTimeButton, $"文件夹时间：{timeLabel}");
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TreeTimeButton, $"文件夹时间：{timeLabel}");
+        string timeLabel = !_treeShowModifiedTime ? AppText.Get("DoNotShow") : _treeTimeField == FolderTimeField.Created ? AppText.Get("DateCreated") : AppText.Get("DateModified");
+        LiveText.Set(TreeTimeButton, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, AppText.Format("FolderDates", timeLabel)));
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TreeTimeButton, AppText.Format("FolderDates", timeLabel));
         NewFolderButton.IsEnabled = GalleryState.CurrentFolder is not null;
-        TreeExclusionsItem.Text = $"管理排除的文件夹（{_treeExcludedFolders.Count}）";
+        LiveText.Set(TreeExclusionsItem, "Text", localized => localized.Text = AppText.Format("ManageExcludedFolders", _treeExcludedFolders.Count));
     }
 
     private async void TreeSort_Click(object sender, RoutedEventArgs e)
@@ -103,9 +104,9 @@ public sealed partial class MainWindow
             {
                 if (node.Content is not FolderEntry entry) continue;
                 bool hasDates = dates.TryGetValue(entry.Path, out var ticks);
-                node.Content = entry with { ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField,
+                LiveText.SetOnce(node, "Content", localized => localized.Content = entry with { ShowModifiedTime = _treeShowModifiedTime, TimeField = _treeTimeField,
                     ModifiedTicks = hasDates ? ticks.Modified : entry.ModifiedTicks,
-                    CreatedTicks = hasDates ? ticks.Created : entry.CreatedTicks };
+                    CreatedTicks = hasDates ? ticks.Created : entry.CreatedTicks });
             }
             // 先更新全部节点的日期，再排同级节点；父节点先遍历到时不能拿子节点的旧日期排序。
             foreach (var node in nodes) SortTreeChildren(node);
@@ -159,14 +160,14 @@ public sealed partial class MainWindow
     {
         if (_closed || _closing || _settingsDialog is not null || _deleting || _pasting) return;
         StopHoverPreview();
-        var input = new TextBox { Text = "新建文件夹", Header = "文件夹名称", MinWidth = 300, MaxLength = 255 };
+        var input = LiveText.Set(LiveText.Set(new TextBox { Text = AppText.Get("NewFolder"), Header = AppText.Get("FolderName"), MinWidth = 300, MaxLength = 255 }, "Text", localized => localized.Text = AppText.Get("NewFolder")), "Header", localized => localized.Header = AppText.Get("FolderName"));
         var error = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 420 };
         var content = new StackPanel { Spacing = 12 };
-        content.Children.Add(new TextBlock { Text = $"创建位置：{parent}", TextWrapping = TextWrapping.Wrap, MaxWidth = 420 });
+        content.Children.Add(LiveText.Set(new TextBlock { Text = AppText.Format("CreateIn", parent), TextWrapping = TextWrapping.Wrap, MaxWidth = 420 }, "Text", localized => localized.Text = AppText.Format("CreateIn", parent)));
         content.Children.Add(input);
         content.Children.Add(error);
-        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme,
-            Title = "新建文件夹", Content = content, PrimaryButtonText = "创建", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Primary };
+        var dialog = LiveText.Set(LiveText.Set(LiveText.Set(new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme,
+            Title = AppText.Get("NewFolder"), Content = content, PrimaryButtonText = AppText.Get("Create"), CloseButtonText = AppText.Get("Cancel"), DefaultButton = ContentDialogButton.Primary }, "Title", localized => localized.Title = AppText.Get("NewFolder")), "PrimaryButtonText", localized => localized.PrimaryButtonText = AppText.Get("Create")), "CloseButtonText", localized => localized.CloseButtonText = AppText.Get("Cancel"));
         string? created = null;
         dialog.Opened += (_, _) => { input.Focus(FocusState.Programmatic); input.SelectAll(); };
         dialog.PrimaryButtonClick += async (_, args) =>
@@ -181,7 +182,7 @@ public sealed partial class MainWindow
             }
             catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
             {
-                error.Text = ex.Message;
+                LiveText.SetOnce(error, "Text", localized => localized.Text = ex.Message);
             }
             finally { dialog.IsPrimaryButtonEnabled = true; deferral.Complete(); }
         };
@@ -191,7 +192,7 @@ public sealed partial class MainWindow
         if (created is not null && !_closed && !_closing)
         {
             await NavigateAsync(created);
-            if (GalleryState.CurrentFolder == created) GalleryState.Status = "已创建文件夹";
+            if (GalleryState.CurrentFolder == created) GalleryState.Status = AppText.Get("FolderCreated");
         }
     }
 }

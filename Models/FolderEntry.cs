@@ -1,3 +1,4 @@
+using Fallery.Services;
 namespace Fallery.Models;
 
 public enum FolderTimeField { Modified, Created }
@@ -9,10 +10,10 @@ public sealed record FolderEntry(string Path, string Name)
     public long? CreatedTicks { get; init; }
     public bool ShowModifiedTime { get; init; }
     public FolderTimeField TimeField { get; init; }
-    public string TimeLabel => TimeField == FolderTimeField.Created ? "创建时间" : "修改时间";
+    public string TimeLabel => TimeField == FolderTimeField.Created ? AppText.Get("DateCreated") : AppText.Get("DateModified");
     public string ModifiedText => !ShowModifiedTime || string.IsNullOrEmpty(Path) ? ""
         : (TimeField == FolderTimeField.Created ? CreatedTicks : ModifiedTicks) is { } ticks
-            ? new DateTime(ticks, DateTimeKind.Utc).ToLocalTime().ToString("yyyy-MM-dd HH:mm") : TimeLabel + "未知";
+            ? new DateTime(ticks, DateTimeKind.Utc).ToLocalTime().ToString("yyyy-MM-dd HH:mm") : TimeLabel + AppText.Get("Unknown");
     public override string ToString() => Name;
 }
 

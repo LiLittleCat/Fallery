@@ -1,3 +1,4 @@
+using Fallery.Controls;
 using Fallery.Models;
 using Fallery.Services;
 using Microsoft.UI.Xaml;
@@ -37,9 +38,9 @@ public sealed partial class MainWindow
         ShowSubfoldersItem.IsChecked = GalleryState.ShowSubfolders;
         HideSubfoldersItem.IsChecked = !GalleryState.ShowSubfolders;
         ShowHiddenItem.IsChecked = GalleryState.ShowHidden;
-        string label = GalleryState.Filter switch { MediaFilter.Photos => "图片", MediaFilter.Videos => "视频", MediaFilter.Audio => "音频", _ => "所有媒体" };
-        ToolTipService.SetToolTip(FilterMenuButton, $"{label} · {(GalleryState.ShowSubfolders ? "显示" : "隐藏")}子文件夹"
-            + (GalleryState.ShowHidden ? " · 含隐藏项目" : ""));
+        string label = GalleryState.Filter switch { MediaFilter.Photos => AppText.Get("Photos"), MediaFilter.Videos => AppText.Get("Videos"), MediaFilter.Audio => AppText.Get("Audio"), _ => AppText.Get("AllMedia") };
+        LiveText.Set(FilterMenuButton, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, AppText.Format("Subfolders805d87", label, (GalleryState.ShowSubfolders ? AppText.Get("Show") : AppText.Get("Hide")))
+            + (GalleryState.ShowHidden ? AppText.Get("IncludingHiddenItems") : "")));
     }
 
     private async void MediaFilter_Click(object sender, RoutedEventArgs e)
@@ -105,50 +106,82 @@ public sealed partial class MainWindow
 
     private ContentDialog BuildSettingsDialog()
     {
-        var theme = new ComboBox { Name = "SettingsTheme", Header = "外观", HorizontalAlignment = HorizontalAlignment.Stretch,
-            ItemsSource = new[] { "跟随系统", "亮色", "暗色" }, SelectedIndex = _themeIndex };
-        var mode = new ComboBox { Name = "SettingsView", Header = "默认视图", HorizontalAlignment = HorizontalAlignment.Stretch,
-            ItemsSource = new[] { "自适应视图", "瀑布视图", "网格视图", "大图 + 底部缩略图", "列表视图" },
-            SelectedIndex = Math.Max(0, Array.IndexOf(DisplayModeOrder, GalleryState.DisplayMode)) };
-        var opacity = new Slider { Name = "SettingsBackgroundOpacity", Header = $"背景不透明度 · {_backgroundOpacity:0}%",
-            Minimum = 0, Maximum = 100, StepFrequency = 1, Value = _backgroundOpacity };
-        var opacityHint = new TextBlock { Text = "越低越通透，越高越实；100% 为不透明背景。", FontSize = 12,
+        var languagePreview = new LanguagePreview();
+        var language = new ComboBox
+        {
+            Name = "SettingsLanguage", HorizontalAlignment = HorizontalAlignment.Stretch,
+            ItemsSource = new[] { "简体中文", "English" }, SelectedIndex = AppText.Language == "en-US" ? 1 : 0,
+        };
+        LiveText.Set(language, "Header", control => control.Header = AppText.Get("Language"));
+        LiveText.Set(language, "SelectedIndex", control => control.SelectedIndex = AppText.Language == "en-US" ? 1 : 0);
+        var theme = LiveText.Set(LiveText.Set(new ComboBox { Name = "SettingsTheme", Header = AppText.Get("Appearance"), HorizontalAlignment = HorizontalAlignment.Stretch,
+            ItemsSource = new[] { AppText.Get("UseSystemSetting"), AppText.Get("Light"), AppText.Get("Dark") }, SelectedIndex = _themeIndex }, "Header", localized => localized.Header = AppText.Get("Appearance")), "ItemsSource", localized => localized.ItemsSource = new[] { AppText.Get("UseSystemSetting"), AppText.Get("Light"), AppText.Get("Dark") });
+        var mode = LiveText.Set(LiveText.Set(new ComboBox { Name = "SettingsView", Header = AppText.Get("DefaultView"), HorizontalAlignment = HorizontalAlignment.Stretch,
+            ItemsSource = new[] { AppText.Get("JustifiedView"), AppText.Get("MasonryView"), AppText.Get("GridView"), AppText.Get("LargeImageFilmstrip"), AppText.Get("DetailsView") },
+            SelectedIndex = Math.Max(0, Array.IndexOf(DisplayModeOrder, GalleryState.DisplayMode)) }, "Header", localized => localized.Header = AppText.Get("DefaultView")), "ItemsSource", localized => localized.ItemsSource = new[] { AppText.Get("JustifiedView"), AppText.Get("MasonryView"), AppText.Get("GridView"), AppText.Get("LargeImageFilmstrip"), AppText.Get("DetailsView") });
+        var opacity = LiveText.Set(new Slider { Name = "SettingsBackgroundOpacity", Header = AppText.Format("BackgroundOpacity", _backgroundOpacity),
+            Minimum = 0, Maximum = 100, StepFrequency = 1, Value = _backgroundOpacity }, "Header", localized => localized.Header = AppText.Format("BackgroundOpacity", _backgroundOpacity));
+        var opacityHint = LiveText.Set(new TextBlock { Text = AppText.Get("LowerValuesAreMoreTransparentIsFullyOpaque"), FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] };
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] }, "Text", localized => localized.Text = AppText.Get("LowerValuesAreMoreTransparentIsFullyOpaque"));
         var opacitySection = new StackPanel { Spacing = 4 };
         opacitySection.Children.Add(opacity);
         opacitySection.Children.Add(opacityHint);
-        var names = new CheckBox { Name = "SettingsNames", Content = "显示文件名", IsChecked = GalleryState.ShowFileNames };
-        var cards = new CheckBox { Name = "SettingsCards", Content = "显示卡片背景", IsChecked = GalleryState.ShowCards };
-        var size = new Slider { Name = "SettingsSize", Header = "缩略图大小", Minimum = 120, Maximum = 480,
-            StepFrequency = 20, Value = ThumbSize.Value };
+        var names = LiveText.Set(new CheckBox { Name = "SettingsNames", Content = AppText.Get("ShowFileNames"), IsChecked = GalleryState.ShowFileNames }, "Content", localized => localized.Content = AppText.Get("ShowFileNames"));
+        var cards = LiveText.Set(new CheckBox { Name = "SettingsCards", Content = AppText.Get("ShowCardBackgrounds"), IsChecked = GalleryState.ShowCards }, "Content", localized => localized.Content = AppText.Get("ShowCardBackgrounds"));
+        var size = LiveText.Set(new Slider { Name = "SettingsSize", Header = AppText.Get("ThumbnailSize"), Minimum = 120, Maximum = 480,
+            StepFrequency = 20, Value = ThumbSize.Value }, "Header", localized => localized.Header = AppText.Get("ThumbnailSize"));
         var association = BuildAssociationSection();
-        var clear = new Button { Content = "清除缩略图缓存" };
+        var clear = LiveText.Set(new Button { Content = AppText.Get("ClearThumbnailCache") }, "Content", localized => localized.Content = AppText.Get("ClearThumbnailCache"));
         var feedback = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap };
-        clear.Click += async (_, _) => { await ClearCacheAsync(); feedback.Text = GalleryState.Status; };
-        var content = new StackPanel { Spacing = 16, MinWidth = 320 };
-        foreach (var element in new UIElement[] { theme, opacitySection, mode, names, cards, size, association, clear, feedback, BuildUpdateSection() }) content.Children.Add(element);
-        var dialog = new ContentDialog
+        clear.Click += async (_, _) => { await ClearCacheAsync(); LiveText.SetOnce(feedback, "Text", localized => localized.Text = GalleryState.Status); };
+        // WinUI 的滚动条覆盖在内容之上，给它单独留出右侧空间。
+        var content = new StackPanel { Spacing = 16, Margin = new Thickness(0, 0, 24, 4) };
+        foreach (var element in new UIElement[] { language, theme, opacitySection, mode, names, cards, size, association, clear, feedback, BuildUpdateSection() }) content.Children.Add(element);
+        double ContentWidth() => Root.ActualWidth > 0 ? Math.Clamp(Root.ActualWidth - 112, 0, 400) : 400;
+        var scroll = new ScrollViewer
         {
-            XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = "设置",
-            Content = new ScrollViewer { Content = content, MaxHeight = 500, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
-            PrimaryButtonText = "完成", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Primary,
+            Content = content, Width = ContentWidth(), MaxHeight = 500, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalScrollMode = ScrollMode.Disabled,
         };
+        var dialog = LiveText.Set(LiveText.Set(LiveText.Set(new ContentDialog
+        {
+            XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = AppText.Get("Settings"),
+            Content = scroll,
+            PrimaryButtonText = AppText.Get("Done"), CloseButtonText = AppText.Get("Cancel"), DefaultButton = ContentDialogButton.Primary,
+        }, "Title", localized => localized.Title = AppText.Get("Settings")), "PrimaryButtonText", localized => localized.PrimaryButtonText = AppText.Get("Done")), "CloseButtonText", localized => localized.CloseButtonText = AppText.Get("Cancel"));
+        // 固定内容宽度，避免语言和长说明改变弹窗尺寸；小窗口仍按可用宽度收窄。
+        SizeChangedEventHandler resize = (_, _) => scroll.Width = ContentWidth();
+        dialog.Opened += (_, _) => { scroll.Width = ContentWidth(); Root.SizeChanged += resize; };
+        dialog.Closed += (_, _) => Root.SizeChanged -= resize;
         // 每项改动立即应用以便预览；取消时恢复打开面板前的状态。
         var original = (Theme: _themeIndex, Opacity: _backgroundOpacity, Mode: GalleryState.DisplayMode, Names: GalleryState.ShowFileNames, Cards: GalleryState.ShowCards, Size: ThumbSize.Value);
+        language.SelectionChanged += (_, _) =>
+        {
+            if (AppText.IsChanging || language.SelectedIndex < 0) return;
+            languagePreview.Select(language.SelectedIndex == 1 ? "en-US" : "zh-CN");
+        };
+        dialog.Closing += (_, args) =>
+        {
+            // 其他窗口较新的语言选择优先，避免旧设置面板取消时覆盖它。
+            languagePreview.Finish(args.Result == ContentDialogResult.Primary);
+            QueueSettingsSave();
+        };
         opacity.ValueChanged += (_, args) =>
         {
             ApplyBackgroundOpacity(args.NewValue);
-            opacity.Header = $"背景不透明度 · {_backgroundOpacity:0}%";
+            LiveText.Set(opacity, "Header", localized => localized.Header = AppText.Format("BackgroundOpacity", _backgroundOpacity));
         };
         // 只应用改动的那一项：缩略图大小走原有的布局刷新，不重建全部卡片。
         theme.SelectionChanged += (_, _) =>
         {
+            if (AppText.IsChanging) return;
             ApplyTheme(theme.SelectedIndex);
             dialog.RequestedTheme = Root.RequestedTheme;
         };
         mode.SelectionChanged += async (_, _) =>
         {
+            if (AppText.IsChanging) return;
             var selected = DisplayModeOrder[Math.Clamp(mode.SelectedIndex, 0, DisplayModeOrder.Length - 1)];
             if (selected != GalleryState.DisplayMode) await SetDisplayModeAsync(selected);
         };
@@ -183,38 +216,38 @@ public sealed partial class MainWindow
     private StackPanel BuildAssociationSection()
     {
         var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(new TextBlock { Text = "右键菜单与打开方式", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
+        panel.Children.Add(LiveText.Set(new TextBlock { Text = AppText.Get("ContextMenuAndOpenWith"), Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] }, "Text", localized => localized.Text = AppText.Get("ContextMenuAndOpenWith")));
         if (AppIdentity.IsDevelopment)
         {
-            panel.Children.Add(new TextBlock { Text = "开发版使用独立数据，不修改正式版的右键菜单和打开方式。", TextWrapping = TextWrapping.Wrap });
+            panel.Children.Add(LiveText.Set(new TextBlock { Text = AppText.Get("TheDevelopmentBuildUsesSeparateDataAndDoesNot"), TextWrapping = TextWrapping.Wrap }, "Text", localized => localized.Text = AppText.Get("TheDevelopmentBuildUsesSeparateDataAndDoesNot")));
             return panel;
         }
         var status = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap,
             Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] };
-        var register = new Button { Content = "注册右键菜单与打开方式" };
-        var unregister = new Button { Content = "取消注册" };
+        var register = LiveText.Set(new Button { Content = AppText.Get("RegisterContextMenuAndFileAssociations") }, "Content", localized => localized.Content = AppText.Get("RegisterContextMenuAndFileAssociations"));
+        var unregister = LiveText.Set(new Button { Content = AppText.Get("Unregister") }, "Content", localized => localized.Content = AppText.Get("Unregister"));
         string exe = Environment.ProcessPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, "Fallery.exe");
         void Refresh()
         {
             var registered = FileAssociation.RegisteredExecutable();
             bool current = registered is not null && string.Equals(System.IO.Path.GetFullPath(registered), exe, StringComparison.OrdinalIgnoreCase);
-            status.Text = registered is null ? "注册后可右键图片、视频、音频或文件夹，选择“用 Fallery 打开”；也支持文件夹内空白处。"
+            LiveText.Set(status, "Text", localized => localized.Text = registered is null ? AppText.Get("AfterRegistrationRightClickAPhotoVideoAudioFile")
                 : current ? FileAssociation.IsContextMenuRegistered(exe, FolderScanner.SupportedExtensions)
-                    ? "已注册右键菜单与打开方式。Windows 11 请在“显示更多选项”中查看右键入口。"
-                    : "已注册打开方式。再次点击注册可补全文件和文件夹的右键入口。"
-                : $"已注册到其他位置：{registered}\n程序移动后请重新注册。";
+                    ? AppText.Get("ContextMenuAndFileAssociationsRegisteredOnWindowsLook")
+                    : AppText.Get("FileAssociationsRegisteredRegisterAgainToAddMissingFile")
+                : AppText.Format("RegisteredAtAnotherLocationRegisterAgainAfterMovingThe", registered));
             unregister.IsEnabled = current;
         }
         register.Click += (_, _) =>
         {
             try { FileAssociation.Register(exe, FolderScanner.SupportedExtensions); }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException) { status.Text = $"注册失败：{ex.Message}"; return; }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException) { LiveText.Set(status, "Text", localized => localized.Text = AppText.Format("RegistrationFailed", ex.Message)); return; }
             Refresh();
         };
         unregister.Click += (_, _) =>
         {
             try { FileAssociation.Unregister(FolderScanner.SupportedExtensions, expectedExePath: exe); }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException) { status.Text = $"取消注册失败：{ex.Message}"; return; }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException) { LiveText.Set(status, "Text", localized => localized.Text = AppText.Format("UnregistrationFailed", ex.Message)); return; }
             Refresh();
         };
         Refresh();

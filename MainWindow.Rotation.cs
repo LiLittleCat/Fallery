@@ -1,3 +1,5 @@
+using Fallery.Controls;
+using Fallery.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -27,7 +29,7 @@ public sealed partial class MainWindow
             try { player.Rotation = next * 90; }
             catch (Exception ex)
             {
-                GalleryState.Status = $"无法旋转视频：{ex.Message}";
+                GalleryState.Status = AppText.Format("CouldNotRotateVideo", ex.Message);
                 return;
             }
             _viewerQuarterTurns = next;
@@ -79,12 +81,12 @@ public sealed partial class MainWindow
 
     private void UpdateRotationLabel()
     {
-        string label = "向右旋转 90°";
-        ToolTipService.SetToolTip(RotateMediaButton, label);
-        AutomationProperties.SetName(RotateMediaButton, label);
+        string label = AppText.Get("RotateRight");
+        LiveText.SetOnce(RotateMediaButton, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, label));
+        LiveText.SetOnce(RotateMediaButton, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, label));
         FlipImageToggle.IsChecked = ImageRotation.IsMirrored;
-        string flipLabel = ImageRotation.IsMirrored ? "取消水平翻转" : "水平翻转";
-        ToolTipService.SetToolTip(FlipImageToggle, flipLabel);
-        AutomationProperties.SetName(FlipImageToggle, flipLabel);
+        string flipLabel = ImageRotation.IsMirrored ? AppText.Get("ResetHorizontalFlip") : AppText.Get("FlipHorizontally");
+        LiveText.SetOnce(FlipImageToggle, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, flipLabel));
+        LiveText.SetOnce(FlipImageToggle, "AutomationProperties.Name", localized => AutomationProperties.SetName(localized, flipLabel));
     }
 }

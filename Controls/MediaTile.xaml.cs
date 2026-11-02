@@ -1,3 +1,4 @@
+using Fallery.Services;
 using System.ComponentModel;
 using Fallery.Models;
 using Microsoft.UI.Xaml;
@@ -100,18 +101,18 @@ public sealed partial class MediaTile : UserControl
         IsSelected = false;
         HoverOverlay.Visibility = Visibility.Collapsed;
         ListHoverOverlay.Visibility = Visibility.Collapsed;
-        ListName.Text = item?.Name ?? "";
-        ListType.Text = item?.File.TypeText ?? "";
-        ListSize.Text = item?.File.SizeText ?? "";
-        ListCreated.Text = item?.File.CreatedText ?? "";
-        ListModified.Text = item?.File.ModifiedText ?? "";
-        ToolTipService.SetToolTip(ListName, item?.Name);
-        MediaName.Text = item is { IsFolder: false } ? item.Name : string.Empty;
-        FolderName.Text = item?.IsFolder == true ? item.Name : string.Empty;
+        LiveText.SetOnce(ListName, "Text", localized => localized.Text = item?.Name ?? "");
+        LiveText.Set(ListType, "Text", localized => localized.Text = item?.File.TypeText ?? "");
+        LiveText.SetOnce(ListSize, "Text", localized => localized.Text = item?.File.SizeText ?? "");
+        LiveText.SetOnce(ListCreated, "Text", localized => localized.Text = item?.File.CreatedText ?? "");
+        LiveText.SetOnce(ListModified, "Text", localized => localized.Text = item?.File.ModifiedText ?? "");
+        LiveText.SetOnce(ListName, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, item?.Name));
+        LiveText.SetOnce(MediaName, "Text", localized => localized.Text = item is { IsFolder: false } ? item.Name : string.Empty);
+        LiveText.SetOnce(FolderName, "Text", localized => localized.Text = item?.IsFolder == true ? item.Name : string.Empty);
         FolderPlaceholder.Visibility = FolderFooter.Visibility = item?.IsFolder == true
             ? Visibility.Visible : Visibility.Collapsed;
         UpdateMarks();
-        ToolTipService.SetToolTip(this, item?.IsFolder == true ? item.Path : null);
+        LiveText.SetOnce(this, "ToolTipService.ToolTip", localized => ToolTipService.SetToolTip(localized, item?.IsFolder == true ? item.Path : null));
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(this, item?.Name ?? string.Empty);
         UpdatePreview();
         if (Item is not null) Item.PropertyChanged += Item_PropertyChanged;
@@ -146,7 +147,7 @@ public sealed partial class MediaTile : UserControl
         FrontCover.Margin = covers.Count <= 1 ? new Thickness(2, 2, 0, 0) : new Thickness(17, 38, 0, 0);
         FolderArtwork.Visibility = Item?.IsFolder == true ? Visibility.Visible : Visibility.Collapsed;
         FolderPlaceholder.Visibility = Item?.IsFolder == true && covers.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        FailureText.Text = Item?.IsVideo == true ? "无法生成预览\n双击尝试播放" : "无法加载预览";
+        LiveText.Set(FailureText, "Text", localized => localized.Text = Item?.IsVideo == true ? AppText.Get("CouldNotGeneratePreviewDoubleClickToTryPlayback") : AppText.Get("CouldNotLoadPreview"));
         AudioPlaceholder.Visibility = Item is { IsAudio: true, Thumbnail: null } ? Visibility.Visible : Visibility.Collapsed;
         FailureText.Visibility = Item is { IsAudio: false, ThumbnailFailed: true } ? Visibility.Visible : Visibility.Collapsed;
         LoadingText.Visibility = Item is { IsFolder: false, IsAudio: false, Thumbnail: null, ThumbnailFailed: false }

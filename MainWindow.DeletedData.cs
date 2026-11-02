@@ -20,8 +20,8 @@ public sealed partial class MainWindow
             EnsureSearchIndex();
             if (load) await _searchIndex!.EnsureLoadedAsync(CancellationToken.None);
             await _searchIndex!.RemovePathsAsync(paths, CancellationToken.None);
-            return _searchIndex.Status.Message.Contains("未能保存", StringComparison.Ordinal) ? "；索引未能保存，请稍后刷新索引" : "";
+            return _searchIndex.Status.Message.Contains(AppText.Get("CouldNotBeSaved"), StringComparison.Ordinal) ? AppText.Get("TheIndexCouldNotBeSavedPleaseRefreshIt") : "";
         }
-        catch (Exception) { return "；缓存或索引同步未完成，请稍后清理缓存并刷新索引"; }
+        catch (Exception) { return AppText.Get("CacheOrIndexSynchronizationIsIncompletePleaseClearThe"); }
     }
 }

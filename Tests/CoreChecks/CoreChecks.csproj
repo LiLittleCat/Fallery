@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="../../Strings/*.json" LogicalName="Fallery.Strings.%(Filename)%(Extension)" />
+    <Compile Include="../../Services/AppText.cs" Link="Services/AppText.cs" />
     <Compile Include="../../Services/AppIdentity.cs" Link="AppIdentity.cs" />
     <Compile Include="../../Services/Playback/VideoKeyframes.cs" Link="VideoKeyframes.cs" />
     <Compile Include="../AudioFixture.cs" Link="AudioFixture.cs" />

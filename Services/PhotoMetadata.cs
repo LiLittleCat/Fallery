@@ -11,20 +11,20 @@ internal static class PhotoMetadata
     {
         var rows = new List<(string, string)>();
         if (values.TryGetValue("System.Photo.DateTaken", out var taken) && taken is DateTimeOffset date && date.Year > 1601)
-            rows.Add(("拍摄时间", date.LocalDateTime.ToString("yyyy年M月d日 HH:mm:ss", CultureInfo.CurrentCulture)));
-        Add("相机", Combine(Text(values, "System.Photo.CameraManufacturer"), Text(values, "System.Photo.CameraModel")));
-        Add("镜头", Combine(Text(values, "System.Photo.LensManufacturer"), Text(values, "System.Photo.LensModel")));
-        Positive("光圈", "System.Photo.FNumber", value => $"f/{value:0.##}");
-        Positive("快门", "System.Photo.ExposureTime", value => value < 0.5 ? $"1/{1 / value:0.##} 秒" : $"{value:0.###} 秒");
-        Positive("感光度", "System.Photo.ISOSpeed", value => $"ISO {value:0}");
-        Positive("焦距", "System.Photo.FocalLength", value => $"{value:0.##} mm");
-        Positive("等效焦距", "System.Photo.FocalLengthInFilm", value => $"{value:0.##} mm（35 mm）");
+            rows.Add((AppText.Get("DateTaken50b635"), date.LocalDateTime.ToString(AppText.Get("MMMDYyyyHHMmSs"), AppText.Culture)));
+        Add(AppText.Get("Cameradacf07"), Combine(Text(values, "System.Photo.CameraManufacturer"), Text(values, "System.Photo.CameraModel")));
+        Add(AppText.Get("Lens"), Combine(Text(values, "System.Photo.LensManufacturer"), Text(values, "System.Photo.LensModel")));
+        Positive(AppText.Get("Aperture"), "System.Photo.FNumber", value => $"f/{value:0.##}");
+        Positive(AppText.Get("ShutterSpeed"), "System.Photo.ExposureTime", value => value < 0.5 ? AppText.Format("S", 1 / value) : AppText.Format("Sbc41ce", value));
+        Positive(AppText.Get("ISO"), "System.Photo.ISOSpeed", value => $"ISO {value:0}");
+        Positive(AppText.Get("FocalLength"), "System.Photo.FocalLength", value => $"{value:0.##} mm");
+        Positive(AppText.Get("MmEquivalent"), "System.Photo.FocalLengthInFilm", value => $"{value:0.##} mm（35 mm）");
         if (Number(values, "System.Photo.ExposureBias") is { } bias)
-            rows.Add(("曝光补偿", $"{bias:+0.##;-0.##;0} EV"));
-        Add("曝光程序", Text(values, "System.Photo.ExposureProgramText"));
-        Add("测光模式", Text(values, "System.Photo.MeteringModeText"));
-        Add("白平衡", Text(values, "System.Photo.WhiteBalanceText"));
-        Add("闪光灯", Text(values, "System.Photo.FlashText"));
+            rows.Add((AppText.Get("ExposureCompensation"), $"{bias:+0.##;-0.##;0} EV"));
+        Add(AppText.Get("ExposureProgram"), Text(values, "System.Photo.ExposureProgramText"));
+        Add(AppText.Get("MeteringMode"), Text(values, "System.Photo.MeteringModeText"));
+        Add(AppText.Get("WhiteBalance"), Text(values, "System.Photo.WhiteBalanceText"));
+        Add(AppText.Get("Flash"), Text(values, "System.Photo.FlashText"));
         return rows;
 
         void Add(string label, string? value) { if (!string.IsNullOrWhiteSpace(value)) rows.Add((label, value)); }
@@ -38,12 +38,12 @@ internal static class PhotoMetadata
     {
         var rows = new List<(string, string)>();
         if (latitude is { } lat && double.IsFinite(lat) && Math.Abs(lat) <= 90)
-            rows.Add(("纬度", Coordinate(lat, "北纬", "南纬")));
+            rows.Add((AppText.Get("Latitude"), Coordinate(lat, AppText.Get("N"), AppText.Get("S4e13ae"))));
         if (longitude is { } lon && double.IsFinite(lon) && Math.Abs(lon) <= 180)
-            rows.Add(("经度", Coordinate(lon, "东经", "西经")));
+            rows.Add((AppText.Get("Longitude"), Coordinate(lon, AppText.Get("E"), AppText.Get("W"))));
         if (Number(values, "System.GPS.Altitude") is >= 0 and var altitude
             && Number(values, "System.GPS.AltitudeRef") is { } reference && reference is 0 or 1)
-            rows.Add(("海拔", $"{(reference == 1 ? -altitude : altitude):0.##} 米"));
+            rows.Add((AppText.Get("Altitude"), AppText.Format("M", (reference == 1 ? -altitude : altitude))));
         return rows;
     }
 

@@ -1,3 +1,4 @@
+using Fallery.Controls;
 using Fallery.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -34,12 +35,12 @@ public sealed partial class MainWindow
     {
         StopHoverPreview();
         string name = System.IO.Path.GetFileName(path);
-        var input = new TextBox { Text = name, Header = "新名称", MinWidth = 300, MaxLength = 255 };
+        var input = LiveText.Set(new TextBox { Text = name, Header = AppText.Get("NewName"), MinWidth = 300, MaxLength = 255 }, "Header", localized => localized.Header = AppText.Get("NewName"));
         var error = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 420 };
         var panel = new StackPanel { Spacing = 10 };
         panel.Children.Add(input); panel.Children.Add(error);
-        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme,
-            Title = "重命名", Content = panel, PrimaryButtonText = "确定", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Primary };
+        var dialog = LiveText.Set(LiveText.Set(LiveText.Set(new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme,
+            Title = AppText.Get("Rename"), Content = panel, PrimaryButtonText = AppText.Get("OK"), CloseButtonText = AppText.Get("Cancel"), DefaultButton = ContentDialogButton.Primary }, "Title", localized => localized.Title = AppText.Get("Rename")), "PrimaryButtonText", localized => localized.PrimaryButtonText = AppText.Get("OK")), "CloseButtonText", localized => localized.CloseButtonText = AppText.Get("Cancel"));
         dialog.Opened += (_, _) =>
         {
             input.Focus(FocusState.Programmatic);
@@ -51,7 +52,7 @@ public sealed partial class MainWindow
             var deferral = args.GetDeferral();
             args.Cancel = true; dialog.IsPrimaryButtonEnabled = false;
             try { renamed = await FileRename.RenameAsync(path, folder, input.Text); args.Cancel = false; }
-            catch (Exception ex) { error.Text = ex.Message; }
+            catch (Exception ex) { LiveText.SetOnce(error, "Text", localized => localized.Text = ex.Message); }
             finally { dialog.IsPrimaryButtonEnabled = true; deferral.Complete(); }
         };
         _settingsDialog = dialog;
@@ -84,23 +85,23 @@ public sealed partial class MainWindow
         if (_closed || _closing) return FileConflictChoice.Cancel;
         var choices = new List<(string Label, FileConflictChoice Choice)>();
         if (conflict.SourceFolder == conflict.TargetFolder)
-            choices.Add((conflict.SourceFolder ? "合并文件夹（内部重名文件将分别询问）" : "替换目标文件", FileConflictChoice.Replace));
-        choices.Add(("跳过此项", FileConflictChoice.Skip));
-        choices.Add(("保留两者（自动改名）", FileConflictChoice.KeepBoth));
+            choices.Add((conflict.SourceFolder ? AppText.Get("MergeFoldersAskAboutIndividualFileConflicts") : AppText.Get("ReplaceDestinationFile"), FileConflictChoice.Replace));
+        choices.Add((AppText.Get("SkipThisItem"), FileConflictChoice.Skip));
+        choices.Add((AppText.Get("KeepBothRenameAutomatically"), FileConflictChoice.KeepBoth));
         var options = new ComboBox { ItemsSource = choices.Select(choice => choice.Label).ToArray(), SelectedIndex = choices.FindIndex(choice => choice.Choice == FileConflictChoice.Skip), HorizontalAlignment = HorizontalAlignment.Stretch };
         var panel = new StackPanel { Spacing = 12, MaxWidth = 460 };
         string Describe(string path, bool isFolder)
         {
-            try { var info = new FileInfo(path); return isFolder ? path : $"{path}\n{info.Length:N0} 字节 · {info.LastWriteTime:g}"; }
+            try { var info = new FileInfo(path); return isFolder ? path : AppText.Format("Bytes", path, info.Length, info.LastWriteTime); }
             catch { return path; }
         }
         string source = await Task.Run(() => Describe(conflict.Source, conflict.SourceFolder));
         string target = await Task.Run(() => Describe(conflict.Target, conflict.TargetFolder));
         if (_closed || _closing) return FileConflictChoice.Cancel;
-        panel.Children.Add(new TextBlock { Text = $"来源：{source}\n\n目标：{target}", TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
+        panel.Children.Add(LiveText.Set(new TextBlock { Text = AppText.Format("SourceDestination", source, target), TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true }, "Text", localized => localized.Text = AppText.Format("SourceDestination", source, target)));
         panel.Children.Add(options);
-        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme,
-            Title = "目标中已有同名项目", Content = panel, PrimaryButtonText = "继续", CloseButtonText = "取消粘贴", DefaultButton = ContentDialogButton.Primary };
+        var dialog = LiveText.Set(LiveText.Set(LiveText.Set(new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme,
+            Title = AppText.Get("AnItemWithThisNameAlreadyExists"), Content = panel, PrimaryButtonText = AppText.Get("Continue"), CloseButtonText = AppText.Get("CancelPaste"), DefaultButton = ContentDialogButton.Primary }, "Title", localized => localized.Title = AppText.Get("AnItemWithThisNameAlreadyExists")), "PrimaryButtonText", localized => localized.PrimaryButtonText = AppText.Get("Continue")), "CloseButtonText", localized => localized.CloseButtonText = AppText.Get("CancelPaste"));
         _settingsDialog = dialog;
         try { return await dialog.ShowAsync() == ContentDialogResult.Primary ? choices[options.SelectedIndex].Choice : FileConflictChoice.Cancel; }
         finally { if (ReferenceEquals(_settingsDialog, dialog)) _settingsDialog = null; }

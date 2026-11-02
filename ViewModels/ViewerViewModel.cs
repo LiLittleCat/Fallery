@@ -1,3 +1,4 @@
+using Fallery.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Fallery.Models;
 
@@ -44,7 +45,7 @@ public sealed partial class ViewerViewModel : ObservableObject, IDisposable
         _openCts?.Dispose();
         _openCts = new();
         CurrentIndex = index;
-        Message = "正在加载…";
+        Message = AppText.Get("Loading");
         return new(Playlist[index], _openCts.Token);
     }
 
