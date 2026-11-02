@@ -6,6 +6,10 @@ All notable changes to Fallery are documented here, following
 
 ## [Unreleased]
 
+### Changed
+
+- Documented v0.1.0 release verification, public downloads, and remaining installation and upgrade checks.
+
 ## [0.1.0] - 2026-11-02
 
 ### Added

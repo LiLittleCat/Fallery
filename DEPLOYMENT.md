@@ -148,7 +148,11 @@ HKCU\Software\RegisteredApplications  （Fallery 值）
 
 2026-11-02 本地已验证：x64/ARM64 发布与安装包生成、两个架构共 16 个资产的发布前校验；1,952 项核心检查、35 项更新检查、39 项隐藏生产窗口/手势检查通过。更新检查包含真实 SDK 对隔离 feed 的下载、哈希校验、损坏包拒绝；未执行真实安装器或替换用户程序。
 
-仍需验收：把代码推送后实际运行 GitHub 工作流；干净 Windows 机器安装；ARM64 实机运行；安装 N 版后从已发布 N+1 版完成检查→下载→确认→所有窗口退出→替换→重启，确认设置/续播和打开方式；取消/断网/保存失败重试；卸载后数据保留。按项目要求不使用 Computer Use，真实界面由用户手动检查。
+2026-11-02 已正式发布 [v0.1.0](https://github.com/LiLittleCat/Fallery/releases/tag/v0.1.0)，标签对应 `77fded19f9a65f2a835d6eee426de2f80adf8981`。[普通 CI](https://github.com/LiLittleCat/Fallery/actions/runs/41470420772) 构建零警告、零错误，核心检查、35 项更新检查、2,485 项语言检查及发布说明检查通过；[发布工作流](https://github.com/LiLittleCat/Fallery/actions/runs/41470421599) 完成 x64/ARM64 构建和草稿上传。16 个资产的 GitHub SHA-256 与构建清单一致；远程读取两份便携包确认实际程序架构、MIT 与图标许可证。两个架构的 Setup 与更新 feed 均已匿名验证可访问。
+
+本次网络的匿名 GitHub REST API 达到共享出口限额，在线版本发现未完成端到端验收；直接下载与 feed 访问正常。客户端通过 GitHub API 发现版本，遇到限流需稍后重试或换正常网络，不应加入客户端令牌绕过。
+
+仍需验收：干净 Windows 机器安装；ARM64 实机运行；安装 N 版后从已发布 N+1 版完成检查→下载→确认→所有窗口退出→替换→重启，确认设置/续播和打开方式；取消/断网/保存失败重试；卸载后数据保留。按项目要求不使用 Computer Use，真实界面由用户手动检查。
 
 实现入口：`tools/Build-Release.ps1`、`tools/Publish-Release.ps1`、`tools/Get-ReleaseNotes.ps1`、`Program.cs`、`Services/AppIdentity.cs`、`Services/AppUpdateService.cs`、`Services/VelopackUpdates.cs`、`Services/VelopackUpdateBackend.cs`、`Services/UpdateDataBackup.cs`、`Views/MainWindow/MainWindow.Updates.cs`。
 
