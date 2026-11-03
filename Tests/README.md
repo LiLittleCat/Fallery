@@ -14,6 +14,8 @@
 
 ## 安装和更新流程
 
+`./Tests/ReleaseChecks.ps1` 还从生产项目加载资源发布目标，在隔离目录执行 MSBuild 夹具（不编译应用），检查正式/预览 PRI、四个 XBF 的相对路径及内容哈希，并确认缺失 PRI 或嵌套主窗口 XBF 时失败。实际 publish 完成后也会检查资源存在，避免安装包遗漏主窗口导致启动崩溃；仍须验收新安装后的桌面/开始菜单启动。
+
 `./Tests/ReleaseChecks.ps1` 检查 Changelog 的当前项目版本、单版本提取、链接保留，以及缺失/重复/空版本条目的拒绝行为；CI 和发版工作流均运行此检查。
 
 构建、发版与数据目录见 [DEPLOYMENT.md](../DEPLOYMENT.md)。普通构建默认 dev，真实用户数据改用 `%LOCALAPPDATA%\Fallery.Dev`，旧的 `%LOCALAPPDATA%\Fallery` 留给正式安装版。

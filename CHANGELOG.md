@@ -6,6 +6,8 @@ All notable changes to Fallery are documented here, following
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-03
+
 ### Changed
 
 - Documented v0.1.0 release verification, public downloads, and remaining installation and upgrade checks.
@@ -16,6 +18,10 @@ All notable changes to Fallery are documented here, following
 ### Removed
 
 - WebP metadata reading checks that depend on optional Windows property handlers.
+
+### Fixed
+
+- Include the application's WinUI resource index and compiled XAML in published packages, and reject missing resources before packaging to prevent startup crashes after installation.
 
 ## [0.1.0] - 2026-11-02
 
@@ -36,5 +42,6 @@ All notable changes to Fallery are documented here, following
 
 - Core checks now verify basic information fallback on Windows systems without a WebP property handler.
 
-[Unreleased]: https://github.com/LiLittleCat/Fallery/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/LiLittleCat/Fallery/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LiLittleCat/Fallery/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/LiLittleCat/Fallery/releases/tag/v0.1.0

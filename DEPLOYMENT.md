@@ -47,6 +47,10 @@
 
 签名证书尚未配置，当前安装包未签名。接入签名时由构建环境提供 `VPK_SIGN_PARAMS` 或 `VPK_AZURE_TRUSTED_SIGN_FILE`，由 vpk 签署程序和安装器；证书、密码不提交仓库。当前无签名不是“已验证发布者”的状态。
 
+发布目录必须包含应用自己的 `Fallery.pri`（预览为 `Fallery.Preview.pri`）及保持相对目录的编译 XAML，例如 `Views/MainWindow/MainWindow.xbf`、`Controls/MediaTile.xbf`、`Themes/Icons.xbf` 和 `App.xbf`。当前 SDK 的非打包发布不会自动完整携带这些资源；项目显式将编译产物加入 publish，并在发布完成时检查，缺失即失败，不继续生成安装包。`Tests/ReleaseChecks.ps1` 用隔离 MSBuild 夹具验证正式/预览资源、嵌套路径及缺失资源拒绝。
+
+2026-11-03 本机已安装的 0.1.0 在安装成功后因 `Cannot locate resource from 'ms-appx:///Views/MainWindow/MainWindow.xaml'` 崩溃，安装目录同时缺少应用 PRI 和 XBF。此问题与未签名的“Unknown publisher”提示独立；旧的编译及包哈希校验不代表安装后启动已通过。经用户授权，本地 x64 修复包已编译并完成同版本修复安装，编译无警告/错误；1,959 项核心、35 项更新、2,485 项语言及资源发布检查通过。PRI 索引的嵌套路径、包内与安装后的资源哈希均已核对，安装前后 settings.json/resume.json 哈希不变。安装及数据备份保存在忽略目录 `work/startup-repair/backup`；此次未发布或覆盖线上版本，ARM64 修复包及实际界面交互仍待验收。
+
 ## 本地校验和创建发行草稿
 
 ```powershell

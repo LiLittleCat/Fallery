@@ -22,7 +22,7 @@
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <SelfContained>true</SelfContained>
-    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <Version Condition="'$(Version)' == ''">0.1.1</Version>
     <FalleryChannel Condition="'$(FalleryChannel)' == ''">dev</FalleryChannel>
     <AssemblyName Condition="'$(FalleryChannel)' == 'preview'">Fallery.Preview</AssemblyName>
     <DefineConstants Condition="'$(FalleryChannel)' == 'stable'">$(DefineConstants);FALLERY_STABLE</DefineConstants>
@@ -31,6 +31,30 @@
 
   <Target Name="ValidateFalleryChannel" BeforeTargets="PrepareForBuild">
     <Error Condition="'$(FalleryChannel)' != 'dev' and '$(FalleryChannel)' != 'stable' and '$(FalleryChannel)' != 'preview'" Text="FalleryChannel must be dev, stable or preview." />
+  </Target>
+
+  <!-- 非打包 WinUI 的资源会复制到编译目录，但 SDK 未将它们完整加入 publish。 -->
+  <Target Name="IncludeFalleryPublishResources" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <_FalleryExpectedXbf Include="@(ApplicationDefinition);@(Page)" />
+      <_FalleryPublishResource Include="$(TargetDir)**\*.xbf;$(TargetDir)$(AssemblyName).pri" />
+    </ItemGroup>
+    <Error Condition="!Exists('$(TargetDir)$(AssemblyName).pri')" Text="Missing WinUI resource index: $(TargetDir)$(AssemblyName).pri" />
+    <Error Condition="!Exists('$(TargetDir)%(_FalleryExpectedXbf.RelativeDir)%(_FalleryExpectedXbf.Filename).xbf')"
+           Text="Missing compiled XAML: %(_FalleryExpectedXbf.Identity)" />
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(_FalleryPublishResource)" />
+      <ResolvedFileToPublish Include="@(_FalleryPublishResource)">
+        <RelativePath>%(_FalleryPublishResource.RecursiveDir)%(_FalleryPublishResource.Filename)%(_FalleryPublishResource.Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="ValidateFalleryPublishedResources" AfterTargets="Publish">
+    <Error Condition="!Exists('$(PublishDir)$(AssemblyName).pri')" Text="Published WinUI resource index is missing: $(AssemblyName).pri" />
+    <Error Condition="!Exists('$(PublishDir)%(_FalleryExpectedXbf.RelativeDir)%(_FalleryExpectedXbf.Filename).xbf')"
+           Text="Published compiled XAML is missing: %(_FalleryExpectedXbf.Identity)" />
   </Target>
 
   <ItemGroup>

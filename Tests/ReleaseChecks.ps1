@@ -38,3 +38,60 @@ foreach ($invalid in $invalidEntries) {
 $version = @($project.Project.PropertyGroup.Version | Where-Object { $_ })[0].InnerText
 $null = & $extract -Version $version
 Write-Host 'Release notes checks passed: version isolation, references, invalid entries, and current project version.'
+
+# 直接执行生产项目的 MSBuild 资源目标，不编译应用；隔离夹具覆盖 publish 漏资源的回归。
+$resourceRoot = Join-Path $testRoot 'resources'
+$buildDirectory = Join-Path $resourceRoot 'build'
+$publishDirectory = Join-Path $resourceRoot 'publish'
+$resourcePaths = @('App.xbf', 'Views/MainWindow/MainWindow.xbf', 'Controls/MediaTile.xbf', 'Themes/Icons.xbf')
+foreach ($relativePath in $resourcePaths) {
+    $resourcePath = Join-Path $buildDirectory $relativePath
+    New-Item -ItemType Directory -Path (Split-Path -Parent $resourcePath) -Force | Out-Null
+    "fixture:$relativePath" | Set-Content -LiteralPath $resourcePath
+}
+$resourceTargets = @($project.Project.Target | Where-Object { $_.Name -in 'IncludeFalleryPublishResources', 'ValidateFalleryPublishedResources' })
+if ($resourceTargets.Count -ne 2) { throw 'Both production publish resource targets must be present.' }
+$fixtureProject = Join-Path $resourceRoot 'PublishResources.proj'
+$fixtureXml = @'
+<Project>
+  <PropertyGroup>
+    <TargetDir>$(MSBuildThisFileDirectory)build/</TargetDir>
+    <PublishDir>$(MSBuildThisFileDirectory)publish/</PublishDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ApplicationDefinition Include="App.xaml" />
+    <Page Include="Views/MainWindow/MainWindow.xaml;Controls/MediaTile.xaml;Themes/Icons.xaml" />
+  </ItemGroup>
+  <Target Name="ComputeFilesToPublish" />
+  <Target Name="Publish" DependsOnTargets="ComputeFilesToPublish">
+    <Copy SourceFiles="@(ResolvedFileToPublish)" DestinationFiles="@(ResolvedFileToPublish->'$(PublishDir)%(RelativePath)')" />
+  </Target>
+  RESOURCE_TARGETS
+</Project>
+'@
+$fixtureXml.Replace('RESOURCE_TARGETS', ($resourceTargets.OuterXml -join "`n")) | Set-Content -LiteralPath $fixtureProject
+function Invoke-ResourceFixture([string]$AssemblyName, [string]$ExpectedError) {
+    $result = & dotnet msbuild $fixtureProject -nologo -v:minimal -t:Publish "-p:AssemblyName=$AssemblyName" 2>&1
+    $code = $LASTEXITCODE
+    if ($ExpectedError) {
+        if ($code -eq 0 -or ($result -join "`n") -notmatch [regex]::Escape($ExpectedError)) {
+            throw "Expected resource failure '$ExpectedError', got exit ${code}: $result"
+        }
+    }
+    elseif ($code -ne 0) { throw "Resource publish fixture failed: $result" }
+}
+foreach ($assemblyName in @('Fallery', 'Fallery.Preview')) {
+    'fixture:pri' | Set-Content -LiteralPath (Join-Path $buildDirectory "$assemblyName.pri")
+    Invoke-ResourceFixture $assemblyName
+    foreach ($relativePath in @($resourcePaths) + @("$assemblyName.pri")) {
+        $sourceHash = (Get-FileHash -LiteralPath (Join-Path $buildDirectory $relativePath)).Hash
+        $publishedHash = (Get-FileHash -LiteralPath (Join-Path $publishDirectory $relativePath)).Hash
+        if ($sourceHash -ne $publishedHash) { throw "Published resource differs: $relativePath" }
+    }
+}
+Invoke-ResourceFixture 'MissingIndex' 'Missing WinUI resource index'
+Remove-Item -LiteralPath (Join-Path $buildDirectory 'Views/MainWindow/MainWindow.xbf')
+Invoke-ResourceFixture 'Fallery' 'Missing compiled XAML'
+# 最后一项预期失败不能作为整个检查脚本的退出码传给 GitHub Actions。
+$global:LASTEXITCODE = 0
+Write-Host 'Publish resource checks passed: stable/preview PRI, nested XBF paths and bytes, missing index, and missing main window.'
