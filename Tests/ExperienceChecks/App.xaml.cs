@@ -35,6 +35,13 @@ public partial class App : Application
                 if (checks % 25 == 0) File.AppendAllText(report, $"\nCHECKPOINT {checks}: {message}");
             }
             var workspace = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../.."));
+            if (Environment.GetEnvironmentVariable("FALLERY_RELEASE_NOTES_PREVIEW") == "1")
+            {
+                await ShowReleaseNotesPreviewAsync(workspace);
+                File.AppendAllText(report, "\nPREVIEW CLOSED: interactive release notes preview; not an automated acceptance result.");
+                Exit();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("FALLERY_README_SCREENSHOTS") == "1")
             {
                 await CaptureReadmeScreenshotsAsync(workspace, report);

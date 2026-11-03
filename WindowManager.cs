@@ -5,6 +5,7 @@ public sealed class WindowManager(Func<string?, MainWindow>? factory = null, boo
 {
     private readonly HashSet<MainWindow> _windows = [];
     public IReadOnlyCollection<MainWindow> Windows => _windows;
+    public event Action? AllWindowsClosed;
 
     public MainWindow OpenWindow(string? path)
     {
@@ -15,6 +16,7 @@ public sealed class WindowManager(Func<string?, MainWindow>? factory = null, boo
         {
             window.NewWindowRequested -= OpenRequestedWindow;
             _windows.Remove(window);
+            if (_windows.Count == 0) AllWindowsClosed?.Invoke();
         };
         if (activateWindows) window.ActivateFromRedirect(null);
         return window;

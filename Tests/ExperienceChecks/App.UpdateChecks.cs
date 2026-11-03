@@ -1,7 +1,9 @@
 using System.Reflection;
 using Fallery.Services;
+using Fallery.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Automation;
 
 namespace Fallery.ExperienceChecks;
 
@@ -20,6 +22,22 @@ public partial class App
         Check(section.Children.OfType<TextBlock>().Any(text => text.Text.Contains("Fallery.Dev")), "设置显示隔离后的开发数据目录");
         Check(section.Children.OfType<StackPanel>().SelectMany(panel => panel.Children).OfType<Button>()
             .Any(button => Equals(button.Content, "检查更新") && !button.IsEnabled), "开发版禁用更新请求");
+        Check(((InfoBadge)root.FindName("SettingsUpdateDot")).Visibility == Visibility.Collapsed, "开发版设置入口不误报更新提示");
+        var settings = (ContentDialog)Call("BuildSettingsDialog")!;
+        var appTab = (TabViewItem)((TabView)settings.Content).TabItems[2];
+        var appHeader = (StackPanel)appTab.Header;
+        Check(appHeader.Children.OfType<InfoBadge>().Single().Visibility == Visibility.Collapsed, "无新版时应用标签不显示提示点");
+        var pendingService = new AppUpdateService(new BadgePreviewBackend(new("0.2.0", "", new object()), pending: true));
+        var firstOwner = new Button(); var firstBadge = new InfoBadge();
+        var secondOwner = new TabViewItem(); var secondBadge = new InfoBadge();
+        UpdateIndicator.Attach(firstOwner, firstBadge, "Settings", pendingService);
+        UpdateIndicator.Attach(secondOwner, secondBadge, "SettingsAppTab", pendingService);
+        Check(firstBadge.Visibility == Visibility.Visible && secondBadge.Visibility == Visibility.Visible, "待重启更新同步显示设置和应用两个提示点");
+        Check(firstBadge.Value == -1 && firstBadge.IconSource is null, "更新提示使用点状原生徽标");
+        Check(AutomationProperties.GetName(firstOwner) == "设置，有新版本可用", "设置提示点具有可读的无障碍说明");
+        AppText.SetLanguage("en-US");
+        Check(AutomationProperties.GetName(secondOwner) == "App, update available", "更新提示及标签无障碍说明即时切换英文");
+        AppText.SetLanguage("zh-CN");
         Check((bool)Call("CanPrepareUpdate", true)!, "空闲窗口允许准备更新");
         foreach (string field in new[] { "_pasting", "_deleting", "_pickingFolder", "_closing" })
         {

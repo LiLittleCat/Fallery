@@ -43,6 +43,13 @@ public partial class App
         var tile = new MediaTile();
         tile.Bind(new MediaItem(Path.Combine(Path.GetTempPath(), "设置"), MediaKind.Folder));
         var player = new MouseSeekPlayer { IsMuted = true, Volume = 0, Position = TimeSpan.FromSeconds(23) };
+        var releaseNotes = new ReleaseNotesView();
+        releaseNotes.SetNotes(new("0.2.0", "<!-- fallery-notes:en-US -->\n### Fixed\n- English update\n<!-- /fallery-notes -->\n<!-- fallery-notes:zh-CN -->\n### 修复\n- 中文更新\n<!-- /fallery-notes -->", new object()));
+        string NotesText() => string.Join(" ", releaseNotes.Children.OfType<RichTextBlock>()
+            .Concat(releaseNotes.Children.OfType<Grid>().SelectMany(row => row.Children.OfType<RichTextBlock>()))
+            .SelectMany(text => text.Blocks.OfType<Microsoft.UI.Xaml.Documents.Paragraph>())
+            .SelectMany(paragraph => paragraph.Inlines.OfType<Microsoft.UI.Xaml.Documents.Run>()).Select(run => run.Text));
+        Check(NotesText() == "修复 中文更新", "Release notes render native headings and list text in Chinese");
         player.Play();
         typeof(MainWindow).GetField("_videoPlayer", flags)!.SetValue(window, player);
         MainWindow? other = null;
@@ -64,12 +71,14 @@ public partial class App
             Check(!discardedControl.TryGetTarget(out _), "Localization must not retain discarded controls");
             language.SelectedIndex = 1;
             Check(AppText.Language == "en-US", "Setting switches language immediately");
+            Check(NotesText() == "Fixed English update", "Existing release notes switch language after GC without another update check");
             Check((string)dialog.Title == "Settings" && dialog.CloseButtonText == "Cancel", "Open settings dialog updates");
             Check((string)language.Header == "Language", "Language setting label updates");
             Check(((TextBlock)((StackPanel)content.Children[2]).Children[1]).Text == AppText.Get("LowerValuesAreMoreTransparentIsFullyOpaque"), "Opacity hint updates after GC");
             Check((string)((Slider)content.Children[6]).Header == "Thumbnail size", "Thumbnail size header updates after GC");
             Check(((TextBlock)((StackPanel)Page(2).Children[0]).Children[0]).Text == "Context menu and Open with", "Association heading updates after GC");
             Check((string)((TabViewItem)tabs.TabItems[1]).Header == "Folders", "Settings tab headers update live");
+            Check(((StackPanel)((TabViewItem)tabs.TabItems[2]).Header).Children.OfType<TextBlock>().Single().Text == "App", "App tab with update indicator switches language");
             settingsScroll.Measure(new Windows.Foundation.Size(700, 500));
             Check(Math.Abs(settingsScroll.DesiredSize.Width - chineseWidth) < 0.1, "Settings width must not depend on language");
             Check(((TextBlock)tile.FindName("ListType")).Text == "Folder", "Existing list item type updates");
@@ -97,6 +106,7 @@ public partial class App
             AppText.SetLanguage("zh-CN");
             Check(fileLabel.Text == "设置.jpg", "Reused controls must not translate filenames");
             Check(((RadioMenuFlyoutItem)root.FindName("SortNameItem")).Text == "名称" && (string)dialog.Title == "设置", "Switching back restores Chinese");
+            Check(NotesText() == "修复 中文更新", "Release notes restore Chinese on language rollback");
             Check(theme.SelectedIndex == themeIndex && mode.SelectedIndex == modeIndex, "Round-trip preserves other settings");
             Check((new AppSettings { Language = "unsupported" }).Normalize().Language == "zh-CN", "Invalid saved language falls back");
         }

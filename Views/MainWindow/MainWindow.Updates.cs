@@ -14,7 +14,7 @@ public sealed partial class MainWindow
         panel.Children.Add(LiveText.Set(new TextBlock { Text = AppText.Get("VersionAndUpdates"), Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] }, "Text", localized => localized.Text = AppText.Get("VersionAndUpdates")));
         panel.Children.Add(new TextBlock { Text = $"{AppIdentity.DisplayName} {AppIdentity.Version}", IsTextSelectionEnabled = true });
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 400, FontSize = 12 };
-        var notes = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 400, MaxLines = 8, IsTextSelectionEnabled = true };
+        var notes = new ReleaseNotesView();
         var progress = new ProgressBar { Minimum = 0, Maximum = 100 };
         var action = new Button();
         var cancel = LiveText.Set(new Button { Content = AppText.Get("CancelDownload") }, "Content", localized => localized.Content = AppText.Get("CancelDownload"));
@@ -27,8 +27,7 @@ public sealed partial class MainWindow
             if (_closed) return;
             var value = service.Status;
             LiveText.Set(status, "Text", localized => localized.Text = service.Status.DisplayMessage);
-            LiveText.SetOnce(notes, "Text", localized => localized.Text = value.Release?.Notes ?? "");
-            notes.Visibility = string.IsNullOrWhiteSpace(notes.Text) ? Visibility.Collapsed : Visibility.Visible;
+            notes.SetNotes(value.Release);
             progress.Visibility = value.State is AppUpdateState.Checking or AppUpdateState.Downloading ? Visibility.Visible : Visibility.Collapsed;
             progress.IsIndeterminate = value.State == AppUpdateState.Checking;
             progress.Value = value.Progress;

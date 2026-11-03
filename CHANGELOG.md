@@ -6,6 +6,18 @@ All notable changes to Fallery are documented here, following
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-04
+
+### Added
+
+- Check for updates automatically after startup and periodically while running, with synchronized notification dots on Settings and the App tab; downloads and installation remain manual.
+
+### Changed
+
+- Render complete in-app release notes with native Markdown formatting and live language switching.
+- Generate bilingual release notes from English and Chinese changelogs, validate missing translations, and include Chinese translations for legacy release notes.
+- Add an interactive release notes preview and keep the WinUI test host's application resources distinct from the main app.
+
 ## [0.1.2] - 2026-11-03
 
 ### Fixed
@@ -48,7 +60,8 @@ All notable changes to Fallery are documented here, following
 
 - Core checks now verify basic information fallback on Windows systems without a WebP property handler.
 
-[Unreleased]: https://github.com/LiLittleCat/Fallery/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/LiLittleCat/Fallery/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/LiLittleCat/Fallery/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/LiLittleCat/Fallery/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LiLittleCat/Fallery/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/LiLittleCat/Fallery/releases/tag/v0.1.0

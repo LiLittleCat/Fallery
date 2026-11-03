@@ -42,6 +42,7 @@ public sealed partial class MainWindow : Window
         if (settingsStore is not null) _settingsStore = settingsStore;
         _startupPath = startupPath;
         InitializeComponent();
+        UpdateIndicator.Attach(SettingsButton, SettingsUpdateDot, "Settings", VelopackUpdates.Shared);
         Title = AppTitleBar.Title = AppIdentity.DisplayName;
         _openWindowCount++;
         // Win10 不支持 Mica，换成系统亚克力，避免透明外框露出黑底。

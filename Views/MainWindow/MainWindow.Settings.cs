@@ -153,8 +153,19 @@ public sealed partial class MainWindow
             page.Margin = new Thickness(0, 12, 24, 4);
             var scroll = new ScrollViewer { Content = page, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalScrollMode = ScrollMode.Disabled };
-            tabs.TabItems.Add(LiveText.Set(new TabViewItem { Content = scroll, IsClosable = false },
-                "Header", control => control.Header = AppText.Get(key)));
+            var tab = new TabViewItem { Content = scroll, IsClosable = false };
+            if (key == "SettingsAppTab")
+            {
+                var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+                header.Children.Add(LiveText.Set(new TextBlock(), "Text", text => text.Text = AppText.Get(key)));
+                var badge = new InfoBadge { Name = "SettingsAppUpdateDot", Width = 8, Height = 8, MinWidth = 8, MinHeight = 8,
+                    IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Center };
+                header.Children.Add(badge);
+                tab.Header = header;
+                UpdateIndicator.Attach(tab, badge, key, VelopackUpdates.Shared);
+            }
+            else LiveText.Set(tab, "Header", control => control.Header = AppText.Get(key));
+            tabs.TabItems.Add(tab);
         }
         var dialog = LiveText.Set(LiveText.Set(LiveText.Set(new ContentDialog
         {

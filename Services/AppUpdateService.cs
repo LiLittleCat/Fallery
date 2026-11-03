@@ -7,6 +7,7 @@ public sealed record AppUpdateStatus(AppUpdateState State, string Message, int P
 {
     public string Language { get; } = AppText.Language;
     public string DisplayMessage => AppText.TranslateStatus(Message, Language);
+    public bool HasUpdate => Release is not null && State is AppUpdateState.Available or AppUpdateState.Downloading or AppUpdateState.Ready or AppUpdateState.Applying;
 }
 
 public interface IAppUpdateBackend
@@ -40,21 +41,29 @@ public sealed class AppUpdateService(IAppUpdateBackend? backend, string disabled
         catch (ObjectDisposedException) { }
     }
 
-    public async Task CheckAsync()
+    public Task CheckAsync() => CheckCoreAsync(background: false, CancellationToken.None);
+
+    public Task CheckInBackgroundAsync(CancellationToken ct) => CheckCoreAsync(background: true, ct);
+
+    private async Task CheckCoreAsync(bool background, CancellationToken ct)
     {
         if (backend is null || !await _operation.WaitAsync(0)) return;
+        var previous = Status;
         try
         {
-            if (Status.State == AppUpdateState.Ready) return;
-            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            // 已发现/正在下载的版本属于用户当前更新操作，定时检查不能替换它。
+            if (Status.State is AppUpdateState.Ready or AppUpdateState.Applying || (background && Status.HasUpdate)) return;
+            using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cancellation.CancelAfter(TimeSpan.FromSeconds(45));
             _cancellation = cancellation;
             Set(new(AppUpdateState.Checking, AppText.Get("CheckingForUpdates")));
             var release = await backend.CheckAsync(cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
             Set(release is null ? new(AppUpdateState.Latest, AppText.Get("YouAreUpToDate"))
                 : new(AppUpdateState.Available, AppText.Format("VersionIsAvailable", release.Version), Release: release));
         }
-        catch (OperationCanceledException) { Set(new(AppUpdateState.Idle, AppText.Get("UpdateCheckCanceledOrTimedOutYouCanTry"))); }
-        catch (Exception ex) { Set(new(AppUpdateState.Failed, DescribeError(ex))); }
+        catch (OperationCanceledException) { Set(background ? previous : new(AppUpdateState.Idle, AppText.Get("UpdateCheckCanceledOrTimedOutYouCanTry"))); }
+        catch (Exception ex) { Set(background ? previous : new(AppUpdateState.Failed, DescribeError(ex))); }
         finally { _cancellation = null; _operation.Release(); }
     }
 

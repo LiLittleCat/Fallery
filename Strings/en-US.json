@@ -317,7 +317,8 @@
   "CouldNotLoadPreview": "Could not load preview",
   "Unknown": "Unknown",
   "UpdateDownloadedYouCanRestartToInstallIt": "Update downloaded. You can restart to install it.",
-  "CheckManuallyForANewVersion": "Check manually for a new version.",
+  "CheckManuallyForANewVersion": "Updates are checked automatically in the background. You can also check manually.",
+  "UpdateAvailableAt": "{0}, update available",
   "CheckingForUpdates": "Checking for updates…",
   "YouAreUpToDate": "You are up to date.",
   "VersionIsAvailable": "Version {0} is available.",
@@ -532,5 +533,13 @@
   "CollapseDetails": "Collapse details",
   "CollapsePlaylist": "Collapse playlist",
   "LoadingPreview": "Loading preview…",
-  "Language": "Language"
+  "Language": "Language",
+  "ReleaseNotesTranslationUnavailable": "Release notes are not available in this language. Showing the original text.",
+  "ReleaseNotesPreviewTitle": "Fallery — Release notes preview",
+  "ReleaseNotesAdded": "Added",
+  "ReleaseNotesChanged": "Changed",
+  "ReleaseNotesDeprecated": "Deprecated",
+  "ReleaseNotesRemoved": "Removed",
+  "ReleaseNotesFixed": "Fixed",
+  "ReleaseNotesSecurity": "Security"
 }

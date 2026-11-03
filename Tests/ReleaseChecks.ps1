@@ -4,6 +4,7 @@ $extract = Join-Path $repoRoot 'tools/Get-ReleaseNotes.ps1'
 $testRoot = Join-Path $repoRoot ('work/release-checks/' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
 $fixture = Join-Path $testRoot 'CHANGELOG.md'
+$chineseFixture = Join-Path $testRoot 'CHANGELOG.zh-CN.md'
 $content = @'
 # Changelog
 ## [Unreleased]
@@ -18,10 +19,21 @@ $content = @'
 [guide]: https://example.com/docs
 '@
 $content | Set-Content -LiteralPath $fixture -Encoding utf8
+$content.Replace('Selected fix', '选中版本的修复') | Set-Content -LiteralPath $chineseFixture -Encoding utf8
 $notes = & $extract -Version 0.2.0 -ChangelogPath $fixture
 if ($notes -notmatch 'Selected fix' -or $notes -match 'Future feature|Older feature|## \[Unreleased\]' -or $notes -notmatch '\[guide\]: https://example.com/docs') {
     throw 'Release notes must include only the selected version and preserve link definitions.'
 }
+if ($notes -notmatch '<!-- fallery-notes:en-US -->' -or $notes -notmatch '<!-- fallery-notes:zh-CN -->' -or $notes -notmatch '### 修复' -or $notes -notmatch '选中版本的修复') {
+    throw 'Release notes must contain both language sections and localized category headings.'
+}
+foreach ($invalidTranslation in @('', $content.Replace('[0.2.0]', '[0.3.0]'), $content.Replace('2026-11-03', '2026-11-04'))) {
+    $invalidTranslation | Set-Content -LiteralPath $chineseFixture -Encoding utf8
+    $rejected = $false
+    try { $null = & $extract -Version 0.2.0 -ChangelogPath $fixture } catch { $rejected = $true }
+    if (!$rejected) { throw 'Missing translation content/version or a mismatched date must be rejected.' }
+}
+$content | Set-Content -LiteralPath $chineseFixture -Encoding utf8
 $invalidEntries = @(
     $content.Replace('[0.2.0]', '[0.3.0]')
     ($content + "`n## [0.2.0] - 2026-11-04`n### Fixed`n- Duplicate.")

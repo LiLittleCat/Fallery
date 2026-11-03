@@ -11,6 +11,9 @@
     <Compile Include="../../Services/AppText.cs" Link="Services/AppText.cs" />
     <Compile Include="../../Services/AppIdentity.cs" Link="AppIdentity.cs" />
     <Compile Include="../../Services/AppUpdateService.cs" Link="AppUpdateService.cs" />
+    <Compile Include="../../Services/AutomaticUpdateChecker.cs" Link="AutomaticUpdateChecker.cs" />
+    <Compile Include="../../Services/ReleaseNotesDocument.cs" Link="ReleaseNotesDocument.cs" />
+    <EmbeddedResource Include="../../CHANGELOG.zh-CN.md" LogicalName="Fallery.ReleaseNotes.zh-CN.md" WithCulture="false" />
     <Compile Include="../../Services/VelopackUpdateBackend.cs" Link="VelopackUpdateBackend.cs" />
     <Compile Include="../../Services/GithubStableUpdateSource.cs" Link="GithubStableUpdateSource.cs" />
     <Compile Include="../../Services/UpdateDataBackup.cs" Link="UpdateDataBackup.cs" />

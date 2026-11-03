@@ -10,12 +10,14 @@ public partial class App : Application
     private readonly WindowManager _windows = new();
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly string? _startupPath;
+    private AutomaticUpdateChecker? _updateChecker;
     internal bool IsUpdating { get; private set; }
     public static new App? Current => Application.Current as App;
 
     public App(string? startupPath = null)
     {
         _startupPath = startupPath;
+        _windows.AllWindowsClosed += () => _updateChecker?.Stop();
         UnhandledException += (_, e) =>
         {
             try
@@ -33,6 +35,8 @@ public partial class App : Application
     {
         OpenWindow(_startupPath);
         Program.DeliverPendingActivations(this);
+        _updateChecker = new(VelopackUpdates.Shared);
+        _updateChecker.Start();
     }
 
     internal MainWindow OpenWindow(string? path) => _windows.OpenWindow(path);
