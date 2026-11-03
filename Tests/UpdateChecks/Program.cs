@@ -19,7 +19,7 @@ async Task Reject(Func<Task> action, string description)
     throw new InvalidOperationException(description);
 }
 
-const string bilingualNotes = """
+string bilingualNotes = """
     # Fallery 0.2.0
     ## English
     <!-- fallery-notes:en-US -->
@@ -33,7 +33,7 @@ const string bilingualNotes = """
     - **更新**已修复，查看[说明][guide]。
     [guide]: https://example.com/zh
     <!-- /fallery-notes -->
-    """;
+    """.ReplaceLineEndings("\r\n");
 var chineseNotes = ReleaseNotesDocument.Select(bilingualNotes, "0.2.0", "zh-CN");
 var englishNotes = ReleaseNotesDocument.Select(bilingualNotes, "0.2.0", "en-US");
 Check(chineseNotes.Markdown.Contains("更新") && !chineseNotes.Markdown.Contains("Update") && !chineseNotes.IsFallback, "中文仅选择中文说明");
@@ -216,7 +216,9 @@ try
     Check(release!.Notes == bilingualNotes, "SDK 清单和后端保留双语 Markdown 标记与正文");
     await backend.DownloadAsync(release!, _ => { }, CancellationToken.None);
     Check(File.Exists(Path.Combine(packages, packageName)) && backend.Pending?.Version == "0.2.0", "真实 SDK 下载、校验并标记待重启");
-    Check(ReleaseNotesDocument.Select(backend.Pending!.Notes, "0.2.0", "zh-CN").Markdown == chineseNotes.Markdown, "下载后从本地包恢复待重启状态仍保留中文说明");
+    // XML 读取会把 CRLF 规范化为 LF；比较正文时忽略这一差异，显式 CRLF 夹具避免受检出配置影响。
+    Check(ReleaseNotesDocument.Select(backend.Pending!.Notes, "0.2.0", "zh-CN").Markdown.ReplaceLineEndings("\n")
+        == chineseNotes.Markdown.ReplaceLineEndings("\n"), "下载后从本地包恢复待重启状态仍保留中文说明");
     await Reject(async () => await new VelopackUpdateBackend(manager, "Fallery.Preview.App").CheckAsync(CancellationToken.None), "拒绝其他产品的更新包");
     var newer = new UpdateManager(new SimpleFileSource(new DirectoryInfo(feed)), new UpdateOptions { ExplicitChannel = "stable-win-x64", AllowVersionDowngrade = false },
         new TestVelopackLocator("Fallery.App", "0.3.0", packages));

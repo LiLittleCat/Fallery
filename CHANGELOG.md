@@ -18,6 +18,10 @@ All notable changes to Fallery are documented here, following
 - Generate bilingual release notes from English and Chinese changelogs, validate missing translations, and include Chinese translations for legacy release notes.
 - Add an interactive release notes preview and keep the WinUI test host's application resources distinct from the main app.
 
+### Fixed
+
+- Make downloaded release-note checks consistent across LF and CRLF checkouts.
+
 ## [0.1.2] - 2026-11-03
 
 ### Fixed
