@@ -14,6 +14,8 @@
 
 ## 安装和更新流程
 
+`dotnet run --project Tests/UpdateChecks/UpdateChecks.csproj` 还验证正式版的公开 latest 清单、架构路径、版本固定下载、文件名越界拒绝、缺失清单失败以及原有 SDK 哈希校验。追加 `-- --online` 可在隔离安装信息下匿名检查真实公开仓库的新版本；仅检查，不下载更新包或安装、不接触用户配置，默认 CI 不依赖在线请求。
+
 `./Tests/ReleaseChecks.ps1` 还从生产项目加载资源发布目标，在隔离目录执行 MSBuild 夹具（不编译应用），检查正式/预览 PRI、四个 XBF 的相对路径及内容哈希，并确认缺失 PRI 或嵌套主窗口 XBF 时失败。实际 publish 完成后也会检查资源存在，避免安装包遗漏主窗口导致启动崩溃；仍须验收新安装后的桌面/开始菜单启动。
 
 `./Tests/ReleaseChecks.ps1` 检查 Changelog 的当前项目版本、单版本提取、链接保留，以及缺失/重复/空版本条目的拒绝行为；CI 和发版工作流均运行此检查。

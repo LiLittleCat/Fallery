@@ -6,6 +6,12 @@ All notable changes to Fallery are documented here, following
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-03
+
+### Fixed
+
+- Check stable GitHub updates through the public release feed instead of the rate-limited API, and pin package downloads to the checked version's release tag.
+
 ## [0.1.1] - 2026-11-03
 
 ### Changed
@@ -42,6 +48,7 @@ All notable changes to Fallery are documented here, following
 
 - Core checks now verify basic information fallback on Windows systems without a WebP property handler.
 
-[Unreleased]: https://github.com/LiLittleCat/Fallery/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/LiLittleCat/Fallery/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/LiLittleCat/Fallery/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LiLittleCat/Fallery/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/LiLittleCat/Fallery/releases/tag/v0.1.0

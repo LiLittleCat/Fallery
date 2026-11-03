@@ -5,7 +5,7 @@ namespace Fallery.Services;
 
 public sealed class VelopackUpdateBackend(UpdateManager manager, string packageId) : IAppUpdateBackend
 {
-    public static IUpdateSource CreateSource(string source, bool preview)
+    public static IUpdateSource CreateSource(string source, bool preview, IFileDownloader? downloader = null)
     {
         if (!Uri.TryCreate(source, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps
             || !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
@@ -13,9 +13,12 @@ public sealed class VelopackUpdateBackend(UpdateManager manager, string packageI
         if (uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
         {
             if (uri.AbsolutePath.Trim('/').Split('/').Length != 2) throw new ArgumentException(AppText.Get("TheGitHubUpdateSourceMustBeARepositoryURL"));
-            return new GithubSource(source.TrimEnd('/'), null, preview);
+            // 正式版通过公开发行清单检查，不消耗按出口 IP 计算的匿名 API 配额。
+            // latest 不包含预览版，预览通道仍使用 GitHub 的发行发现逻辑。
+            return preview ? new GithubSource(source.TrimEnd('/'), null, true, downloader)
+                : new GithubStableUpdateSource(source, downloader);
         }
-        return new SimpleWebSource(source.TrimEnd('/'));
+        return new SimpleWebSource(source.TrimEnd('/'), downloader);
     }
 
     private AppUpdateRelease Wrap(VelopackAsset asset, object payload)

@@ -26,7 +26,10 @@ await disabled.CheckAsync(); await disabled.DownloadAsync();
 Check(disabled.Status.State == AppUpdateState.Disabled, "开发版不能访问更新源");
 foreach (string source in new[] { "http://example.com", "https://user:secret@example.com", "https://example.com/?token=secret", "file:///C:/updates", "https://github.com/user/repo/releases" })
     await Reject(() => Task.FromResult(VelopackUpdateBackend.CreateSource(source, false)), "拒绝不安全或不正确的更新源");
-Check(VelopackUpdateBackend.CreateSource("https://github.com/LiLittleCat/Fallery", false) is GithubSource, "仓库首页使用无令牌 GitHub 更新源");
+Check(VelopackUpdateBackend.CreateSource("https://github.com/LiLittleCat/Fallery", false) is GithubStableUpdateSource,
+    "正式仓库使用公开发行清单，不依赖 GitHub API 配额");
+Check(VelopackUpdateBackend.CreateSource("https://github.com/LiLittleCat/Fallery", true) is GithubSource,
+    "预览版保留 GitHub 预览发行发现，不使用仅含正式版的 latest");
 Check(VelopackUpdateBackend.CreateSource("https://example.com/releases", false) is SimpleWebSource, "支持未来切换 HTTPS 静态更新源");
 
 var fake = new FakeBackend();
@@ -124,9 +127,80 @@ try
     await File.AppendAllTextAsync(package, "tampered");
     await Reject(() => backend.DownloadAsync(release!, _ => { }, CancellationToken.None), "校验失败不能接受篡改的包");
     Check(!File.Exists(Path.Combine(packages, packageName)), "坏包不能进入可安装目录");
+
+    var downloader = new FeedDownloader(await File.ReadAllTextAsync(feedFile), bytes);
+    string directPackages = Path.Combine(root, "direct-packages"); Directory.CreateDirectory(directPackages);
+    var directSource = VelopackUpdateBackend.CreateSource("https://github.com/LiLittleCat/Fallery/", false, downloader);
+    var directManager = new UpdateManager(directSource,
+        new UpdateOptions { ExplicitChannel = "stable-win-x64", AllowVersionDowngrade = false },
+        new TestVelopackLocator("Fallery.App", "0.1.0", directPackages));
+    var directBackend = new VelopackUpdateBackend(directManager, "Fallery.App");
+    var directRelease = await directBackend.CheckAsync(CancellationToken.None);
+    Check(directRelease?.Version == "0.2.0", "公开清单可通过真实 SDK 发现更新");
+    Check(new Uri(downloader.Requests.Single()).AbsolutePath == "/LiLittleCat/Fallery/releases/latest/download/releases.stable-win-x64.json",
+        "正式版仅请求架构对应的 latest 清单");
+    // 模拟检查后又发布了新版本，下载仍须使用原先已校验的版本标签。
+    downloader.Feed = downloader.Feed.Replace("0.2.0", "0.3.0");
+    await directBackend.DownloadAsync(directRelease!, _ => { }, CancellationToken.None);
+    Check(downloader.Requests.Last() == "https://github.com/LiLittleCat/Fallery/releases/download/v0.2.0/" + packageName,
+        "下载固定到检查时的版本，不受 latest 变化影响");
+    Check(directBackend.Pending?.Version == "0.2.0", "直接下载仍通过 SDK 哈希校验并识别待安装版本");
+    Check(downloader.Requests.All(url => new Uri(url).Host == "github.com") && !downloader.UsedAuthorization,
+        "正式版检查与下载都不访问 API 或携带令牌");
+    foreach (string fileName in new[] { "https://other.example/package.nupkg", "../package.nupkg", "..\\package.nupkg", "%2e%2e%2fpackage.nupkg" })
+    {
+        var invalid = VelopackAssetFeed.FromJson(JsonSerializer.Serialize(new { Assets = new[] { new {
+            PackageId = "Fallery.App", Version = "0.2.0", Type = "Full", FileName = fileName } } })).Assets.Single();
+        await Reject(() => directSource.DownloadReleaseEntry(null!, invalid, Path.Combine(root, "rejected.nupkg"), _ => { }, CancellationToken.None),
+            "清单文件名不能绕过固定版本下载地址");
+    }
+    downloader.Error = new HttpRequestException("404", null, System.Net.HttpStatusCode.NotFound);
+    await Reject(() => directBackend.CheckAsync(CancellationToken.None), "公开清单不可访问时不能返回已是最新");
+
+    if (args.Contains("--online"))
+    {
+        var online = new UpdateManager(VelopackUpdateBackend.CreateSource("https://github.com/LiLittleCat/Fallery", false),
+            new UpdateOptions { ExplicitChannel = "stable-win-x64", AllowVersionDowngrade = false },
+            new TestVelopackLocator("Fallery.App", "0.1.0", Path.Combine(root, "online-packages")));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        var onlineRelease = await new VelopackUpdateBackend(online, "Fallery.App").CheckAsync(timeout.Token);
+        Check(onlineRelease is not null, "真实匿名公开清单可发现比 0.1.0 更新的正式版");
+        Console.WriteLine($"ONLINE: found {onlineRelease!.Version}; no update package downloaded or installed.");
+    }
 }
 finally { Directory.Delete(root, recursive: true); }
 Console.WriteLine($"PASS: {checks} update checks (isolated files, no installer launched, no user registry changes)");
+
+sealed class FeedDownloader(string feed, byte[] package) : IFileDownloader
+{
+    public string Feed { get; set; } = feed;
+    public Exception? Error { get; set; }
+    public bool UsedAuthorization { get; private set; }
+    public List<string> Requests { get; } = [];
+    private void Record(string url, IDictionary<string, string>? headers)
+    {
+        Requests.Add(url);
+        UsedAuthorization |= headers?.Keys.Any(key => key.Equals("Authorization", StringComparison.OrdinalIgnoreCase)) == true;
+        if (Error is not null) throw Error;
+    }
+    public Task<string> DownloadString(string url, IDictionary<string, string>? headers = null, double timeout = 30)
+    {
+        Record(url, headers);
+        return Task.FromResult(Feed);
+    }
+    public Task<byte[]> DownloadBytes(string url, IDictionary<string, string>? headers = null, double timeout = 30)
+    {
+        Record(url, headers);
+        return Task.FromResult(System.Text.Encoding.UTF8.GetBytes(Feed));
+    }
+    public async Task DownloadFile(string url, string targetFile, Action<int>? progress = null,
+        IDictionary<string, string>? headers = null, double timeout = 30, CancellationToken cancelToken = default)
+    {
+        Record(url, headers);
+        await File.WriteAllBytesAsync(targetFile, package, cancelToken);
+        progress?.Invoke(100);
+    }
+}
 
 sealed class FakeBackend : IAppUpdateBackend
 {

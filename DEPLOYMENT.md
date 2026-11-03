@@ -12,7 +12,7 @@
 
 工作流位于 `.github/workflows/ci.yml` 与 `.github/workflows/release.yml`，仅发版最后一个 job 拥有 `contents: write`。使用 GitHub 自动提供的 token，不需要把私人 token 写入代码。版本号通过环境变量传给验证过的参数，不拼进 shell 脚本。
 
-客户端匿名读取公开仓库中已发布的 Releases，不需要用户提供 GitHub 凭据。未发布草稿不可用于更新；若仓库转为私有或网络受限，检查会失败，不会把 HTTP 404 解释为“已是最新”。不要把 token 打入安装包。
+正式客户端匿名读取公开仓库的 `releases/latest/download/releases.stable-win-<架构>.json`，不再通过 GitHub REST API 枚举发行版，避免共享出口的匿名 API 限流。下载固定到检查所得版本的 `releases/download/v<版本>/<包文件名>`，避免 latest 在检查后改变导致下载错版或 404；SDK 继续校验产品、版本和包哈希。预览版需要发现预发行版本，仍使用匿名 GitHub API，不使用只含正式发行的 latest。用户无需提供 GitHub 凭据，客户端不携带 token；仓库私有、清单缺失或网络失败仍报错，不能解释为“已是最新”。
 
 提交并推送后，在 Actions 页面确认远端工作流结果；普通推送不会创建发行版，发版需手动触发上述流程。
 
@@ -154,7 +154,7 @@ HKCU\Software\RegisteredApplications  （Fallery 值）
 
 2026-11-02 已正式发布 [v0.1.0](https://github.com/LiLittleCat/Fallery/releases/tag/v0.1.0)，标签对应 `77fded19f9a65f2a835d6eee426de2f80adf8981`。[普通 CI](https://github.com/LiLittleCat/Fallery/actions/runs/41470420772) 构建零警告、零错误，核心检查、35 项更新检查、2,485 项语言检查及发布说明检查通过；[发布工作流](https://github.com/LiLittleCat/Fallery/actions/runs/41470421599) 完成 x64/ARM64 构建和草稿上传。16 个资产的 GitHub SHA-256 与构建清单一致；远程读取两份便携包确认实际程序架构、MIT 与图标许可证。两个架构的 Setup 与更新 feed 均已匿名验证可访问。
 
-本次网络的匿名 GitHub REST API 达到共享出口限额，在线版本发现未完成端到端验收；直接下载与 feed 访问正常。客户端通过 GitHub API 发现版本，遇到限流需稍后重试或换正常网络，不应加入客户端令牌绕过。
+2026-11-02 的旧客户端网络验证曾遇到匿名 GitHub REST API 共享出口限流。2026-11-03 再次使用相同 SDK 复现 HTTP 403（rate limit exceeded），而公开 latest 清单正常返回 0.1.1；正式版源码已改为直接读取公开清单。0.1.0/0.1.1 安装包仍包含旧 API 检查逻辑，需要安装包含修复的新构建，不能仅靠重新发布清单修复旧程序。
 
 仍需验收：干净 Windows 机器安装；ARM64 实机运行；安装 N 版后从已发布 N+1 版完成检查→下载→确认→所有窗口退出→替换→重启，确认设置/续播和打开方式；取消/断网/保存失败重试；卸载后数据保留。按项目要求不使用 Computer Use，真实界面由用户手动检查。
 

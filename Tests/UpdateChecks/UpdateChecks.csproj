@@ -12,6 +12,7 @@
     <Compile Include="../../Services/AppIdentity.cs" Link="AppIdentity.cs" />
     <Compile Include="../../Services/AppUpdateService.cs" Link="AppUpdateService.cs" />
     <Compile Include="../../Services/VelopackUpdateBackend.cs" Link="VelopackUpdateBackend.cs" />
+    <Compile Include="../../Services/GithubStableUpdateSource.cs" Link="GithubStableUpdateSource.cs" />
     <Compile Include="../../Services/UpdateDataBackup.cs" Link="UpdateDataBackup.cs" />
   </ItemGroup>
 </Project>
