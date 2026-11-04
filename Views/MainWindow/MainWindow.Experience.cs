@@ -189,6 +189,12 @@ public sealed partial class MainWindow
         if (_allowClose) return;
         args.Cancel = true;
         if (_closing) return;
+        // 覆盖式查看器先返回当前目录；横排内嵌预览仍属于浏览界面。
+        if (ViewerState.IsOpen && (!IsFilmstrip || _presenterBeforeFullScreen is not null))
+        {
+            CloseViewer();
+            return;
+        }
         _closing = true;
         StopHoverPreview();
         _settingsDialog?.Hide();

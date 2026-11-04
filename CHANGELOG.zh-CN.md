@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-04
+
+### Changed
+
+- 增加查看器关闭及多窗口生命周期的隔离回归检查与人工验收步骤。
+
+### Fixed
+
+- 图片查看或视频播放时点击窗口关闭按钮，先返回当前目录而非退出应用，全屏播放同样适用。
+
 ## [0.1.3] - 2026-11-04
 
 ### Added
@@ -62,7 +72,8 @@
 
 - 核心检查覆盖缺少 Windows WebP 属性处理器时的基本信息回退行为。
 
-[Unreleased]: https://github.com/LiLittleCat/Fallery/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/LiLittleCat/Fallery/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/LiLittleCat/Fallery/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/LiLittleCat/Fallery/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/LiLittleCat/Fallery/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LiLittleCat/Fallery/compare/v0.1.0...v0.1.1

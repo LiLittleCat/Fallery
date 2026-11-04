@@ -80,6 +80,16 @@ public partial class App : Application
                 return;
             }
             checks += await RunVideoGestureChecksAsync(window);
+            if (Environment.GetEnvironmentVariable("FALLERY_WINDOW_CLOSE_CHECKS") == "1")
+            {
+                checks += await RunMultiWindowChecksAsync(workspace);
+                checks += await RunUpdateWindowChecksAsync(window);
+                File.AppendAllText(report, $"\nPASS: {checks} viewer close, multi-window, gesture and update checks (isolated settings, muted fake player)");
+                window.Close();
+                window = null;
+                Exit();
+                return;
+            }
             if (Environment.GetEnvironmentVariable("FALLERY_UPDATE_CHECKS") == "1")
             {
                 checks += await RunUpdateWindowChecksAsync(window);
